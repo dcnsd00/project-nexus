@@ -29,3 +29,16 @@ Import the archive through a Git-capable environment (for example GitHub Codespa
 - Latest supporting commits: CI `8766c09`, import helper `55e68a5`, Android guide `61895db`, security scan `3c40f3f`.
 
 The archive itself is still not committed to GitHub and the 514 source files have not yet been imported. The next action requires uploading the ZIP from Library into the Codespaces workspace and running the helper.
+
+
+## Corrected security-reviewed bundle (latest)
+- Replaced fixed wallet test passphrases with per-test random values.
+- Removed fixed local regtest RPC password; both local integration modules now require `NEXUS_REGTEST_RPC_PASSWORD`.
+- Corrected bundle SHA-256: `fafd5dd81fc0911cbb3e0c54aaa2dd6ef021010e60da31871eaa2f789a9ec55e`.
+- Corrected bundle path in Library: `/NEXUS/NEXUS_MASTER_0.10.25_SOURCE_IMPORT_BUNDLE(1).zip`.
+- Full-source compileall: PASS.
+- Targeted combined validation: **69 passed in 9.00s** (RCSC + wallet recovery tests).
+- Updated importer hash and Android guide: commits `f987921` and `48697e6`.
+- Security scan remediation record: commit `9bbb5df`.
+
+The corrected source archive is still NOT imported into GitHub. The next required action remains uploading this corrected ZIP to the Codespaces workspace and running the importer.
