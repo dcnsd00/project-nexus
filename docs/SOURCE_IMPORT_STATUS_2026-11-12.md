@@ -81,3 +81,20 @@ The latest archive is still not imported into GitHub; GitHub source CI has not y
 - Registry audit document: commit `5d06649`.
 
 The latest application source remains local/Library only. GitHub does not yet contain the 515 project files, and CI has not yet run the application's tests.
+
+
+## Runtime composition increment — 2026-11-12
+- Added `modules/nexus_runtime.py` as a local composition root over `LifecycleManager`.
+- Runtime currently registers Crypto Engine (critical), Math Intelligence, Provider Registry, and optional SHA-2 Research.
+- Adapters perform local import and read-only health probes. Startup does not launch miners, unlock wallets, contact providers, broadcast transactions, or collect blockchain data.
+- Added `tests/test_nexus_runtime.py`; corrected a stale version assertion to match `VERSION.json` (0.10.25).
+- Focused validation: **43 passed in 1.78s** (runtime + lifecycle manager + module registry + RCSC).
+- Full pytest run was attempted but exceeded the execution time limit; no full-suite pass is claimed.
+- Latest cumulative bundle: 519 project files + manifest (520 ZIP file entries).
+- SHA-256: `4d2dcf415c5f98f8c919f559fc98a38febb04708121c33a9643b1e19d5457e33`.
+- Library path: `/NEXUS/NEXUS_MASTER_0.10.25_SOURCE_IMPORT_BUNDLE_RUNTIME.zip`.
+- Patch: `/NEXUS/NEXUS_0.10.25_RUNTIME_INTEGRATION_FIX.zip`.
+- Changelog: `/NEXUS/CHANGELOG_RUNTIME_INTEGRATION_2026-11-12.txt`.
+- Import helper updated for the new archive hash and 520 ZIP entries; commit: `00e13691`.
+
+Integration boundary: Wallet, mining supervisor, DePIN fieldstation, and the separate PROJECT-NEXUS-LOCAL FastAPI app are not yet wired into this runtime. The source bundle is still not imported into GitHub; CI has not validated the application source.
