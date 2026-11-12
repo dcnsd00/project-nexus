@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ZIP_PATH="${1:-NEXUS_MASTER_0.10.25_SOURCE_IMPORT_BUNDLE.zip}"
+ZIP_PATH="${1:-NEXUS_MASTER_0.10.25_SOURCE_IMPORT_BUNDLE_WALLET_MINING.zip}"
 EXPECTED_SHA256="642c882557993a86db21583e8efaef359dd01f8f9b28440462ba8a723c924d50"
 EXPECTED_FILES=520
 DEST="application"
@@ -48,7 +48,7 @@ if [[ ! -f "$DEST/nexus_master.py" || ! -d "$DEST/tests" || ! -f "$DEST/VERSION.
   rm -rf "$DEST"
   exit 5
 fi
-echo "Source imported into $DEST/."
-echo "Review docs/SOURCE_IMPORT_SECURITY_SCAN_2026-11-12.md before pushing."
-echo "Next: python -m compileall -q $DEST && cd $DEST && python -m pytest -q --disable-warnings --maxfail=1"
-echo "Then inspect git status, commit on integration/import-0.10.25, and open a pull request."
+echo "Source imported into $DEST/; repository files outside that directory were not changed."
+echo "Next: python -m compileall -q $DEST"
+echo "Then: cd $DEST && python -m pip install -r requirements-dev.txt && python -m pytest -q --disable-warnings --maxfail=1"
+echo "Inspect git status and secret scan before committing. Do not commit the ZIP."
