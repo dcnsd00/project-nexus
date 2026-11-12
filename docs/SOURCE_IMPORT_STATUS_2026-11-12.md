@@ -67,3 +67,17 @@ The corrected source archive is still NOT imported into GitHub. The next require
 Architecture limitation: this change hardens the RCSC SQLite service only. The project does not yet have a verified shared database abstraction across every module, and the collection block update plus run-ledger record are still separate transactions. No multi-process stress or power-loss test was run.
 
 The latest archive is still not imported into GitHub; GitHub source CI has not yet executed.
+
+
+## NEXUS Module Registry implementation
+- Added `modules/module_registry.py` and integrated two endpoints in `nexus_master.py`.
+- `GET /api/nexus/module-registry` and `GET /api/nexus/module-registry/health`.
+- Actual local import of `nexus_master` and direct registry invocation succeeded.
+- Structural inventory: 10 modules; 8 show registered-route evidence; 2 are source-present without route registration; 0 declared source paths missing.
+- 4 critical modules show source and route evidence, but every module remains explicitly `operational_verified=false`.
+- Focused validation: 48 passed in 1.77s.
+- Latest bundle: 515 project files + manifest; SHA-256 `88ad6e728642b3a52b3a65905ee18e228b413e98e38b443050b05c2b2f157caf`.
+- Import helper and Android guide updated: commits `f082dd5`, `08c8d7b`.
+- Registry audit document: commit `5d06649`.
+
+The latest application source remains local/Library only. GitHub does not yet contain the 515 project files, and CI has not yet run the application's tests.
