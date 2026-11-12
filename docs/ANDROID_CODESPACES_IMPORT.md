@@ -6,8 +6,8 @@ This procedure imports the prepared source archive into a separate `application/
 
 - Open the repository: https://github.com/dcnsd00/project-nexus
 - Use GitHub in Chrome; if needed enable **Desktop site**.
-- The source archive is in ChatGPT Library → NEXUS: `NEXUS_MASTER_0.10.25_SOURCE_IMPORT_BUNDLE.zip`.
-- Expected SHA-256: `f4774e21854387f38152ae969a84b07d8dc2fec2ef21d120923bf82738ca1f7f`.
+- The source archive is in ChatGPT Library → NEXUS: `NEXUS_MASTER_0.10.25_SOURCE_IMPORT_BUNDLE(1).zip`.
+- Expected SHA-256: `fafd5dd81fc0911cbb3e0c54aaa2dd6ef021010e60da31871eaa2f789a9ec55e`.
 
 ## Create a Codespace
 
