@@ -6,15 +6,15 @@ This procedure imports the prepared source archive into a separate `application/
 
 - Open the repository: https://github.com/dcnsd00/project-nexus
 - Use GitHub in Chrome; if needed enable **Desktop site**.
-- The source archive is in ChatGPT Library → NEXUS: `NEXUS_MASTER_0.10.25_SOURCE_IMPORT_BUNDLE(1).zip`.
-- Expected SHA-256: `fafd5dd81fc0911cbb3e0c54aaa2dd6ef021010e60da31871eaa2f789a9ec55e`.
+- The source archive is in ChatGPT Library → NEXUS: `NEXUS_MASTER_0.10.25_RECOVERY_TIP_WINDOW.zip`.
+- Expected SHA-256: `f7385ccec2101cc07da36785cd7ee5ed250737a127f3cacd5e7273696a60e14e`.
 
 ## Create a Codespace
 
 1. Open the repository page.
 2. Tap **Code** → **Codespaces** → **Create codespace on main**.
 3. Wait for the browser-based VS Code workspace to open.
-4. In the Explorer, use **Upload Files** (or drag/drop if supported) to upload the ZIP into the repository root. Keep the filename exactly `NEXUS_MASTER_0.10.25_SOURCE_IMPORT_BUNDLE.zip`.
+4. In the Explorer, use **Upload Files** (or drag/drop if supported) to upload the ZIP into the repository root. Keep the filename exactly `NEXUS_MASTER_0.10.25_RECOVERY_TIP_WINDOW.zip`.
 
 ## Import
 
@@ -22,7 +22,7 @@ Open the integrated terminal in Codespaces and run:
 
 ```bash
 git checkout -b integration/import-0.10.25
-bash scripts/import_source_bundle.sh NEXUS_MASTER_0.10.25_SOURCE_IMPORT_BUNDLE.zip
+bash scripts/import_source_bundle.sh NEXUS_MASTER_0.10.25_RECOVERY_TIP_WINDOW.zip
 python -m compileall -q application
 cd application
 python -m pip install -r requirements-dev.txt
