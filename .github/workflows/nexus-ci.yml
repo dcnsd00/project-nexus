@@ -2,7 +2,7 @@ name: NEXUS CI
 
 on:
   push:
-    branches: [main, "feature/**"]
+    branches: [main, "feature/**", "integration/**"]
   pull_request:
     branches: [main]
   workflow_dispatch:
@@ -13,10 +13,23 @@ permissions:
 jobs:
   python-tests:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Detect application source root
+        id: source
+        shell: bash
+        run: |
+          if [ -f application/nexus_master.py ] && [ -d application/tests ]; then
+            echo "root=application" >> "$GITHUB_OUTPUT"
+          elif [ -f nexus_master.py ] && [ -d tests ]; then
+            echo "root=." >> "$GITHUB_OUTPUT"
+          else
+            echo "::error::NEXUS application source is not imported. Expected application/nexus_master.py + application/tests/ or root equivalents."
+            exit 1
+          fi
 
       - name: Set up Python 3.12
         uses: actions/setup-python@v5
@@ -24,23 +37,32 @@ jobs:
           python-version: "3.12"
           cache: "pip"
           cache-dependency-path: |
+            application/requirements.txt
+            application/requirements-dev.txt
             requirements.txt
             requirements-dev.txt
 
-      - name: Verify source baseline exists
+      - name: Install dependencies
+        shell: bash
         run: |
-          if [ ! -f nexus_master.py ] || [ ! -d tests ]; then
-            echo "::error::NEXUS source archive has not been imported. Refusing to report a false-green test run."
-            exit 1
+          ROOT="${{ steps.source.outputs.root }}"
+          python -m pip install --upgrade pip
+          if [ -f "$ROOT/requirements-dev.txt" ]; then
+            python -m pip install -r "$ROOT/requirements-dev.txt"
+          else
+            python -m pip install -r "$ROOT/requirements.txt"
+            python -m pip install pytest
           fi
 
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          python -m pip install -r requirements-dev.txt
-
       - name: Compile Python sources
-        run: python -m compileall -q .
+        shell: bash
+        run: |
+          ROOT="${{ steps.source.outputs.root }}"
+          python -m compileall -q "$ROOT"
 
       - name: Run test suite
-        run: python -m pytest -q --disable-warnings --maxfail=1
+        shell: bash
+        run: |
+          ROOT="${{ steps.source.outputs.root }}"
+          cd "$ROOT"
+          python -m pytest -q --disable-warnings --maxfail=1
