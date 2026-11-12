@@ -20,3 +20,12 @@ A preliminary scan found fixed password-like strings in test fixtures and local-
 
 ## Required next step
 Import the archive through a Git-capable environment (for example GitHub Codespaces or a trusted local Git client), create a pull request, run CI and secret scanning, then review before merge. The archive is a transfer package, not a completed GitHub import.
+
+
+## Import tooling added
+- Updated `.github/workflows/nexus-ci.yml` to detect either `application/` or repository-root source layout; it still fails closed if neither is present.
+- Added `scripts/import_source_bundle.sh`: verifies the pinned SHA-256, 514-file inventory, safe ZIP paths, refuses overwrite, and extracts into `application/`.
+- Added `docs/ANDROID_CODESPACES_IMPORT.md` with Android/browser-based Codespaces steps.
+- Latest supporting commits: CI `8766c09`, import helper `55e68a5`, Android guide `61895db`, security scan `3c40f3f`.
+
+The archive itself is still not committed to GitHub and the 514 source files have not yet been imported. The next action requires uploading the ZIP from Library into the Codespaces workspace and running the helper.
