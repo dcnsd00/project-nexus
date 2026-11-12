@@ -2,30 +2,39 @@
 
 Updated: 2026-11-12
 
-## Repository access
+## Repository and connector
 - Repository: dcnsd00/project-nexus
 - Default branch: main
 - Visibility: public
-- GitHub connector: read/write/admin access confirmed
-- GitHub connector operations available: file read/write, branches, commits, pull requests, workflow status and logs
+- GitHub connector: read/write/admin access confirmed.
+- Confirmed successful creation and read-back of repository files.
 
-## Source baseline
-- Repository was reported by GitHub API as empty (0 KB) before this bootstrap.
-- NEXUS MASTER 0.10.25 archive is referenced in the working continuity notes, but source code has NOT yet been imported into this repository.
-- No production code integration is claimed by this status file.
+## Repository bootstrap implemented
+- `README.md`: project rules and source-import plan.
+- `NEXUS_STATUS.md`: cross-conversation continuity record.
+- `changelog/2026-11-12.md`: initial bootstrap changelog.
+- `.github/workflows/nexus-ci.yml`: Python 3.12 CI workflow; deliberately fails while source baseline is absent to prevent false-green status.
+- `docs/SOURCE_IMPORT_BASELINE.md`: archive fingerprint, import rules and local test evidence.
 
-## Evidence carried forward from prior work
-- RandomX Windows native library/tests were built independently; 95 library tests passed. NEXUS runtime integration was not demonstrated.
-- RCSC collector evidence: 20/20 blocks collected in a separate run, 0 collection errors; 11 local tests passed. Those source files/results are not yet present in this repository.
-- NEXUS 0.10.25 package report: 26 focused tests passed; Python compilation passed; full suite timed out and is inconclusive.
-- Physical Windows installation, live pool mining, wallet payouts, and sustained hardware validation remain unverified.
+## Source archive inspected
+- Archive: NEXUS_MASTER_0.10.25_CUMULATIVE_WINDOWS.zip
+- SHA-256: 17702ce64497599d04c65c3893ddf6c7b54ac5d41e84032a203799a6d9db90bc
+- Extracted files: 1,832
+- Top-level application entrypoint: `nexus_master.py`
+- Source is present in the working environment but has NOT yet been imported into GitHub. No source-code integration is claimed.
 
-## Next steps
-1. Import the exact 0.10.25 source archive.
-2. Inventory files, dependencies, entrypoints, tests, and existing changelogs.
-3. Establish a clean baseline by running tests.
-4. Implement one vertical slice at a time; add tests and record exact evidence.
-5. Keep dated changelogs and update this file after each completed step.
+## Local verification
+- RCSC tests: 17 passed in 1.15 seconds.
+- Combined targeted suite (RCSC, Hybrid Supervisor/Worker/Safety/API, Development PoW, RandomX benchmark/API, Wallet, Integration Registry): exceeded 60-second execution limit after 38 progress dots; no final summary, therefore inconclusive.
+- Full suite: exceeded 30-second execution limit during partial progress; inconclusive.
+- Windows installation, live pool mining, wallet payouts, sustained hardware validation: not performed in this session.
+
+## Next engineering steps
+1. Import exact source archive into a dedicated Git branch, excluding secrets, caches, virtual environments and machine-specific state.
+2. Establish full test baseline in GitHub Actions.
+3. Fix reproducible test failures and CI/platform issues.
+4. Integrate RCSC, RandomX, Supervisor, wallet and Desktop as runtime-connected components with tests.
+5. Update this status and dated changelog after every completed step.
 
 ## Status vocabulary
 - PLANNED: not implemented.
