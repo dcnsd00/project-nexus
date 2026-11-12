@@ -53,3 +53,17 @@ The corrected source archive is still NOT imported into GitHub. The next require
 - Patch ZIP: `NEXUS_0.10.25_RCSC_RECOVERY_TIP_WINDOW_FIX.zip`.
 - Android guide updated in commit `7772d51`.
 - The cumulative source archive is still not imported into GitHub; the repository does not yet contain the application Python source.
+
+
+## RCSC SQLite lifecycle hardening — latest local build
+- Added a managed SQLite context that always closes connections and commits/rolls back deterministically.
+- Configured a 30-second busy timeout and FULL synchronous durability while retaining WAL.
+- Added connection lifecycle/commit/rollback regression tests.
+- RCSC suite: **36 passed in 1.66s**; compileall PASS.
+- Latest source bundle SHA-256: `658c5b9886e100258d344dce7b96becf6d261101385dcb292af424912c49db59`.
+- Latest Library path: `/NEXUS/NEXUS_MASTER_0.10.25_SOURCE_IMPORT_BUNDLE_LATEST.zip`.
+- Patch: `NEXUS_0.10.25_RCSC_SQLITE_LIFECYCLE_FIX.zip`.
+
+Architecture limitation: this change hardens the RCSC SQLite service only. The project does not yet have a verified shared database abstraction across every module, and the collection block update plus run-ledger record are still separate transactions. No multi-process stress or power-loss test was run.
+
+The latest archive is still not imported into GitHub; GitHub source CI has not yet executed.
