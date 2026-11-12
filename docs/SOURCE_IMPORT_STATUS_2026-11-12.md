@@ -42,3 +42,14 @@ The archive itself is still not committed to GitHub and the 514 source files hav
 - Security scan remediation record: commit `9bbb5df`.
 
 The corrected source archive is still NOT imported into GitHub. The next required action remains uploading this corrected ZIP to the Codespaces workspace and running the importer.
+
+
+## Latest cumulative bundle — RCSC recovery tip-window correction
+- Corrected the recovery algorithm to merge backward overlap with the original newer tip window, preserving the full replacement segment.
+- Added a regression test for the newer-tip preservation case.
+- RCSC suite: **34 passed in 3.14s**; compileall PASS.
+- Updated cumulative import bundle: `NEXUS_MASTER_0.10.25_RECOVERY_TIP_WINDOW.zip`.
+- SHA-256: `f7385ccec2101cc07da36785cd7ee5ed250737a127f3cacd5e7273696a60e14e`.
+- Patch ZIP: `NEXUS_0.10.25_RCSC_RECOVERY_TIP_WINDOW_FIX.zip`.
+- Android guide updated in commit `7772d51`.
+- The cumulative source archive is still not imported into GitHub; the repository does not yet contain the application Python source.
