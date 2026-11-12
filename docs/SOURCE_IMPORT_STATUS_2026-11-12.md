@@ -98,3 +98,21 @@ The latest application source remains local/Library only. GitHub does not yet co
 - Import helper updated for the new archive hash and 520 ZIP entries; commit: `00e13691`.
 
 Integration boundary: Wallet, mining supervisor, DePIN fieldstation, and the separate PROJECT-NEXUS-LOCAL FastAPI app are not yet wired into this runtime. The source bundle is still not imported into GitHub; CI has not validated the application source.
+
+
+## Wallet + mining supervisor lifecycle adapters — 2026-11-12
+- Added `WalletReadOnlyAdapter`: imports the existing wallet manager and inspects SQLite schema only through `mode=ro`; no schema creation, keystore decryption, key access, unlock, signing, or broadcast.
+- Added `MiningSupervisorAdapter`: reports supervisor/CPU/GPU status only; it neither starts nor stops workers.
+- Registered both as optional runtime services dependent on `crypto_engine`.
+- Added regression tests for registration, read-only wallet probe, and no mining auto-start.
+- `compileall` for changed runtime/test files: PASS.
+- Focused suite: **45 passed in 1.47s** (runtime, lifecycle manager, module registry, RCSC).
+- Full repository suite not rerun; no full-suite pass is claimed.
+- Latest cumulative bundle: 519 project files + manifest (520 ZIP entries).
+- SHA-256: `642c882557993a86db21583e8efaef359dd01f8f9b28440462ba8a723c924d50`.
+- Library: `/NEXUS/NEXUS_MASTER_0.10.25_SOURCE_IMPORT_BUNDLE_WALLET_MINING.zip`.
+- Patch: `/NEXUS/NEXUS_0.10.25_WALLET_MINING_RUNTIME_FIX.zip`.
+- Changelog: `/NEXUS/CHANGELOG_WALLET_MINING_RUNTIME_2026-11-12.txt`.
+- Import helper pinned to this SHA-256; commit: `eae4124a`.
+
+Boundary: This establishes lifecycle and read-only status integration only. It does not prove wallet transaction functionality, real mining backend execution, DePIN integration, or full application E2E operation. The source archive remains outside the GitHub repository until imported through the documented Codespaces/Git workflow.
