@@ -1,54 +1,59 @@
 # Import NEXUS MASTER 0.10.25 from Android using GitHub Codespaces
 
-This procedure imports the prepared source archive into a separate `application/` directory. It does not overwrite repository documentation or workflows.
+This imports the sanitized application source into `application/` on the integration branch. It does not overwrite repository documentation or workflows.
 
-## Before starting
+## 1. Download the verified archive
 
-- Open the repository: https://github.com/dcnsd00/project-nexus
-- Use GitHub in Chrome; if needed enable **Desktop site**.
-- The source archive is in ChatGPT Library → NEXUS: `NEXUS_MASTER_0.10.25_RECOVERY_TIP_WINDOW.zip`.
-- Expected SHA-256: `f7385ccec2101cc07da36785cd7ee5ed250737a127f3cacd5e7273696a60e14e`.
+Download `NEXUS_MASTER_0.10.25_SOURCE_IMPORT_CLEAN.zip` from the ChatGPT response and keep the filename unchanged.
 
-## Create a Codespace
+Expected SHA-256:
 
-1. Open the repository page.
-2. Tap **Code** → **Codespaces** → **Create codespace on main**.
-3. Wait for the browser-based VS Code workspace to open.
-4. In the Explorer, use **Upload Files** (or drag/drop if supported) to upload the ZIP into the repository root. Keep the filename exactly `NEXUS_MASTER_0.10.25_RECOVERY_TIP_WINDOW.zip`.
+```text
+9c7b70c2b292a987029071d022c24950bc0a2b9e05af2597e5392b1361f6a469
+```
 
-## Import
+The clean archive contains 519 source/configuration/documentation/test files plus its manifest. Local databases, logs, bytecode caches and compiled native binaries have been excluded.
 
-Open the integrated terminal in Codespaces and run:
+## 2. Open the correct branch in Codespaces
+
+1. Open https://github.com/dcnsd00/project-nexus in Chrome. Enable **Desktop site** if needed.
+2. Select branch `integration/nexus-master-0.10.25` from the branch selector.
+3. Tap **Code** → **Codespaces** → create a Codespace for the selected branch.
+4. Wait for the browser-based VS Code workspace to open.
+
+## 3. Upload the ZIP
+
+In the Codespaces Explorer, use **Upload Files** to upload the ZIP into the repository root (same level as `scripts/` and `docs/`). Do not upload it inside `application/`.
+
+## 4. Verify and import
+
+Open the integrated terminal and run:
 
 ```bash
-git checkout -b integration/import-0.10.25
-bash scripts/import_source_bundle.sh NEXUS_MASTER_0.10.25_RECOVERY_TIP_WINDOW.zip
+git status --short
+sha256sum NEXUS_MASTER_0.10.25_SOURCE_IMPORT_CLEAN.zip
+bash scripts/import_source_bundle.sh NEXUS_MASTER_0.10.25_SOURCE_IMPORT_CLEAN.zip
 python -m compileall -q application
+python -m pip install -r application/requirements.txt
 cd application
-python -m pip install -r requirements-dev.txt
 python -m pytest -q --disable-warnings --maxfail=1
+```
+
+The importer verifies the archive SHA-256, ZIP paths, exact manifest inventory and every source-file hash. It refuses to overwrite an existing `application/` directory.
+
+The full test command may take longer than a single short Codespaces session. Preserve the complete output. A timeout is inconclusive and must not be reported as a pass. If it fails, capture the first failing test and traceback; do not suppress it.
+
+## 5. Do not commit yet
+
+After the import and tests, run:
+
+```bash
 cd ..
 git status --short
 ```
 
-The import script verifies the exact archive hash, file count and ZIP paths, refuses to overwrite an existing `application/` directory, and extracts the application there.
+Do not commit or merge the imported source until we review test results, source layout, secrets and generated files together. In particular, keep wallet seeds, private keys, API tokens, production passwords, live databases and runtime state out of Git.
 
-## Security gate
+## Current branch
 
-Before pushing, review `docs/SOURCE_IMPORT_SECURITY_SCAN_2026-11-12.md`. The archive contains fixed password-like values in test and local-regtest files. They appear to be fixtures/local RPC credentials, but must be confirmed non-production and replaced with environment variables where appropriate. Do not push actual wallet passwords, seed phrases, private keys, API tokens or production credentials.
-
-## Commit and pull request
-
-Only after tests and security review:
-
-```bash
-git add application/
-git commit -m "Import NEXUS MASTER 0.10.25 source"
-git push -u origin integration/import-0.10.25
-```
-
-Then open a pull request from `integration/import-0.10.25` to `main`. CI is configured to test either `application/` or root source layout. Do not merge until CI and secret scanning pass.
-
-## Important
-
-Codespaces runs in the browser, so a laptop is not required. On Android, use a stable Wi-Fi connection and keep the browser tab open during import and tests.
+`integration/nexus-master-0.10.25` already contains the NEXUS EDGE foundation, unified architecture decision, hardened import script and preflight audit. Do not create a second branch for this same import.
