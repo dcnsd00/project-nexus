@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ZIP_PATH="${1:-NEXUS_MASTER_0.10.25_SOURCE_IMPORT_BUNDLE.zip}"
-EXPECTED_SHA256="642c882557993a86db21583e8efaef359dd01f8f9b28440462ba8a723c924d50"
+ZIP_PATH="${1:-NEXUS_MASTER_0.10.25_SOURCE_IMPORT_CLEAN.zip}"
+EXPECTED_SHA256="9c7b70c2b292a987029071d022c24950bc0a2b9e05af2597e5392b1361f6a469"
 EXPECTED_FILES=520
 DEST="application"
 
@@ -21,21 +21,40 @@ if [[ -e "$DEST" ]]; then
 fi
 
 python - "$ZIP_PATH" "$EXPECTED_FILES" <<'PY'
-import sys, zipfile
+import hashlib, json, sys, zipfile
 path, expected = sys.argv[1], int(sys.argv[2])
+forbidden_dirs = {"__pycache__", ".git", ".mypy_cache", ".pytest_cache",
+                  ".ruff_cache", "build", "data", "results", "runtime"}
+forbidden_suffixes = {".pyc", ".pyo", ".sqlite", ".sqlite3", ".db",
+                      ".log", ".so", ".dll", ".exe", ".bin"}
 with zipfile.ZipFile(path) as z:
-    files = [i for i in z.infolist() if not i.is_dir()]
-    if len(files) != expected:
-        raise SystemExit(f"ERROR: expected {expected} files, found {len(files)}")
-    for item in z.infolist():
+    infos = [i for i in z.infolist() if not i.is_dir()]
+    if len(infos) != expected:
+        raise SystemExit(f"ERROR: expected {expected} ZIP entries, found {len(infos)}")
+    names = set()
+    for item in infos:
         name = item.filename.replace("\\", "/")
-        if name.startswith("/") or any(part == ".." for part in name.split("/")):
+        parts = name.split("/")
+        if name.startswith("/") or any(p in {"", ".", ".."} for p in parts):
             raise SystemExit(f"ERROR: unsafe archive path: {item.filename}")
-        if item.is_dir():
-            continue
-        if name != "NEXUS_SOURCE_IMPORT_MANIFEST.json" and not name.startswith("NEXUS_MASTER_0.10.25/"):
-            raise SystemExit(f"ERROR: unexpected top-level path: {name}")
-print(f"Archive structure verified: {expected} files")
+        if name != "NEXUS_SOURCE_IMPORT_MANIFEST.json":
+            if not name.startswith("NEXUS_MASTER_0.10.25/"):
+                raise SystemExit(f"ERROR: unexpected top-level path: {name}")
+            rel = "/".join(parts[1:])
+            if forbidden_dirs.intersection(parts) or any(rel.lower().endswith(s) for s in forbidden_suffixes):
+                raise SystemExit(f"ERROR: generated/runtime artifact in source bundle: {name}")
+        names.add(name)
+    manifest = json.loads(z.read("NEXUS_SOURCE_IMPORT_MANIFEST.json"))
+    listed = {f["path"]: f for f in manifest["files"]}
+    actual = {n[len("NEXUS_MASTER_0.10.25/"):] for n in names
+              if n.startswith("NEXUS_MASTER_0.10.25/")}
+    if actual != set(listed):
+        raise SystemExit("ERROR: manifest inventory does not match ZIP contents")
+    for rel, item in listed.items():
+        data = z.read("NEXUS_MASTER_0.10.25/" + rel)
+        if len(data) != item["size"] or hashlib.sha256(data).hexdigest() != item["sha256"]:
+            raise SystemExit(f"ERROR: file integrity mismatch: {rel}")
+print(f"Archive, safe paths and {expected - 1} source-file hashes verified")
 PY
 
 TMP_DIR="$(mktemp -d)"
@@ -49,6 +68,6 @@ if [[ ! -f "$DEST/nexus_master.py" || ! -d "$DEST/tests" || ! -f "$DEST/VERSION.
   exit 5
 fi
 echo "Source imported into $DEST/."
-echo "Review docs/SOURCE_IMPORT_SECURITY_SCAN_2026-11-12.md before pushing."
-echo "Next: python -m compileall -q $DEST && cd $DEST && python -m pytest -q --disable-warnings --maxfail=1"
-echo "Then inspect git status, commit on integration/import-0.10.25, and open a pull request."
+echo "Next: python -m compileall -q $DEST"
+echo "Then run focused suites and the full pytest suite with a documented timeout."
+echo "Review the import audit before committing or opening a pull request."
