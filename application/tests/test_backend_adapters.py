@@ -71,3 +71,18 @@ def test_unknown_backend_telemetry_is_rejected():
     import pytest
     with pytest.raises(ValueError):
         normalize_telemetry("ghost", {})
+
+
+def test_telemetry_rejects_non_finite_metrics_and_counts():
+    data = normalize_telemetry("xmrig", {
+        "hashrate_hs": float("inf"),
+        "accepted_shares": float("nan"),
+        "rejected_shares": float("inf"),
+        "temperature_c": float("nan"),
+        "power_w": 80,
+    })
+    assert data["hashrate_hs"] is None
+    assert data["accepted_shares"] is None
+    assert data["rejected_shares"] is None
+    assert data["temperature_c"] is None
+    assert data["power_w"] == 80.0
