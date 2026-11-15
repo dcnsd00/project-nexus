@@ -219,19 +219,19 @@ def build_runtime(root: str | Path | None = None) -> LifecycleManager:
         manager.register(ServiceSpec(
             name="sha2_research",
             factory=lambda: ModuleAdapter("modules.sha2_research_service", _sha2_probe, "SHA-2 Research"),
-            dependencies=("crypto_engine",), critical=False,
+            dependencies=("crypto_engine", "data_paths"), critical=False,
         ))
     if (base / "modules" / "wallet_benchmark" / "nexus_wallet_manager.py").is_file():
         manager.register(ServiceSpec(
             name="wallet_engine",
             factory=lambda: WalletReadOnlyAdapter(base),
-            dependencies=("crypto_engine",), critical=False,
+            dependencies=("crypto_engine", "data_paths"), critical=False,
         ))
     if (base / "mining" / "hybrid_supervisor.py").is_file():
         manager.register(ServiceSpec(
             name="mining_supervisor",
             factory=MiningSupervisorAdapter,
-            dependencies=("crypto_engine",), critical=False,
+            dependencies=("crypto_engine", "data_paths"), critical=False,
         ))
     return manager
 
