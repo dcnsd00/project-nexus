@@ -35,6 +35,12 @@ _STATE_PATH = Path(os.getenv("NEXUS_MINING_SWITCH_STATE", str(data_path("mining"
 _STATE_LOCK = threading.RLock()
 
 
+def source_adapter_status() -> dict[str, Any]:
+    """Fail-closed capability declaration; live discovery adapters are not validated yet."""
+    return {"verified": False, "providers_live": 0,
+            "reason": "no_live_mining_source_adapter_has_passed_validation"}
+
+
 def load_switch_state(engine: str) -> dict[str, Any]:
     if engine not in {"cpu", "gpu"}:
         raise ValueError("engine must be cpu or gpu")
