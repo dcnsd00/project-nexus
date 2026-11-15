@@ -158,3 +158,23 @@ def test_mode_reports_degraded_when_one_lane_fails_and_other_runs(tmp_path):
         time.sleep(.05)
     assert status['mode_state'] == 'degraded'
     sup.stop_mode()
+
+
+def test_read_only_status_reports_stale_without_stopping_worker(tmp_path):
+    import json
+    sup = HybridSupervisor(runtime_root=tmp_path, heartbeat_timeout=1)
+    sup.start({'cpu': {'command': _cmd()}}, mode='standard')
+    deadline = time.time() + 5
+    while time.time() < deadline and sup.status()['engines']['cpu']['state'] != 'running':
+        time.sleep(.05)
+    item = sup._workers['cpu']
+    data = json.loads(item['status_path'].read_text())
+    data['heartbeat_unix'] = time.time() - 30
+    item['status_path'].write_text(json.dumps(data))
+
+    result = sup.status(read_only=True)['engines']['cpu']
+    assert result['state'] == 'failed'
+    assert result['last_error'] == 'stale_heartbeat'
+    assert result['process_alive'] is True
+    assert item['process'].poll() is None
+    sup.stop_mode()
