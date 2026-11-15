@@ -1,0 +1,587 @@
+{
+  "run_id": "20261115T095705_e2f1bdf11b4c",
+  "created_utc": "2026-11-15T09:57:05.171444+00:00",
+  "kind": "differential",
+  "result": {
+    "experiment": "reduced_round_sha256_compression_xor_differential",
+    "rounds": 20,
+    "samples": 128,
+    "input_delta": {
+      "name": "W14_bit0",
+      "active_words": [
+        14
+      ],
+      "active_bit_count": 1,
+      "xor_masks_hex": [
+        "0x00000000",
+        "0x00000000",
+        "0x00000000",
+        "0x00000000",
+        "0x00000000",
+        "0x00000000",
+        "0x00000000",
+        "0x00000000",
+        "0x00000000",
+        "0x00000000",
+        "0x00000000",
+        "0x00000000",
+        "0x00000000",
+        "0x00000000",
+        "0x00000001",
+        "0x00000000"
+      ]
+    },
+    "seed": 56,
+    "output_bits": 256,
+    "mean_changed_output_bits": 126.4140625,
+    "mean_output_bit_flip_rate": 0.493804931640625,
+    "zero_output_difference_samples": 0,
+    "zero_output_difference_fraction": 0.0,
+    "max_exact_difference_multiplicity": 1,
+    "distinct_output_differences": 128,
+    "message_schedule_profile": [
+      {
+        "word": 0,
+        "changed_samples": 0,
+        "change_frequency": 0.0,
+        "mean_changed_bits": 0.0
+      },
+      {
+        "word": 1,
+        "changed_samples": 0,
+        "change_frequency": 0.0,
+        "mean_changed_bits": 0.0
+      },
+      {
+        "word": 2,
+        "changed_samples": 0,
+        "change_frequency": 0.0,
+        "mean_changed_bits": 0.0
+      },
+      {
+        "word": 3,
+        "changed_samples": 0,
+        "change_frequency": 0.0,
+        "mean_changed_bits": 0.0
+      },
+      {
+        "word": 4,
+        "changed_samples": 0,
+        "change_frequency": 0.0,
+        "mean_changed_bits": 0.0
+      },
+      {
+        "word": 5,
+        "changed_samples": 0,
+        "change_frequency": 0.0,
+        "mean_changed_bits": 0.0
+      },
+      {
+        "word": 6,
+        "changed_samples": 0,
+        "change_frequency": 0.0,
+        "mean_changed_bits": 0.0
+      },
+      {
+        "word": 7,
+        "changed_samples": 0,
+        "change_frequency": 0.0,
+        "mean_changed_bits": 0.0
+      },
+      {
+        "word": 8,
+        "changed_samples": 0,
+        "change_frequency": 0.0,
+        "mean_changed_bits": 0.0
+      },
+      {
+        "word": 9,
+        "changed_samples": 0,
+        "change_frequency": 0.0,
+        "mean_changed_bits": 0.0
+      },
+      {
+        "word": 10,
+        "changed_samples": 0,
+        "change_frequency": 0.0,
+        "mean_changed_bits": 0.0
+      },
+      {
+        "word": 11,
+        "changed_samples": 0,
+        "change_frequency": 0.0,
+        "mean_changed_bits": 0.0
+      },
+      {
+        "word": 12,
+        "changed_samples": 0,
+        "change_frequency": 0.0,
+        "mean_changed_bits": 0.0
+      },
+      {
+        "word": 13,
+        "changed_samples": 0,
+        "change_frequency": 0.0,
+        "mean_changed_bits": 0.0
+      },
+      {
+        "word": 14,
+        "changed_samples": 128,
+        "change_frequency": 1.0,
+        "mean_changed_bits": 1.0
+      },
+      {
+        "word": 15,
+        "changed_samples": 0,
+        "change_frequency": 0.0,
+        "mean_changed_bits": 0.0
+      },
+      {
+        "word": 16,
+        "changed_samples": 128,
+        "change_frequency": 1.0,
+        "mean_changed_bits": 3.28125
+      },
+      {
+        "word": 17,
+        "changed_samples": 0,
+        "change_frequency": 0.0,
+        "mean_changed_bits": 0.0
+      },
+      {
+        "word": 18,
+        "changed_samples": 128,
+        "change_frequency": 1.0,
+        "mean_changed_bits": 7.5234375
+      },
+      {
+        "word": 19,
+        "changed_samples": 0,
+        "change_frequency": 0.0,
+        "mean_changed_bits": 0.0
+      },
+      {
+        "word": 20,
+        "changed_samples": 128,
+        "change_frequency": 1.0,
+        "mean_changed_bits": 8.984375
+      },
+      {
+        "word": 21,
+        "changed_samples": 128,
+        "change_frequency": 1.0,
+        "mean_changed_bits": 2.015625
+      },
+      {
+        "word": 22,
+        "changed_samples": 128,
+        "change_frequency": 1.0,
+        "mean_changed_bits": 13.96875
+      },
+      {
+        "word": 23,
+        "changed_samples": 104,
+        "change_frequency": 0.8125,
+        "mean_changed_bits": 2.2421875
+      },
+      {
+        "word": 24,
+        "changed_samples": 128,
+        "change_frequency": 1.0,
+        "mean_changed_bits": 14.859375
+      },
+      {
+        "word": 25,
+        "changed_samples": 128,
+        "change_frequency": 1.0,
+        "mean_changed_bits": 8.234375
+      },
+      {
+        "word": 26,
+        "changed_samples": 128,
+        "change_frequency": 1.0,
+        "mean_changed_bits": 15.890625
+      },
+      {
+        "word": 27,
+        "changed_samples": 128,
+        "change_frequency": 1.0,
+        "mean_changed_bits": 9.0859375
+      },
+      {
+        "word": 28,
+        "changed_samples": 128,
+        "change_frequency": 1.0,
+        "mean_changed_bits": 15.8828125
+      },
+      {
+        "word": 29,
+        "changed_samples": 128,
+        "change_frequency": 1.0,
+        "mean_changed_bits": 15.125
+      },
+      {
+        "word": 30,
+        "changed_samples": 128,
+        "change_frequency": 1.0,
+        "mean_changed_bits": 15.796875
+      },
+      {
+        "word": 31,
+        "changed_samples": 128,
+        "change_frequency": 1.0,
+        "mean_changed_bits": 16.125
+      },
+      {
+        "word": 32,
+        "changed_samples": 128,
+        "change_frequency": 1.0,
+        "mean_changed_bits": 15.7421875
+      },
+      {
+        "word": 33,
+        "changed_samples": 128,
+        "change_frequency": 1.0,
+        "mean_changed_bits": 15.84375
+      },
+      {
+        "word": 34,
+        "changed_samples": 128,
+        "change_frequency": 1.0,
+        "mean_changed_bits": 16.375
+      },
+      {
+        "word": 35,
+        "changed_samples": 128,
+        "change_frequency": 1.0,
+        "mean_changed_bits": 15.7421875
+      },
+      {
+        "word": 36,
+        "changed_samples": 128,
+        "change_frequency": 1.0,
+        "mean_changed_bits": 15.75
+      },
+      {
+        "word": 37,
+        "changed_samples": 128,
+        "change_frequency": 1.0,
+        "mean_changed_bits": 16.1640625
+      },
+      {
+        "word": 38,
+        "changed_samples": 128,
+        "change_frequency": 1.0,
+        "mean_changed_bits": 15.9453125
+      },
+      {
+        "word": 39,
+        "changed_samples": 128,
+        "change_frequency": 1.0,
+        "mean_changed_bits": 15.875
+      },
+      {
+        "word": 40,
+        "changed_samples": 128,
+        "change_frequency": 1.0,
+        "mean_changed_bits": 15.78125
+      },
+      {
+        "word": 41,
+        "changed_samples": 128,
+        "change_frequency": 1.0,
+        "mean_changed_bits": 16.0625
+      },
+      {
+        "word": 42,
+        "changed_samples": 128,
+        "change_frequency": 1.0,
+        "mean_changed_bits": 15.6328125
+      },
+      {
+        "word": 43,
+        "changed_samples": 128,
+        "change_frequency": 1.0,
+        "mean_changed_bits": 16.171875
+      },
+      {
+        "word": 44,
+        "changed_samples": 128,
+        "change_frequency": 1.0,
+        "mean_changed_bits": 15.5859375
+      },
+      {
+        "word": 45,
+        "changed_samples": 128,
+        "change_frequency": 1.0,
+        "mean_changed_bits": 16.0390625
+      },
+      {
+        "word": 46,
+        "changed_samples": 128,
+        "change_frequency": 1.0,
+        "mean_changed_bits": 15.703125
+      },
+      {
+        "word": 47,
+        "changed_samples": 128,
+        "change_frequency": 1.0,
+        "mean_changed_bits": 16.0703125
+      },
+      {
+        "word": 48,
+        "changed_samples": 128,
+        "change_frequency": 1.0,
+        "mean_changed_bits": 16.0703125
+      },
+      {
+        "word": 49,
+        "changed_samples": 128,
+        "change_frequency": 1.0,
+        "mean_changed_bits": 16.2265625
+      },
+      {
+        "word": 50,
+        "changed_samples": 128,
+        "change_frequency": 1.0,
+        "mean_changed_bits": 16.09375
+      },
+      {
+        "word": 51,
+        "changed_samples": 128,
+        "change_frequency": 1.0,
+        "mean_changed_bits": 16.015625
+      },
+      {
+        "word": 52,
+        "changed_samples": 128,
+        "change_frequency": 1.0,
+        "mean_changed_bits": 16.1640625
+      },
+      {
+        "word": 53,
+        "changed_samples": 128,
+        "change_frequency": 1.0,
+        "mean_changed_bits": 16.671875
+      },
+      {
+        "word": 54,
+        "changed_samples": 128,
+        "change_frequency": 1.0,
+        "mean_changed_bits": 16.0859375
+      },
+      {
+        "word": 55,
+        "changed_samples": 128,
+        "change_frequency": 1.0,
+        "mean_changed_bits": 15.953125
+      },
+      {
+        "word": 56,
+        "changed_samples": 128,
+        "change_frequency": 1.0,
+        "mean_changed_bits": 15.890625
+      },
+      {
+        "word": 57,
+        "changed_samples": 128,
+        "change_frequency": 1.0,
+        "mean_changed_bits": 15.359375
+      },
+      {
+        "word": 58,
+        "changed_samples": 128,
+        "change_frequency": 1.0,
+        "mean_changed_bits": 16.09375
+      },
+      {
+        "word": 59,
+        "changed_samples": 128,
+        "change_frequency": 1.0,
+        "mean_changed_bits": 15.96875
+      },
+      {
+        "word": 60,
+        "changed_samples": 128,
+        "change_frequency": 1.0,
+        "mean_changed_bits": 15.2421875
+      },
+      {
+        "word": 61,
+        "changed_samples": 128,
+        "change_frequency": 1.0,
+        "mean_changed_bits": 15.796875
+      },
+      {
+        "word": 62,
+        "changed_samples": 128,
+        "change_frequency": 1.0,
+        "mean_changed_bits": 16.3515625
+      },
+      {
+        "word": 63,
+        "changed_samples": 128,
+        "change_frequency": 1.0,
+        "mean_changed_bits": 15.59375
+      }
+    ],
+    "schedule_carry_out_mismatches_by_stage": [
+      1801,
+      2114,
+      2391
+    ],
+    "schedule_carry_out_mismatch_rate_by_stage": [
+      0.2931315104166667,
+      0.3440755208333333,
+      0.38916015625
+    ],
+    "best_output_bit": {
+      "output_bit_lsb_index": 6,
+      "flips": 26,
+      "flip_rate": 0.203125,
+      "z_score": 6.717514421272202,
+      "p_raw_normal_approx": 1.8485047721485312e-11,
+      "p_bonferroni": 4.73217221670024e-09,
+      "wilson_95_ci": [
+        0.1425573819359227,
+        0.2809926858514729
+      ],
+      "log10_p_raw_exact_binomial": -11.109096597019901,
+      "p_raw_exact_binomial": 7.7786351717051e-12,
+      "log10_p_bonferroni": -8.700856631708051,
+      "p_bonferroni_exact": 1.9913306039565076e-09
+    },
+    "top_10_output_bits": [
+      {
+        "output_bit_lsb_index": 6,
+        "flips": 26,
+        "flip_rate": 0.203125,
+        "z_score": 6.717514421272202,
+        "p_raw_normal_approx": 1.8485047721485312e-11,
+        "p_bonferroni": 4.73217221670024e-09,
+        "wilson_95_ci": [
+          0.1425573819359227,
+          0.2809926858514729
+        ],
+        "log10_p_raw_exact_binomial": -11.109096597019901,
+        "p_raw_exact_binomial": 7.7786351717051e-12,
+        "log10_p_bonferroni": -8.700856631708051,
+        "p_bonferroni_exact": 1.9913306039565076e-09
+      },
+      {
+        "output_bit_lsb_index": 20,
+        "flips": 93,
+        "flip_rate": 0.7265625,
+        "z_score": 5.12652416360247,
+        "p_raw_normal_approx": 2.9514019251156993e-07,
+        "p_bonferroni": 7.55558892829619e-05,
+        "wilson_95_ci": [
+          0.6435923144931466,
+          0.7963300021954198
+        ]
+      },
+      {
+        "output_bit_lsb_index": 5,
+        "flips": 36,
+        "flip_rate": 0.28125,
+        "z_score": 4.949747468305833,
+        "p_raw_normal_approx": 7.430983723414151e-07,
+        "p_bonferroni": 0.00019023318331940227,
+        "wilson_95_ci": [
+          0.2106132270868173,
+          0.3646341912828427
+        ]
+      },
+      {
+        "output_bit_lsb_index": 10,
+        "flips": 90,
+        "flip_rate": 0.703125,
+        "z_score": 4.59619407771256,
+        "p_raw_normal_approx": 4.302779463675109e-06,
+        "p_bonferroni": 0.001101511542700828,
+        "wilson_95_ci": [
+          0.6189947723495539,
+          0.7754183391643332
+        ]
+      },
+      {
+        "output_bit_lsb_index": 25,
+        "flips": 39,
+        "flip_rate": 0.3046875,
+        "z_score": 4.419417382415922,
+        "p_raw_normal_approx": 9.89673462524562e-06,
+        "p_bonferroni": 0.0025335640640628786,
+        "wilson_95_ci": [
+          0.2316056151523922,
+          0.38915100839194705
+        ]
+      },
+      {
+        "output_bit_lsb_index": 19,
+        "flips": 46,
+        "flip_rate": 0.359375,
+        "z_score": 3.1819805153394642,
+        "p_raw_normal_approx": 0.0014627165866811518,
+        "p_bonferroni": 0.37445544619037485,
+        "wilson_95_ci": [
+          0.2814673057552586,
+          0.4454774631966657
+        ]
+      },
+      {
+        "output_bit_lsb_index": 238,
+        "flips": 47,
+        "flip_rate": 0.3671875,
+        "z_score": 3.0052038200428273,
+        "p_raw_normal_approx": 0.0026540293594823415,
+        "p_bonferroni": 0.6794315160274794,
+        "wilson_95_ci": [
+          0.2886845465087532,
+          0.4534299575013975
+        ]
+      },
+      {
+        "output_bit_lsb_index": 204,
+        "flips": 48,
+        "flip_rate": 0.375,
+        "z_score": 2.8284271247461903,
+        "p_raw_normal_approx": 0.004677734981047265,
+        "p_bonferroni": 1.0,
+        "wilson_95_ci": [
+          0.29592429097646555,
+          0.4613599480919116
+        ]
+      },
+      {
+        "output_bit_lsb_index": 4,
+        "flips": 49,
+        "flip_rate": 0.3828125,
+        "z_score": 2.6516504294495533,
+        "p_raw_normal_approx": 0.008009942329880029,
+        "p_bonferroni": 1.0,
+        "wilson_95_ci": [
+          0.3031862585769025,
+          0.46926771554970104
+        ]
+      },
+      {
+        "output_bit_lsb_index": 156,
+        "flips": 79,
+        "flip_rate": 0.6171875,
+        "z_score": 2.6516504294495533,
+        "p_raw_normal_approx": 0.008009942329880029,
+        "p_bonferroni": 1.0,
+        "wilson_95_ci": [
+          0.5307322844502991,
+          0.6968137414230975
+        ]
+      }
+    ],
+    "input_delta_effect": "output_difference_observed",
+    "family_size_for_bonferroni": 256,
+    "elapsed_seconds": 0.0381521730000145,
+    "paired_samples_per_second": 3354.985835274739,
+    "interpretation": "Descriptive reduced-round evidence only. An exact binomial p-value is calculated for the maximum-deviation output bit; Bonferroni correction covers 256 output-bit tests (and all sweep configurations when run as a sweep). Statistical bias is not a full-round SHA-256 break, not a preimage/collision result, and not a consensus-compatible mining shortcut.",
+    "consensus_compatible": false
+  }
+}

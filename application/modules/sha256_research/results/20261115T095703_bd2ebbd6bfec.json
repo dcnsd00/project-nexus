@@ -1,0 +1,102 @@
+{
+  "run_id": "20261115T095703_bd2ebbd6bfec",
+  "created_utc": "2026-11-15T09:57:03.832721+00:00",
+  "kind": "advanced_multi_bit_track",
+  "result": {
+    "experiment": "reduced_round_sha256_internal_state_differential_track",
+    "rounds": 8,
+    "first_affected_round": 16,
+    "samples": 16,
+    "seed": 12,
+    "delta_words_hex": [
+      "0x00000000",
+      "0x00000000",
+      "0x00000000",
+      "0x00000000",
+      "0x00000000",
+      "0x00000000",
+      "0x00000000",
+      "0x00000000",
+      "0x00000000",
+      "0x00000000",
+      "0x00000000",
+      "0x00000000",
+      "0x00000000",
+      "0x00000000",
+      "0x00000000",
+      "0x80000000"
+    ],
+    "active_words": [
+      15
+    ],
+    "active_bit_count": 1,
+    "per_round": [
+      {
+        "round": 0,
+        "mean_state_difference_bits": 0.0,
+        "modal_full_state_difference_count": 16,
+        "modal_full_state_difference_frequency": 1.0,
+        "distinct_full_state_differences": 1
+      },
+      {
+        "round": 1,
+        "mean_state_difference_bits": 0.0,
+        "modal_full_state_difference_count": 16,
+        "modal_full_state_difference_frequency": 1.0,
+        "distinct_full_state_differences": 1
+      },
+      {
+        "round": 2,
+        "mean_state_difference_bits": 0.0,
+        "modal_full_state_difference_count": 16,
+        "modal_full_state_difference_frequency": 1.0,
+        "distinct_full_state_differences": 1
+      },
+      {
+        "round": 3,
+        "mean_state_difference_bits": 0.0,
+        "modal_full_state_difference_count": 16,
+        "modal_full_state_difference_frequency": 1.0,
+        "distinct_full_state_differences": 1
+      },
+      {
+        "round": 4,
+        "mean_state_difference_bits": 0.0,
+        "modal_full_state_difference_count": 16,
+        "modal_full_state_difference_frequency": 1.0,
+        "distinct_full_state_differences": 1
+      },
+      {
+        "round": 5,
+        "mean_state_difference_bits": 0.0,
+        "modal_full_state_difference_count": 16,
+        "modal_full_state_difference_frequency": 1.0,
+        "distinct_full_state_differences": 1
+      },
+      {
+        "round": 6,
+        "mean_state_difference_bits": 0.0,
+        "modal_full_state_difference_count": 16,
+        "modal_full_state_difference_frequency": 1.0,
+        "distinct_full_state_differences": 1
+      },
+      {
+        "round": 7,
+        "mean_state_difference_bits": 0.0,
+        "modal_full_state_difference_count": 16,
+        "modal_full_state_difference_frequency": 1.0,
+        "distinct_full_state_differences": 1
+      },
+      {
+        "round": 8,
+        "mean_state_difference_bits": 0.0,
+        "modal_full_state_difference_count": 16,
+        "modal_full_state_difference_frequency": 1.0,
+        "distinct_full_state_differences": 1
+      }
+    ],
+    "elapsed_seconds": 0.002989529999979368,
+    "interpretation": "Frecvența modului este doar frecvența empirică a celei mai comune diferențe complete în eșantion; NU este probabilitatea unei căi diferențiale și NU se înmulțesc frecvențele pe runde.",
+    "consensus_compatible": false
+  }
+}

@@ -1,0 +1,69 @@
+{
+  "product": "NEXUS MASTER",
+  "version": "0.6.1",
+  "date": "2026-11-08",
+  "wallet_manager": {
+    "implemented": [
+      "local EVM key generation",
+      "scrypt + AES-GCM encrypted keystore at rest",
+      "password unlock and address/key correspondence check",
+      "watch-only address book for ETH, Base, BNB, Polygon and Arbitrum",
+      "Wallet Manager UI at /wallet and navigation link from main dashboard"
+    ],
+    "not_implemented_or_not_validated": [
+      "BIP39 seed phrase creation/import UI",
+      "Bitcoin wallet signing in main UI",
+      "public-chain transaction signing/broadcast",
+      "local Anvil/Bitcoin Core transfer workflow not run in this environment"
+    ]
+  },
+  "mining": {
+    "gpu": "NVIDIA GTX 1650 Laptop, 4 GB VRAM",
+    "gpu_algorithm": "PearlHash/PearlPow via SRBMiner-MULTI",
+    "cpu_algorithm": "RandomX via XMRig",
+    "user_observed_values_preserved": {
+      "gpu_local": "0.76 TH/s",
+      "gpu_effective": "2.5 TH/s",
+      "cpu_local": "612 H/s",
+      "cpu_effective": "861 H/s"
+    },
+    "current_srbminer_release_checked": "3.8.5",
+    "release_date": "2026-11-07",
+    "installer_checksum_md5": "1f1509095ad8500d81ce05994b629123",
+    "installer_updated": true,
+    "actual_asus_hardware_benchmark_in_this_runtime": false,
+    "pool_accepted_share_validation_in_this_runtime": false
+  },
+  "test_suites": [
+    {
+      "name": "NEXUS Master + Wallet Manager",
+      "passed": 13,
+      "failed": 0
+    },
+    {
+      "name": "MultiMiner X",
+      "passed": 17,
+      "failed": 0
+    },
+    {
+      "name": "Crypto Fieldstation",
+      "passed": 12,
+      "failed": 0
+    },
+    {
+      "name": "Wallet Benchmark + Local Chain unit tests",
+      "passed": 22,
+      "failed": 0
+    }
+  ],
+  "total_tests_passed": 64,
+  "external_tools_available": {
+    "Docker": false,
+    "Bitcoin Core": false,
+    "Anvil": false,
+    "NVIDIA-SMI": false,
+    "XMRig": false,
+    "SRBMiner": false
+  },
+  "important_boundary": "The 64 passing tests are software/unit/API tests. They do not establish public-chain transfers, live pool shares, or the user's laptop hashrate."
+}

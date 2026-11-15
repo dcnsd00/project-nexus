@@ -1,0 +1,2 @@
+# Optional only; required solely for the OpenSSL Salted__ AES-256-CBC candidate lab.
+pycryptodome>=3.20,<4

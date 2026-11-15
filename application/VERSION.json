@@ -1,0 +1,294 @@
+{
+  "product": "NEXUS MASTER",
+  "version": "0.10.25",
+  "build": "windows-desktop-installer-hardening + verified-python-runtime-install",
+  "created_utc": "2026-11-10",
+  "base": "0.10.20 + corrected native C scanner and optional Stratum backend",
+  "mining_catalog": {
+    "pool_endpoint_count": 71,
+    "pow_catalog_count": 38,
+    "staking_assets": 9,
+    "merged_reward_assets": 1
+  },
+  "unmineable": {
+    "public_metadata_route": "/api/mining/unmineable/assets",
+    "api_auth_required_for_metadata": false,
+    "atom_payout_status": "paused_at_verification",
+    "atom_mined_assets": [
+      "PRL",
+      "XEL"
+    ]
+  },
+  "miners": {
+    "automatic_official_release_installers": [
+      "xmrig",
+      "srbminer",
+      "trex",
+      "lolminer",
+      "gminer",
+      "rigel",
+      "bzminer"
+    ],
+    "manual_official_page_only": [
+      "teamredminer"
+    ],
+    "launch_adapters": [
+      "xmrig",
+      "trex",
+      "srbminer",
+      "bzminer",
+      "lolminer",
+      "gminer",
+      "rigel",
+      "teamredminer"
+    ],
+    "inventory_only": [],
+    "adapter_status": {
+      "lolminer": "command adapter added; fake-process tests only; live binary/pool not tested",
+      "gminer": "command adapter added; fake-process tests only; live binary/pool not tested",
+      "rigel": "command adapter added; fake-process tests only; live binary/pool not tested",
+      "teamredminer": "command adapter added; GPU AMD only; fake-process tests only; live binary/pool not tested",
+      "nexus-btc-cpu": "internal Stratum V1 TCP/TLS worker; optional native C SHA-256d scanner selected by runtime CPU dispatch; exact Python fallback; loopback mock pool acceptance/rejection and controller start/stop tests passed; public pool not tested"
+    },
+    "internal_mining_engines": [
+      "nexus-btc-cpu"
+    ]
+  },
+  "safety": {
+    "downloads_official_upstream_only": true,
+    "miner_binaries_auto_executed": false,
+    "payout_paused_jobs_blocked": true,
+    "staking_assets_not_pow": true
+  },
+  "research": {
+    "package": "research/sha2_independent",
+    "bridge": "modules/sha2_research_bridge.py",
+    "sha256d_engine": "mining/bitcoin_pow_engine.py",
+    "stratum_header_assembly": "mining/stratum_session.py::assemble_bitcoin_header",
+    "midstate_nonce_serialization": "Bitcoin uint32 little-endian; corrected and verified against hashlib",
+    "external_speedup_claim": "not carried forward; original benchmark used noncanonical nonce serialization and must be rerun",
+    "reduced_round_tools": "research only; not consensus mining accelerators"
+  },
+  "stratum": {
+    "protocol": "Stratum V1",
+    "new_endpoint": "/api/mining/stratum-job-probe",
+    "capabilities": [
+      "subscribe",
+      "authorize",
+      "set_difficulty",
+      "notify parsing",
+      "Bitcoin coinbase hash",
+      "Merkle root",
+      "80-byte header construction",
+      "complete notify-to-80-byte-header assembly",
+      "live TCP/TLS Stratum V1 client",
+      "extranonce1/extranonce2 handling",
+      "nonce scan with exact SHA-256d",
+      "mining.submit",
+      "pool accepted/rejected share accounting",
+      "controller start/stop/status integration"
+    ],
+    "share_submission": true,
+    "nonce_mining": "optional native C SHA-256d scanner with exact range partitioning, AVX2/AVX-512 runtime dispatch and 50,000 nonce chunks; Python exact reference fallback",
+    "live_pool_test": "not performed; no user BTC payout address supplied and no public-pool login performed",
+    "live_worker_module": "mining/stratum_miner.py::StratumBitcoinWorker",
+    "local_integration_test": "independent loopback pool reconstruction of coinbase, Merkle root and 80-byte header with nonzero prevhash; SHA256d hash verified; submit accepted/rejected; controller and FastAPI start/status/stop tested",
+    "header_byte_order": "version, ntime, nbits and nonce serialized little-endian; prevhash and Merkle root in serialized Stratum byte order",
+    "test_results": {
+      "full_project_pytest": "273 passed",
+      "native_scanner": "all CPU-supported variants found Bitcoin Genesis nonce; exact remainder tests passed",
+      "stratum_worker_tests": "local mock pool handshake, native scan, submit and accept/reject passed",
+      "python_compile": "passed",
+      "live_public_pool_test": false,
+      "baseline_full_project_pytest": "273 passed as reported by the 0.10.23 base manifest; not independently rerun for 0.10.24",
+      "rcsc_and_selected_regression": "61 passed in current build container",
+      "full_project_pytest_0_10_24": "timed out after 20 percent progress; inconclusive, not PASS"
+    },
+    "native_backend": "optional C library with runtime CPU feature dispatch; native build is portable (no -march=native); exact Python fallback"
+  },
+  "stratum_share_simulation": {
+    "module": "mining/stratum_share_simulator.py",
+    "scenarios": [
+      "accepted",
+      "pool_reject",
+      "stale_job",
+      "duplicate_share"
+    ],
+    "network_scope": "127.0.0.1 only",
+    "real_miner": false,
+    "live_pool": false,
+    "wallet_touched": false
+  },
+  "bitcoin_pow_engine": {
+    "nonce_scan": "bounded CPU scan over complete 80-byte header",
+    "hash": "exact SHA-256d with hashlib reference guard",
+    "share_submit": "integrated via mining/stratum_miner.py; mining.submit over user-selected Stratum V1 TCP/TLS endpoint",
+    "network_scope": "live Stratum support implemented; this build was tested only against loopback mock pool",
+    "performance_note": "Optional native C backend is faster than Python reference; benchmark values are build-environment-only and do not make consumer CPU mining competitive with Bitcoin ASICs.",
+    "measured_rate_build_environment": {
+      "hashes": 20000000,
+      "compiler_flags": "-O3 -pthread; portable baseline with AVX2/AVX-512 function-level targets",
+      "single_thread_mhs": {
+        "scalar_naive": 1.38,
+        "midstate": 2.16,
+        "midstate_early": 2.27,
+        "avx2_x8": 13.88,
+        "avx512_x16": 24.23
+      },
+      "avx512_thread_scaling_mhs": {
+        "1": 24.5,
+        "2": 39.54,
+        "4": 68.69,
+        "8": 76.81
+      },
+      "reference_hashlib_candidate_verification": true,
+      "note": "Linux build container only; not the user Windows laptop; benchmark uses Genesis header/target and is not a pool payout test."
+    }
+  },
+  "provider_connectors_live": 0,
+  "provider_connectors_configured": "environment-dependent; configured does not mean live-verified",
+  "integrations": {
+    "registry": "/api/integrations/catalog",
+    "status": "/api/integrations/status",
+    "provider_count": 12,
+    "live_verified": 0,
+    "mode": "read_only",
+    "writes_enabled": false
+  },
+  "vault_audit": {
+    "tool": "tools_audit_vault.py",
+    "mode": "read_only",
+    "decrypts": false,
+    "modifies": false
+  },
+  "updated": "2026-11-12",
+  "wallet_recovery": {
+    "search_api": "/api/wallet/recovery/search",
+    "bitcoin_core_inspect_api": "/api/wallet/recovery/bitcoin-core/inspect",
+    "formats_api": "/api/wallet/recovery/formats",
+    "detect_api": "/api/wallet/recovery/detect",
+    "decrypt_api": "/api/wallet/recovery/decrypt",
+    "bip38_import_api": "/api/wallet/recovery/import-bip38",
+    "bitcoin_vault_api": "/api/wallet/bitcoin/vaults",
+    "bip39_api": [
+      "/api/wallet/recovery/bip39/check",
+      "/api/wallet/recovery/bip39/one-missing"
+    ],
+    "bitcoin_core_api": "/api/wallet/recovery/bitcoin-core/check",
+    "solana_api": "/api/wallet/recovery/solana/validate",
+    "direct_support": [
+      "NEXUS_AESGCM_V1",
+      "WEB3_SECRET_STORAGE_V3",
+      "BIP38_0142",
+      "BIP39",
+      "SOLANA_KEYPAIR_JSON"
+    ],
+    "local_adapter": [
+      "BITCOIN_CORE_WALLET_DAT"
+    ],
+    "vendor_tool_required": [
+      "ELECTRUM_WALLET",
+      "METAMASK_BROWSER_VAULT",
+      "MONERO_WALLET_FILE"
+    ],
+    "inactive": [
+      "BIP38_0143_EC_MULTIPLY",
+      "EIP2335_BLS_KEYSTORE"
+    ],
+    "password_storage": false,
+    "private_key_export": false,
+    "raw_private_key_export": false,
+    "owner_local_file_search_only": true,
+    "public_chain_broadcast": false
+  },
+  "sha2_research": {
+    "canonical_path": "research/sha2_independent",
+    "status_api": "/api/research/sha2/status",
+    "selftest_api": "/api/research/sha2/selftest",
+    "benchmark_api": "/api/research/sha2/benchmark",
+    "avalanche_api": "/api/research/sha2/avalanche",
+    "statistics_api": "/api/research/sha2/statistics",
+    "differential_api": "/api/research/sha2/differential",
+    "message_modification_api": "/api/research/sha2/message-modification",
+    "message_modification_e2_api": "/api/research/sha2/message-modification/e2",
+    "sat_solve_api": "/api/research/sha2/sat/solve",
+    "verification_api": "/api/research/sha2/verify",
+    "miner_modified": false,
+    "reduced_round_results_live_mining": false,
+    "sat_backend": "optional_python_sat"
+  },
+  "native_miner": {
+    "source": "mining/native/miner.c",
+    "python_adapter": "mining/native_sha256d.py",
+    "api": "nexus_scan_range(header,target,start,count,variant,threads)",
+    "variants": [
+      0,
+      1,
+      2,
+      3,
+      4
+    ],
+    "runtime_dispatch": true,
+    "fallback": "exact Python SHA-256d reference",
+    "default_stratum_chunk": 50000,
+    "default_threads": "min(4, logical CPU count)",
+    "pool_submission": "existing Stratum V1 client; C backend only scans nonce ranges",
+    "network_test": "local mock pool only; no public pool submission in this build"
+  },
+  "coin_catalog": {
+    "source": "CoinPaprika API",
+    "cache_ttl_seconds": 21600,
+    "cache_write": "atomic",
+    "failure_policy": "serve stale valid cache; otherwise serve explicitly labeled NEXUS bundled mining catalogue",
+    "response_metadata": [
+      "cached",
+      "stale",
+      "fallback",
+      "age_seconds",
+      "upstream_error"
+    ]
+  },
+  "wallet_schema_migration": {
+    "startup_migration": true,
+    "tables": [
+      "vaults",
+      "watch_addresses",
+      "bitcoin_vaults"
+    ],
+    "decrypts_existing_vaults": false,
+    "rewrites_existing_vault_records": false
+  },
+  "desktop_shell": {
+    "host": "127.0.0.1",
+    "default_port": 8765,
+    "port_fallback": "ephemeral loopback port if default occupied",
+    "webview": "Edge WebView2 via pywebview",
+    "windows_build": "must be built and tested on Windows 10/11 x64",
+    "installer": "INSTALL_NEXUS_WINDOWS.ps1: isolated venv, dependency import verification, Desktop and Start Menu shortcuts; frozen onedir preferred",
+    "validation": "source-level only in this build environment; Windows install and WebView2 runtime not executed here"
+  },
+  "blockchain_regtest": {
+    "readiness_script": "modules/blockchain_regtest/Test-LocalNodes.ps1",
+    "cleanup_script": "modules/blockchain_regtest/Stop-LocalBenchmark.ps1"
+  },
+  "rcsc": {
+    "package": "research/rcsc/nexus_rcsc/nexus_rcsc",
+    "service": "modules/rcsc_service.py",
+    "api": [
+      "/api/research/rcsc/status",
+      "/api/research/rcsc/collect",
+      "/api/research/rcsc/analyze",
+      "/api/research/rcsc/verify-header",
+      "/api/research/rcsc/runs/{run_id}"
+    ],
+    "storage": "SQLite data/nexus_rcsc.sqlite3",
+    "network": "read-only Mempool.space REST; no wallet writes",
+    "tests": "local genesis/header/merkle/subsidy and API route tests; live collection not tested",
+    "test_results": {
+      "rcsc_unit_and_api_tests": "17 passed",
+      "selected_core_mining_wallet_regression": "61 passed",
+      "live_public_collection": false,
+      "independent_provider_replication": false
+    }
+  }
+}

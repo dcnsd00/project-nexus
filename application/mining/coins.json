@@ -1,0 +1,545 @@
+{
+  "schema_version": "1.2",
+  "updated_utc": "2026-11-09",
+  "note": "PoW catalog separates verified pool profiles from miner-supported/catalog-only coins. PoS and payout assets are never treated as PoW mining algorithms.",
+  "coins": [
+    {
+      "symbol": "BTC",
+      "name": "Bitcoin",
+      "algorithm": "SHA-256d",
+      "pow_mineable": true,
+      "device_classes": [
+        "ASIC",
+        "ESP32_LOTTERY"
+      ],
+      "preferred_hardware": "ASIC",
+      "wallet_family": "BTC",
+      "mining_notes": "GPU consumer not recommended. NerdMiner is low-hashrate lottery device."
+    },
+    {
+      "symbol": "BCH",
+      "name": "Bitcoin Cash",
+      "algorithm": "SHA-256d",
+      "pow_mineable": true,
+      "device_classes": [
+        "ASIC"
+      ],
+      "preferred_hardware": "ASIC",
+      "wallet_family": "BCH",
+      "mining_notes": "SHA-256 ASIC; merged mining rewards may be available at selected pools."
+    },
+    {
+      "symbol": "LTC",
+      "name": "Litecoin",
+      "algorithm": "Scrypt",
+      "pow_mineable": true,
+      "device_classes": [
+        "ASIC"
+      ],
+      "preferred_hardware": "Scrypt ASIC",
+      "wallet_family": "LTC",
+      "mining_notes": "Scrypt ASIC; some pools merge-mine DOGE."
+    },
+    {
+      "symbol": "DOGE",
+      "name": "Dogecoin",
+      "algorithm": "Scrypt",
+      "pow_mineable": true,
+      "device_classes": [
+        "ASIC"
+      ],
+      "preferred_hardware": "Scrypt ASIC",
+      "wallet_family": "DOGE",
+      "mining_notes": "Usually merged-mined with LTC on compatible pools."
+    },
+    {
+      "symbol": "XMR",
+      "name": "Monero",
+      "algorithm": "RandomX",
+      "pow_mineable": true,
+      "device_classes": [
+        "CPU"
+      ],
+      "preferred_hardware": "CPU",
+      "wallet_family": "Monero",
+      "mining_notes": "NEXUS gates RandomX to CPU; no GPU claims."
+    },
+    {
+      "symbol": "RVN",
+      "name": "Ravencoin",
+      "algorithm": "KawPoW",
+      "pow_mineable": true,
+      "device_classes": [
+        "GPU"
+      ],
+      "preferred_hardware": "GPU",
+      "wallet_family": "RVN",
+      "dag_mib": 5944,
+      "mining_notes": "GTX 1650 Ti 4GB fails current DAG+runtime margin; NEXUS should block its GPU mining."
+    },
+    {
+      "symbol": "ETC",
+      "name": "Ethereum Classic",
+      "algorithm": "Etchash",
+      "pow_mineable": true,
+      "device_classes": [
+        "GPU",
+        "ASIC"
+      ],
+      "preferred_hardware": "GPU/ASIC",
+      "wallet_family": "ETC",
+      "dag_mib": 4448,
+      "mining_notes": "GTX 1650 Ti 4GB fails current DAG+runtime margin."
+    },
+    {
+      "symbol": "KAS",
+      "name": "Kaspa",
+      "algorithm": "KHeavyHash",
+      "pow_mineable": true,
+      "device_classes": [
+        "ASIC",
+        "GPU"
+      ],
+      "preferred_hardware": "ASIC/GPU",
+      "wallet_family": "KAS",
+      "mining_notes": "ASIC-dominated network; GPU compatibility requires miner/version and memory verification."
+    },
+    {
+      "symbol": "VTC",
+      "name": "Vertcoin",
+      "algorithm": "Verthash",
+      "pow_mineable": true,
+      "device_classes": [
+        "GPU"
+      ],
+      "preferred_hardware": "GPU",
+      "wallet_family": "VTC",
+      "dag_mib": 1200,
+      "mining_notes": "Dataset around 1.2GB; leave headroom for runtime and display use."
+    },
+    {
+      "symbol": "ALPH",
+      "name": "Alephium",
+      "algorithm": "Blake3",
+      "pow_mineable": true,
+      "device_classes": [
+        "ASIC",
+        "GPU"
+      ],
+      "preferred_hardware": "ASIC/GPU",
+      "wallet_family": "ALPH",
+      "mining_notes": "ASIC and miner support vary; validate exact hardware."
+    },
+    {
+      "symbol": "ZEC",
+      "name": "Zcash",
+      "algorithm": "Equihash-125-4",
+      "pow_mineable": true,
+      "device_classes": [
+        "ASIC",
+        "GPU"
+      ],
+      "preferred_hardware": "ASIC/GPU",
+      "wallet_family": "ZEC",
+      "mining_notes": "Equihash variants and miner flags must match the pool."
+    },
+    {
+      "symbol": "DASH",
+      "name": "Dash",
+      "algorithm": "X11",
+      "pow_mineable": true,
+      "device_classes": [
+        "ASIC"
+      ],
+      "preferred_hardware": "X11 ASIC",
+      "wallet_family": "DASH",
+      "mining_notes": "ASIC-oriented; only use a supported X11 miner."
+    },
+    {
+      "symbol": "CFX",
+      "name": "Conflux",
+      "algorithm": "Octopus",
+      "pow_mineable": true,
+      "device_classes": [
+        "GPU"
+      ],
+      "preferred_hardware": "GPU",
+      "wallet_family": "CFX",
+      "mining_notes": "Check epoch/DAG memory before selecting a GPU."
+    },
+    {
+      "symbol": "CKB",
+      "name": "Nervos Network",
+      "algorithm": "Eaglesong",
+      "pow_mineable": true,
+      "device_classes": [
+        "ASIC"
+      ],
+      "preferred_hardware": "ASIC",
+      "wallet_family": "CKB",
+      "mining_notes": "ASIC-specific PoW."
+    },
+    {
+      "symbol": "NEXA",
+      "name": "Nexa",
+      "algorithm": "NexaPow",
+      "pow_mineable": true,
+      "device_classes": [
+        "GPU",
+        "ASIC"
+      ],
+      "preferred_hardware": "GPU/ASIC",
+      "wallet_family": "NEXA",
+      "mining_notes": "Check supported miner binary and pool before use."
+    },
+    {
+      "symbol": "ALEO",
+      "name": "Aleo",
+      "algorithm": "zkSNARK-Prover",
+      "pow_mineable": true,
+      "device_classes": [
+        "GPU",
+        "ASIC"
+      ],
+      "preferred_hardware": "GPU/ASIC",
+      "wallet_family": "ALEO",
+      "mining_notes": "Specialized proof-generation workload; not interchangeable with SHA/RX."
+    },
+    {
+      "symbol": "FLUX",
+      "name": "Flux",
+      "algorithm": "ZelHash",
+      "pow_mineable": true,
+      "device_classes": [
+        "GPU"
+      ],
+      "preferred_hardware": "GPU",
+      "wallet_family": "FLUX",
+      "mining_notes": "Equihash-derived algorithm; exact miner flag and VRAM must be validated."
+    },
+    {
+      "symbol": "FIRO",
+      "name": "Firo",
+      "algorithm": "FiroPoW",
+      "pow_mineable": true,
+      "device_classes": [
+        "GPU"
+      ],
+      "preferred_hardware": "GPU",
+      "wallet_family": "FIRO",
+      "mining_notes": "GPU algorithm; confirm current miner support."
+    },
+    {
+      "symbol": "ETH",
+      "name": "Ethereum",
+      "algorithm": null,
+      "pow_mineable": false,
+      "device_classes": [],
+      "preferred_hardware": "None",
+      "wallet_family": "EVM",
+      "mining_notes": "Ethereum mainnet transitioned to proof-of-stake; do not list it as mineable PoW."
+    },
+    {
+      "symbol": "SOL",
+      "name": "Solana",
+      "algorithm": null,
+      "pow_mineable": false,
+      "device_classes": [],
+      "preferred_hardware": "None",
+      "wallet_family": "Solana",
+      "mining_notes": "Not a proof-of-work mining asset."
+    },
+    {
+      "symbol": "ETHW",
+      "name": "EthereumPoW",
+      "algorithm": "Ethash",
+      "pow_mineable": true,
+      "device_classes": [
+        "GPU",
+        "ASIC"
+      ],
+      "preferred_hardware": "GPU/ASIC",
+      "wallet_family": "ETHW",
+      "dag_mib": null,
+      "mining_notes": "Separat de Ethereum (ETH); hardware și DAG trebuie verificate."
+    },
+    {
+      "symbol": "PRL",
+      "name": "Pearl",
+      "algorithm": "PearlHash",
+      "pow_mineable": true,
+      "device_classes": [
+        "GPU"
+      ],
+      "preferred_hardware": "GPU",
+      "wallet_family": "PRL",
+      "mining_notes": "Verifică DAG/memorie și compatibilitatea minerului; Kryptex oferă și mod SOLO."
+    },
+    {
+      "symbol": "KDA",
+      "name": "Kadena",
+      "algorithm": "Blake2s-Kadena",
+      "pow_mineable": true,
+      "device_classes": [
+        "ASIC"
+      ],
+      "preferred_hardware": "ASIC",
+      "wallet_family": "KDA",
+      "mining_notes": "ASIC specializat; nu GPU consumer."
+    },
+    {
+      "symbol": "SC",
+      "name": "Siacoin",
+      "algorithm": "Blake2b-Sia",
+      "pow_mineable": true,
+      "device_classes": [
+        "ASIC"
+      ],
+      "preferred_hardware": "ASIC",
+      "wallet_family": "SC",
+      "mining_notes": "ASIC specializat."
+    },
+    {
+      "symbol": "ERG",
+      "name": "Ergo",
+      "algorithm": "Autolykos2",
+      "pow_mineable": true,
+      "device_classes": [
+        "GPU"
+      ],
+      "preferred_hardware": "GPU",
+      "wallet_family": "ERG",
+      "asset_class": "pow_asset",
+      "selectable": false,
+      "mining_notes": "PoW cun Autolykos2; BzMiner upstream lists support. Pool endpoint neconfigurat în catalogul curent."
+    },
+    {
+      "symbol": "XEL",
+      "name": "Xelis",
+      "algorithm": "XelisHash",
+      "pow_mineable": true,
+      "device_classes": [
+        "GPU"
+      ],
+      "preferred_hardware": "GPU",
+      "wallet_family": "XEL",
+      "asset_class": "pow_asset",
+      "selectable": false,
+      "mining_notes": "PoW XelisHash; BzMiner upstream lists support. Endpoint unMineable folosit și pentru payout-asset routes."
+    },
+    {
+      "symbol": "QTC",
+      "name": "Quantus",
+      "algorithm": "Poseidon2",
+      "pow_mineable": true,
+      "device_classes": [
+        "GPU"
+      ],
+      "preferred_hardware": "GPU",
+      "wallet_family": "QTC",
+      "asset_class": "pow_asset",
+      "selectable": false,
+      "mining_notes": "PoW Poseidon2; BzMiner/unMiner announced support. Pool extern neconfigurat în acest catalog."
+    },
+    {
+      "symbol": "ZEPH",
+      "name": "Zephyr",
+      "algorithm": "RandomX",
+      "pow_mineable": true,
+      "device_classes": [
+        "CPU"
+      ],
+      "preferred_hardware": "CPU",
+      "wallet_family": "ZEPH",
+      "asset_class": "pow_asset",
+      "selectable": false,
+      "mining_notes": "PoW RandomX-family; CPU only. Pool profile neconfigurat."
+    },
+    {
+      "symbol": "SALV",
+      "name": "Salvium",
+      "algorithm": "RandomX",
+      "pow_mineable": true,
+      "device_classes": [
+        "CPU"
+      ],
+      "preferred_hardware": "CPU",
+      "wallet_family": "SALV",
+      "asset_class": "pow_asset",
+      "selectable": false,
+      "mining_notes": "PoW RandomX-family; CPU only. Pool profile neconfigurat."
+    },
+    {
+      "symbol": "VRSC",
+      "name": "Verus",
+      "algorithm": "VerusHash",
+      "pow_mineable": true,
+      "device_classes": [
+        "CPU",
+        "ASIC"
+      ],
+      "preferred_hardware": "CPU/ASIC",
+      "wallet_family": "VRSC",
+      "asset_class": "pow_asset",
+      "selectable": false,
+      "mining_notes": "PoW VerusHash; BzMiner/Verus miner support list. Pool endpoint neconfigurat."
+    },
+    {
+      "symbol": "WART",
+      "name": "Warthog",
+      "algorithm": "Argon2d",
+      "pow_mineable": true,
+      "device_classes": [
+        "CPU",
+        "GPU"
+      ],
+      "preferred_hardware": "CPU/GPU",
+      "wallet_family": "WART",
+      "asset_class": "pow_asset",
+      "selectable": false,
+      "mining_notes": "PoW Argon2d-family; BzMiner upstream lists support. Exact pool/miner version must be verified."
+    },
+    {
+      "symbol": "BEAM",
+      "name": "Beam",
+      "algorithm": "BeamHashIII",
+      "pow_mineable": true,
+      "device_classes": [
+        "GPU"
+      ],
+      "preferred_hardware": "GPU",
+      "wallet_family": "BEAM",
+      "asset_class": "pow_asset",
+      "selectable": false,
+      "mining_notes": "PoW BeamHash; catalog-only until an active, source-documented pool endpoint is configured."
+    },
+    {
+      "symbol": "MWC",
+      "name": "MimbleWimbleCoin",
+      "algorithm": "CuckooCycle",
+      "pow_mineable": true,
+      "device_classes": [
+        "GPU",
+        "ASIC"
+      ],
+      "preferred_hardware": "GPU/ASIC",
+      "wallet_family": "MWC",
+      "asset_class": "pow_asset",
+      "selectable": false,
+      "mining_notes": "PoW Cuckoo Cycle family; pool and hardware profile not verified in this release."
+    },
+    {
+      "symbol": "NEURAI",
+      "name": "Neurai",
+      "algorithm": "KawPoW",
+      "pow_mineable": true,
+      "device_classes": [
+        "GPU"
+      ],
+      "preferred_hardware": "GPU",
+      "wallet_family": "XNA",
+      "asset_class": "pow_asset",
+      "selectable": false,
+      "mining_notes": "KawPoW; miner support listed by BzMiner. Pool endpoint not yet curated."
+    },
+    {
+      "symbol": "NEOXA",
+      "name": "Neoxa",
+      "algorithm": "KawPoW",
+      "pow_mineable": true,
+      "device_classes": [
+        "GPU"
+      ],
+      "preferred_hardware": "GPU",
+      "wallet_family": "NEOX",
+      "asset_class": "pow_asset",
+      "selectable": false,
+      "mining_notes": "KawPoW; miner support listed by BzMiner. Pool endpoint not yet curated."
+    },
+    {
+      "symbol": "MEOW",
+      "name": "Meowcoin",
+      "algorithm": "KawPoW",
+      "pow_mineable": true,
+      "device_classes": [
+        "GPU"
+      ],
+      "preferred_hardware": "GPU",
+      "wallet_family": "MEOW",
+      "asset_class": "pow_asset",
+      "selectable": false,
+      "mining_notes": "KawPoW; miner support listed by BzMiner. Pool endpoint not yet curated."
+    },
+    {
+      "symbol": "CLORE",
+      "name": "Clore.ai",
+      "algorithm": null,
+      "pow_mineable": true,
+      "device_classes": [
+        "GPU"
+      ],
+      "preferred_hardware": "GPU",
+      "wallet_family": "CLORE",
+      "asset_class": "pow_asset",
+      "selectable": false,
+      "mining_notes": "PoW asset named in BzMiner upstream supported-coin list; exact algorithm/pool requires upstream release validation."
+    },
+    {
+      "symbol": "TARI",
+      "name": "Tari",
+      "algorithm": null,
+      "pow_mineable": true,
+      "device_classes": [
+        "CPU",
+        "GPU"
+      ],
+      "preferred_hardware": "CPU/GPU",
+      "wallet_family": "TARI",
+      "asset_class": "pow_asset",
+      "selectable": false,
+      "mining_notes": "PoW asset named in BzMiner upstream supported-coin list; exact algorithm/pool requires upstream release validation."
+    },
+    {
+      "symbol": "CCX",
+      "name": "Conceal",
+      "algorithm": null,
+      "pow_mineable": true,
+      "device_classes": [
+        "CPU",
+        "GPU"
+      ],
+      "preferred_hardware": "CPU/GPU",
+      "wallet_family": "CCX",
+      "asset_class": "pow_asset",
+      "selectable": false,
+      "mining_notes": "PoW asset named in BzMiner upstream supported-coin list; exact algorithm/pool requires upstream release validation."
+    },
+    {
+      "symbol": "RYO",
+      "name": "Ryo Currency",
+      "algorithm": null,
+      "pow_mineable": true,
+      "device_classes": [
+        "CPU",
+        "GPU"
+      ],
+      "preferred_hardware": "CPU/GPU",
+      "wallet_family": "RYO",
+      "asset_class": "pow_asset",
+      "selectable": false,
+      "mining_notes": "PoW asset named in BzMiner upstream supported-coin list; exact algorithm/pool requires upstream release validation."
+    },
+    {
+      "symbol": "ATOM",
+      "name": "Cosmos Hub",
+      "algorithm": null,
+      "pow_mineable": false,
+      "device_classes": [],
+      "preferred_hardware": "None",
+      "wallet_family": "Cosmos",
+      "asset_class": "staking_asset",
+      "selectable": false,
+      "mining_notes": "Proof-of-Stake. Not mined by CPU/GPU; unMineable lists ATOM as a payout asset, but ATOM payout is currently paused. Mining input asset and payout asset are different."
+    }
+  ]
+}

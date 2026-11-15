@@ -1,0 +1,20 @@
+# Pachetul foloseste doar biblioteca standard Python 3 (3.10+) pentru toate
+# scripturile de baza: sha256_advanced.py, sha512_advanced.py, diffusion_common.py,
+# differential_search.py, message_modification.py, verify_results.py, benchmark.py.
+# sat_smt_solver.py ruleaza "din cutie" cu solverul DPLL propriu (lent, doar validare).
+
+# OPTIONAL - pentru rezolvare SAT reala (necesar pt runde >~10-12):
+python-sat[pblib,aiger]>=1.8   # pip install python-sat[pblib,aiger]
+# sau, alternativ:
+# z3-solver>=4.13
+
+# OPTIONAL - pentru analiza/plotting rezultatelor CSV/JSON (nu e necesar pt rulare):
+# pandas
+# matplotlib
+
+# Pentru miner.c (C, nu Python):
+#   Linux:   gcc (vine cu build-essential) -O3 -march=native -pthread
+#   Windows: WSL2 + gcc,  sau MSYS2/MinGW-w64 (pacman -S mingw-w64-x86_64-gcc)
+# Pentru varianta GPU (optionala, de scris separat per placa video):
+#   NVIDIA: CUDA Toolkit (nvcc)
+#   AMD:    ROCm / HIP, sau OpenCL

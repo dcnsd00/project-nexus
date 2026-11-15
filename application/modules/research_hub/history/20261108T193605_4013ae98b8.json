@@ -1,0 +1,19 @@
+{
+  "id": "20261108T193605_4013ae98b8",
+  "created_utc": "2026-11-08T19:36:05.190194+00:00",
+  "kind": "toy_pow",
+  "result": {
+    "difficulty_bits": 16,
+    "prefix": "NEXUS-096-BENCH",
+    "target_prefix_hex": "0000",
+    "attempts": 181626,
+    "elapsed_seconds": 0.14092480899989823,
+    "hashes_per_second": 1288814.9452814313,
+    "found": {
+      "nonce": 181625,
+      "digest": "000093e74154d3eca5763d1f7c04d4cfdb2591add8ded533371492ba984cbcc2"
+    },
+    "scope": "locally generated toy proof-of-work; not a real coin or network"
+  },
+  "privacy": "local_only"
+}

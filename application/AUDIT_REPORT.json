@@ -1,0 +1,36 @@
+{
+  "product": "NEXUS MASTER",
+  "version": "0.9.8",
+  "base_version": "0.9.7",
+  "audit_date": "2026-11-08",
+  "suites": {
+    "nexus_master": {
+      "passed": 115,
+      "failed": 0
+    },
+    "multiminer_x": {
+      "passed": 17,
+      "failed": 0
+    },
+    "crypto_fieldstation": {
+      "passed": 12,
+      "failed": 0
+    },
+    "wallet_benchmark": {
+      "passed": 15,
+      "failed": 0
+    },
+    "wallet_v05": {
+      "passed": 7,
+      "failed": 0
+    }
+  },
+  "total_passed": 166,
+  "total_failed": 0,
+  "python_compile": "passed",
+  "dashboard_js_syntax": "passed",
+  "gpu_runtime_test": "not_run_in_build_environment",
+  "live_pool_share_test": "not_run",
+  "windows_exe_build": "not_run_requires_windows",
+  "wallet_db_in_distribution": false
+}

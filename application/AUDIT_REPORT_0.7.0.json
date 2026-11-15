@@ -1,0 +1,28 @@
+{
+  "product": "NEXUS MASTER",
+  "version": "0.7.0",
+  "date": "2026-11-08",
+  "base_version": "0.6.2",
+  "change": "modular cryptographic hash engine, API and comparative microbenchmark",
+  "tests": {
+    "nexus_root": 53,
+    "multiminer_x": 17,
+    "crypto_fieldstation": 12,
+    "wallet_benchmark": 15,
+    "local_chain_unit": 7,
+    "passed": 104,
+    "failed": 0,
+    "compileall": "PASS"
+  },
+  "limitations": {
+    "gpu_benchmark": false,
+    "target_asus_tuf_benchmark": false,
+    "bitcoin_regtest_execution": false,
+    "anvil_transaction_execution": false,
+    "live_provider_connectors": 0,
+    "public_chain_broadcast": false,
+    "real_payout_verified": false
+  },
+  "benchmark_file": "results/crypto_engine_benchmark_0.7.0.json",
+  "experimental_composite_allowed_for_consensus": false
+}

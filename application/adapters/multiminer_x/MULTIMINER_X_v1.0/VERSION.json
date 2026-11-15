@@ -1,0 +1,20 @@
+{
+  "name": "MULTIMINER X",
+  "version": "1.1.0",
+  "build_date": "2026-11-07",
+  "platform": "Windows 10/11 x64",
+  "mode": "CPU RandomX + NVIDIA GPU PearlHash controller",
+  "mining_engines": [
+    "XMRig 6.26.0",
+    "SRBMiner-MULTI 3.8.4"
+  ],
+  "status": "source-built; backend installers included; not hardware-validated on the user's Asus TUF",
+  "features": [
+    "multi-asset payout ticker selector",
+    "SHA-256/SHA-512/SHA3-256/BLAKE2b offline crypto lab",
+    "PBKDF2-HMAC-SHA256 key derivation",
+    "AES-GCM decrypt with supplied key only",
+    "hypothesis sandbox",
+    "SHA-256d and SHA-512 benchmark harness"
+  ]
+}

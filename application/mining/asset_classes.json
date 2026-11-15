@@ -1,0 +1,121 @@
+{
+  "schema_version": "1.0",
+  "updated_utc": "2026-11-09",
+  "source_note": "Static, curated classification. Staking/payout assets are separate from PoW coins; provider-specific dynamic payout support is fetched separately.",
+  "staking_assets": [
+    {
+      "symbol": "ATOM",
+      "name": "Cosmos Hub",
+      "ecosystem": "Cosmos Hub / IBC",
+      "consensus": "Proof-of-Stake",
+      "wallet_family": "Cosmos",
+      "status": "watch_only",
+      "unmineable_payout": true,
+      "payout_status": "paused",
+      "payout_network": "Cosmos",
+      "payout_minimum": "0.2 ATOM",
+      "source": "https://unmineable.com/es/coins/ATOM",
+      "notes": "unMineable accepts ATOM as a reward target but its ATOM page currently marks payouts paused. Mining inputs shown: PRL/PearlPow and XEL/XelisHash."
+    },
+    {
+      "symbol": "OSMO",
+      "name": "Osmosis",
+      "ecosystem": "Cosmos Hub / IBC",
+      "consensus": "Proof-of-Stake",
+      "wallet_family": "Cosmos",
+      "status": "watch_only",
+      "unmineable_payout": null,
+      "source": "https://osmosis.zone/",
+      "notes": "PoS/DeFi network asset; no native PoW mining."
+    },
+    {
+      "symbol": "TIA",
+      "name": "Celestia",
+      "ecosystem": "Cosmos ecosystem",
+      "consensus": "Proof-of-Stake",
+      "wallet_family": "Cosmos",
+      "status": "watch_only",
+      "unmineable_payout": null,
+      "source": "https://celestia.org/",
+      "notes": "PoS staking/delegation; no native PoW mining."
+    },
+    {
+      "symbol": "INJ",
+      "name": "Injective",
+      "ecosystem": "Cosmos ecosystem",
+      "consensus": "Proof-of-Stake",
+      "wallet_family": "Cosmos",
+      "status": "watch_only",
+      "unmineable_payout": null,
+      "source": "https://injective.com/",
+      "notes": "PoS staking/delegation; no native PoW mining."
+    },
+    {
+      "symbol": "SEI",
+      "name": "Sei",
+      "ecosystem": "Cosmos ecosystem",
+      "consensus": "Proof-of-Stake",
+      "wallet_family": "Cosmos",
+      "status": "watch_only",
+      "unmineable_payout": null,
+      "source": "https://www.sei.io/",
+      "notes": "PoS staking/delegation; no native PoW mining."
+    },
+    {
+      "symbol": "AKT",
+      "name": "Akash Network",
+      "ecosystem": "Cosmos ecosystem",
+      "consensus": "Proof-of-Stake",
+      "wallet_family": "Cosmos",
+      "status": "watch_only",
+      "unmineable_payout": null,
+      "source": "https://akash.network/",
+      "notes": "PoS staking plus compute marketplace; not GPU PoW mining."
+    },
+    {
+      "symbol": "JUNO",
+      "name": "Juno Network",
+      "ecosystem": "Cosmos ecosystem",
+      "consensus": "Proof-of-Stake",
+      "wallet_family": "Cosmos",
+      "status": "watch_only",
+      "unmineable_payout": null,
+      "source": "https://junonetwork.io/",
+      "notes": "PoS staking/delegation; no native PoW mining."
+    },
+    {
+      "symbol": "DYM",
+      "name": "Dymension",
+      "ecosystem": "Cosmos ecosystem",
+      "consensus": "Proof-of-Stake",
+      "wallet_family": "Cosmos",
+      "status": "watch_only",
+      "unmineable_payout": null,
+      "source": "https://dymension.xyz/",
+      "notes": "PoS staking/delegation; no native PoW mining."
+    },
+    {
+      "symbol": "DYDX",
+      "name": "dYdX",
+      "ecosystem": "Cosmos appchain",
+      "consensus": "Proof-of-Stake",
+      "wallet_family": "Cosmos",
+      "status": "watch_only",
+      "unmineable_payout": null,
+      "source": "https://dydx.exchange/",
+      "notes": "Validator/delegation model; not GPU PoW mining."
+    }
+  ],
+  "merged_mining_rewards": [
+    {
+      "symbol": "DOGE",
+      "name": "Dogecoin",
+      "merged_mined_with": "LTC",
+      "merged_parent_algorithm": "Scrypt",
+      "consensus": "Auxiliary merged mining (pool-dependent)",
+      "status": "pool_dependent",
+      "notes": "DOGE is often merged-mined with Litecoin on compatible Scrypt pools; verify per pool/account.",
+      "source": "https://www.f2pool.com/"
+    }
+  ]
+}

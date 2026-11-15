@@ -1,0 +1,24 @@
+{
+  "run_id": "20261115T095714_2976311a9133",
+  "created_utc": "2026-11-15T09:57:14.123124+00:00",
+  "kind": "full_standard_hash_avalanche",
+  "result": {
+    "kind": "full_standard_hash_avalanche",
+    "algorithm": "sha512",
+    "standard_digest_bits": 512,
+    "samples": 16,
+    "payload_bytes": 32,
+    "seed": 7,
+    "mean_changed_output_bits": 254.8125,
+    "expected_mean_for_ideal_random_mapping": 256.0,
+    "sample_stddev": 12.517820630338706,
+    "z_score_vs_ideal_mean": -0.41984465132951254,
+    "within_three_standard_errors": true,
+    "min_distance": 236,
+    "max_distance": 275,
+    "elapsed_seconds": 0.0001952500000186319,
+    "interpretation": "Media este compatibilă cu reperul ideal de 50% în acest eșantion; testul nu demonstrează securitatea criptografică.",
+    "not_a_pow_benchmark": true,
+    "consensus_compatible": true
+  }
+}

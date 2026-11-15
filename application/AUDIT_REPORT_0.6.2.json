@@ -1,0 +1,73 @@
+{
+  "version": "0.6.2",
+  "date": "2026-11-08",
+  "decryption_tests": {
+    "passed": 20,
+    "failed": 0,
+    "cases": [
+      "correct password",
+      "wrong password",
+      "empty password",
+      "address-key correspondence",
+      "wrong expected address",
+      "ciphertext tampering",
+      "nonce tampering",
+      "salt tampering",
+      "wrong authenticated data",
+      "malformed JSON",
+      "unknown version",
+      "unknown KDF",
+      "missing salt",
+      "wrong salt length",
+      "wrong nonce length",
+      "invalid Base64",
+      "truncated ciphertext",
+      "oversized keystore",
+      "Unicode password",
+      "invalid secp256k1 scalar"
+    ]
+  },
+  "retested_suites": [
+    {
+      "suite": "NEXUS Master manifest",
+      "passed": 6,
+      "failed": 0
+    },
+    {
+      "suite": "NEXUS Core API",
+      "passed": 7,
+      "failed": 0
+    },
+    {
+      "suite": "MultiMiner X",
+      "passed": 17,
+      "failed": 0
+    },
+    {
+      "suite": "Crypto Fieldstation",
+      "passed": 12,
+      "failed": 0
+    },
+    {
+      "suite": "Wallet Benchmark / Local Chain unit suite",
+      "passed": 15,
+      "failed": 0
+    }
+  ],
+  "passing_total": 77,
+  "known_test_environment_issue": {
+    "suite": "Wallet Manager API persistence tests",
+    "failed": 3,
+    "description": "Three create/unlock/watch-address API tests hit SQLite 'attempt to write a readonly database' in this sandbox. The 20 direct keystore decrypt/authentication tests passed independently. This persistence issue must be resolved and rerun on Windows before calling the wallet UI fully validated."
+  },
+  "scope": {
+    "decryption": "Owner-supplied password against owner-provided local encrypted keystore only. No brute-force, no arbitrary address targeting.",
+    "not_done": [
+      "BIP39 seed phrase recovery/import UI",
+      "Bitcoin wallet.dat decryption",
+      "Electrum/MetaMask/other vendor keystore format support",
+      "real chain transaction signing/broadcast",
+      "live hardware mining benchmark"
+    ]
+  }
+}
