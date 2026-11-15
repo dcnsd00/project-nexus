@@ -1,0 +1,104 @@
+name: NEXUS Source Import and Full Validation
+
+on:
+  push:
+    branches: [integration/source-import-safe-0.10.25]
+    paths:
+      - ".github/workflows/nexus-source-import.yml"
+      - "scripts/import_source_bundle.sh"
+      - "patches/0.10.25/**"
+      - "NEXUS_MASTER_0.10.25_SOURCE_IMPORT_BUNDLE_WALLET_MINING.zip"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: write
+
+concurrency:
+  group: nexus-source-import-safe
+  cancel-in-progress: false
+
+jobs:
+  import-and-validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout isolated integration branch
+        uses: actions/checkout@v4
+        with:
+          ref: integration/source-import-safe-0.10.25
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: NEXUS_MASTER_0.10.25_SOURCE_IMPORT_BUNDLE_WALLET_MINING.zip
+
+      - name: Verify and import exact source archive
+        run: |
+          bash scripts/import_source_bundle.sh NEXUS_MASTER_0.10.25_SOURCE_IMPORT_BUNDLE_WALLET_MINING.zip
+          test -f application/nexus_master.py
+          test -f application/VERSION.json
+          test -d application/tests
+
+      - name: Apply reviewed regression patch
+        run: |
+          git apply --check patches/0.10.25/sha2-verification-results-root.patch
+          git apply patches/0.10.25/sha2-verification-results-root.patch
+
+      - name: Install development dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r application/requirements-dev.txt
+
+      - name: Compile all application Python sources
+        run: python -m compileall -q application
+
+      - name: Run focused integration and regression suites
+        working-directory: application
+        run: |
+          python -m pytest -q \
+            tests/rcsc \
+            tests/test_nexus_runtime.py \
+            tests/test_lifecycle_manager.py \
+            tests/test_module_registry.py \
+            tests/test_solo_mining_096.py \
+            tests/test_sha2_research_service_020.py \
+            --disable-warnings --maxfail=1
+
+      - name: Run complete application test suite
+        working-directory: application
+        run: python -m pytest -q --disable-warnings --maxfail=1 --durations=25
+
+      - name: Check patch whitespace and unexpected staged files
+        run: |
+          git diff --check
+          if git status --short | grep -E '(^\?\?|^A |^\?\? ).*(\.env|\.sqlite3?$|\.db$|\.pem$|\.key$|wallet.*\.json$)'; then
+            echo "::error::Potential secret or runtime-state file detected."
+            exit 1
+          fi
+
+      - name: Commit validated application source on isolated branch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add application/
+          if git diff --cached --quiet; then
+            echo "No application source changes to commit."
+          else
+            git commit -m "Import verified NEXUS MASTER 0.10.25 application source"
+            git push origin HEAD:integration/source-import-safe-0.10.25
+          fi
+
+      - name: Dispatch canonical NEXUS CI against imported source
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          curl --fail-with-body -sS -X POST \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/workflows/nexus-ci.yml/dispatches \
+            -d '{"ref":"integration/source-import-safe-0.10.25"}'
