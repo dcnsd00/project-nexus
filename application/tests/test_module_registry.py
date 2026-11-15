@@ -30,3 +30,15 @@ def test_registry_marks_route_registered_but_not_operational(tmp_path):
     assert row["state"] == "route_registered_runtime_unverified"
     assert row["registered_routes"] == ["/api/x/status"]
     assert row["operational_verified"] is False
+
+
+def test_registry_distinguishes_runtime_registration_from_operational_validation(tmp_path):
+    (tmp_path / "nexus_edge").mkdir()
+    (tmp_path / "nexus_edge" / "service.py").write_text("# source", encoding="utf-8")
+    modules = ({"id": "edge", "name": "EDGE", "paths": ("nexus_edge/service.py",),
+                "route_prefixes": (), "runtime_service": "edge_manager", "critical": False},)
+    row = build_module_registry(tmp_path, SimpleNamespace(routes=[]), modules,
+                                runtime_services={"edge_manager"})["modules"][0]
+    assert row["state"] == "runtime_registered_health_unverified"
+    assert row["runtime_registered"] is True
+    assert row["operational_verified"] is False
