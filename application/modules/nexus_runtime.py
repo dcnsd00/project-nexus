@@ -266,6 +266,25 @@ def _integrations_probe(module: Any) -> dict[str, Any]:
             "writes_enabled": False}
 
 
+def _earnings_intelligence_probe(module: Any) -> dict[str, Any]:
+    db_path = Path(module.DB_PATH).expanduser().resolve()
+    if not db_path.is_file():
+        return {"database_present": False, "schema_checked": False,
+                "database_path": str(db_path), "provider_connectors_live": 0,
+                "execution_mode": "shadow_only"}
+    uri = db_path.as_uri() + "?mode=ro"
+    with sqlite3.connect(uri, uri=True, timeout=2) as conn:
+        tables = {row[0] for row in conn.execute(
+            "SELECT name FROM sqlite_master WHERE type='table'")}
+    expected = {"opportunities", "devices", "telemetry", "jobs", "reward_events",
+                "payouts", "source_snapshots", "audit_events"}
+    return {"database_present": True, "schema_checked": True,
+            "tables_present": sorted(tables.intersection(expected)),
+            "tables_missing": sorted(expected - tables),
+            "database_path": str(db_path), "provider_connectors_live": 0,
+            "execution_mode": "shadow_only"}
+
+
 def _blockchain_regtest_probe(module: Any) -> dict[str, Any]:
     compose_file = Path(module.__file__).with_name("docker-compose.yml")
     return {"bitcoin_rpc": module.BTC_URL, "evm_nodes": sorted(module.EVM_NODES),
@@ -333,6 +352,12 @@ def build_runtime(root: str | Path | None = None) -> LifecycleManager:
         factory=lambda: ModuleAdapter("modules.integration_registry", _integrations_probe, "Provider Registry"),
         dependencies=("crypto_engine",), critical=False,
     ))
+    if (base / "modules" / "earnings_intelligence.py").is_file():
+        manager.register(ServiceSpec(
+            name="earnings_intelligence",
+            factory=lambda: ModuleAdapter("modules.earnings_intelligence", _earnings_intelligence_probe, "Earnings Intelligence"),
+            dependencies=("crypto_engine", "data_paths"), critical=False,
+        ))
     if (base / "nexus_edge" / "service.py").is_file():
         manager.register(ServiceSpec(
             name="edge_manager",
