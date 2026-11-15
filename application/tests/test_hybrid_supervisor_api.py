@@ -117,7 +117,8 @@ def test_switch_evaluation_api_is_read_only_and_global_default_is_off(monkeypatc
         assert data["worker_changed"] is False
         assert data["execution"] == "evaluation_only"
         assert data["decision"]["should_switch"] is False
-        assert "automatic_switch_disabled" in data["decision"]["reasons"]
+        assert "current_configuration_not_tracked" in data["decision"]["reasons"]
+        assert "minimum_dwell_not_reached" in data["decision"]["reasons"]
 
 
 def test_switch_apply_api_fails_closed_without_global_opt_in(monkeypatch):
