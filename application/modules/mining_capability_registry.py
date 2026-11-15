@@ -163,3 +163,72 @@ def catalog_coverage(pools_path: str | Path) -> dict[str, Any]:
         "algorithms": sorted(rows.values(), key=lambda x: x["algorithm"]),
         "catalog_is_live_validation": False,
     }
+
+
+_BACKEND_ID_ALIASES = {
+    "cgminer": "cgminer", "bfgminer": "bfgminer",
+    "srbminer-multi": "srbminer", "xmrig": "xmrig",
+    "t-rex": "trex", "gminer": "gminer", "rigel": "rigel",
+    "lolminer": "lolminer", "verthashminer": "verthashminer",
+    "nerdminer": "nerdminer",
+}
+
+
+def compatibility_matrix(pools_path: str | Path, backend_specs: list[dict[str, Any]]) -> dict[str, Any]:
+    """Build a static pool × algorithm × backend × device map; no live claims."""
+    path = Path(pools_path)
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    rows = []
+    for pool in payload.get("pools", []):
+        algorithm = normalize_algorithm(str(pool.get("algorithm", "")))
+        profile = algorithm_profile(algorithm)
+        candidates = profile.get("backend_candidates", [])
+        devices = profile.get("device_classes", [])
+        backend_matches = []
+        for candidate in candidates:
+            backend_id = _BACKEND_ID_ALIASES.get(candidate.casefold())
+            backend = next((item for item in backend_specs if item.get("backend_id") == backend_id), None)
+            if backend is None:
+                continue
+            supported_devices = sorted(set(devices).intersection(backend.get("device_classes", [])))
+            if supported_devices:
+                backend_matches.append({
+                    "backend_id": backend_id,
+                    "backend_name": backend.get("display_name"),
+                    "device_classes": supported_devices,
+                    "match_status": "profile_match_only",
+                    "executable_presence_checked": False,
+                    "pool_connection_checked": False,
+                })
+        if profile.get("status") == "catalog_only":
+            status = "catalog_only"
+        elif backend_matches:
+            status = "profiled_backend_candidates"
+        else:
+            status = "no_backend_profile_match"
+        rows.append({
+            "pool_id": pool.get("id"),
+            "pool_name": pool.get("name") or pool.get("pool"),
+            "coin": pool.get("coin"),
+            "algorithm": algorithm,
+            "algorithm_status": profile.get("status"),
+            "device_classes": devices,
+            "backend_matches": backend_matches,
+            "status": status,
+            "pool_reachable": None,
+            "authorized": None,
+            "job_received": None,
+            "share_accepted": None,
+            "payout_verified": None,
+        })
+    counts: dict[str, int] = {}
+    for row in rows:
+        counts[row["status"]] = counts.get(row["status"], 0) + 1
+    return {
+        "pool_profile_count": len(rows),
+        "status_counts": counts,
+        "entries": rows,
+        "is_static_profile_matrix": True,
+        "live_pool_checks_performed": False,
+        "execution_enabled": False,
+    }
