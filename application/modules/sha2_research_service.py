@@ -34,7 +34,6 @@ ROOT = Path(__file__).resolve().parents[1]
 PACKAGE_ROOT = ROOT / "research" / "sha2_independent"
 RESULTS_ROOT = Path(os.environ.get("NEXUS_SHA2_RESULTS_DIR", str(data_path("research", "sha2", "runs"))))
 VERIFICATION_RESULTS_ROOT = Path(os.environ.get("NEXUS_SHA2_VERIFICATION_RESULTS_DIR", str(data_path("research", "sha2", "verification"))))
-RESULTS_ROOT.mkdir(parents=True, exist_ok=True)
 _RUN_LOCK = threading.Lock()
 
 
@@ -53,6 +52,7 @@ def _save(kind: str, result: dict[str, Any]) -> dict[str, Any]:
         "miner_auto_apply": False,
         "network_access": False,
     }
+    RESULTS_ROOT.mkdir(parents=True, exist_ok=True)
     target = RESULTS_ROOT / f"{run_id}.json"
     temporary = target.with_suffix(".json.tmp")
     temporary.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
@@ -92,7 +92,7 @@ def status() -> dict[str, Any]:
             "No miner is started and no pool/network is contacted.",
             "Exact hash results are checked against hashlib.",
         ],
-        "saved_runs": len(list(RESULTS_ROOT.glob("*.json"))),
+        "saved_runs": len(list(RESULTS_ROOT.glob("*.json"))) if RESULTS_ROOT.is_dir() else 0,
     }
 
 
@@ -237,6 +237,7 @@ def run_sat_solve(rounds: int = 6, seed: int = 42) -> dict[str, Any]:
 
 
 def run_verification() -> dict[str, Any]:
+    VERIFICATION_RESULTS_ROOT.mkdir(parents=True, exist_ok=True)
     with _RUN_LOCK:
         stream = io.StringIO()
         with contextlib.redirect_stdout(stream):
