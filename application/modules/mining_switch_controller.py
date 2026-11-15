@@ -192,7 +192,11 @@ def evaluate_candidate(current: dict[str, Any], candidate: dict[str, Any],
     last_switch = float(state.get("last_switch_unix", 0) or 0)
     if last_switch and now - last_switch < float(cfg["cooldown_seconds"]):
         reasons.append("switch_cooldown_active")
-    current_started = float(state.get("current_started_unix", now) or now)
+    if state.get("current_started_unix") is None:
+        reasons.append("current_configuration_not_tracked")
+        current_started = now
+    else:
+        current_started = float(state["current_started_unix"])
     if now - current_started < float(cfg["minimum_dwell_seconds"]):
         reasons.append("minimum_dwell_not_reached")
     recent_switches = [float(x) for x in state.get("switches_last_24h", []) if now - float(x) < 86400]
