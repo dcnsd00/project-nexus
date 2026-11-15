@@ -133,4 +133,5 @@ def test_switch_apply_api_requires_verified_live_source_adapter(monkeypatch):
     with TestClient(app) as client:
         response = client.post('/api/mining/hybrid/engine/cpu/switch/apply', json=_switch_payload())
         assert response.status_code == 409
-        assert response.json()["detail"] == "live_source_adapter_not_verified"
+        assert response.json()["detail"]["error"] == "live_source_adapter_not_verified"
+        assert response.json()["detail"]["source_status"]["verified"] is False
