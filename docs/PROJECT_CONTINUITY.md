@@ -151,3 +151,24 @@ Consolidation decision:
 3. Import missing architecture documentation and selected verified EDGE source/tests from the architecture/feature branches; this is content consolidation, not a branch merge.
 4. Review the 13 commits unique to `integration/nexus-master-0.10.25` individually before any ancestry merge or PR. Avoid force-push and avoid merging divergent histories without conflict review.
 5. Retire `integration/import-0.10.25` only after confirming no external work depends on it; no deletion performed.
+
+## Runtime integration audit — Fieldstation and Math — 2026-11-15
+
+### DePIN Crypto Fieldstation
+- Removed import-time filesystem creation and import-time JSON loading/seeding from `adapters/fieldstation/crypto_fieldstation/app.py`.
+- Persistent data now resolves under the central NEXUS data root (`fieldstation/`); environment-independent default is supplied by `data_path`.
+- Existing JSON state is loaded only when the standalone Fieldstation `main()` is explicitly invoked. Writes create the parent directory only on explicit save.
+- Registered `depin_fieldstation` in the shared LifecycleManager and Module Registry.
+- Runtime health probe is metadata-only: it does not load state, start the HTTP server, call external sources, access wallet signing or start miners.
+- Test coverage added for import/runtime no-side-effects and corrupt-state recovery. Do not claim Fieldstation's external research APIs, live chain reads, reward accounting or provider connections are validated; they remain separate capabilities requiring contract tests.
+
+### Math Intelligence
+- `math_intelligence` was already registered in the shared runtime; the probe previously checked only catalog presence.
+- Added deterministic runtime self-checks for the modular congruence solver and measured-candidate triage. The triage self-check explicitly asserts `auto_apply=False`.
+- Added a runtime integration test that verifies both self-checks and no network calls.
+- This validates local mathematical functions only. It does not validate GPU/ASIC mining gains, consensus PoW compatibility or an optimization being applied to a live miner.
+
+### Verified CI evidence
+- Commit `c08639e5b2977ac15901960f82f7a0efd18d678c`, run `43733890984`: source-detection PASS; Python 3.12 test suite **424 passed, 1 warning**.
+- The subsequent Math Intelligence self-test changes are newer than that run and must be validated by their own latest CI run before being called tested.
+- No Windows 11 or physical-device validation is implied by GitHub-hosted Ubuntu CI.
