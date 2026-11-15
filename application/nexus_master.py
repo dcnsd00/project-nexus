@@ -1545,14 +1545,17 @@ def rcsc_run_detail(run_id: str):
 
 # NEXUS unified module registry: reports source and route evidence separately.
 from modules.module_registry import build_module_registry  # noqa: E402
+from modules.nexus_runtime import build_runtime  # noqa: E402
 
 @app.get("/api/nexus/module-registry")
 def nexus_module_registry():
-    return build_module_registry(ROOT, app)
+    runtime_services = {row["name"] for row in build_runtime().snapshot()["services"]}
+    return build_module_registry(ROOT, app, runtime_services=runtime_services)
 
 @app.get("/api/nexus/module-registry/health")
 def nexus_module_registry_health():
-    registry = build_module_registry(ROOT, app)
+    runtime_services = {row["name"] for row in build_runtime().snapshot()["services"]}
+    registry = build_module_registry(ROOT, app, runtime_services=runtime_services)
     critical = [m for m in registry["modules"] if m["critical"]]
     return {
         "critical_modules": len(critical),
