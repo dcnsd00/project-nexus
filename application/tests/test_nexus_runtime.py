@@ -5,7 +5,7 @@ def test_runtime_registers_local_services_without_starting_them():
     manager = build_runtime()
     snapshot = manager.snapshot()
     names = {row["name"] for row in snapshot["services"]}
-    assert {"data_paths", "crypto_engine", "math_intelligence", "provider_registry"} <= names
+    assert {"data_paths", "crypto_engine", "math_intelligence", "provider_registry", "rcsc_research"} <= names
     assert snapshot["running"] == 0
     assert snapshot["system_ready"] is False
 
@@ -49,4 +49,21 @@ def test_wallet_and_mining_adapters_are_read_only_and_do_not_autostart(tmp_path)
     assert mining["details"]["workers_started_by_runtime"] is False
     assert set(mining["details"]["engine_states"].values()) == {"stopped"}
 
+    assert manager.stop_all()["running"] == 0
+
+
+def test_rcsc_runtime_adapter_is_read_only_and_does_not_initialize_database():
+    from modules import rcsc_service
+
+    database = rcsc_service.DB_PATH
+    existed_before = database.exists()
+    manager = build_runtime()
+    snapshot = manager.start_all()
+    by_name = {row["name"]: row for row in snapshot["services"]}
+
+    rcsc = by_name["rcsc_research"]["health"]
+    assert rcsc["ok"] is True
+    assert rcsc["mode"] == "local_read_only_no_schema_mutation_no_provider_access"
+    assert rcsc["details"]["database_present"] is existed_before
+    assert database.exists() is existed_before
     assert manager.stop_all()["running"] == 0
