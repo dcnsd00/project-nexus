@@ -3,9 +3,9 @@ import json, math, time
 from pathlib import Path
 from typing import Any
 
-ROOT = Path(__file__).resolve().parents[1]
-TRIALS = ROOT / 'results' / 'mining_optimization_trials.json'
-TRIALS.parent.mkdir(parents=True, exist_ok=True)
+from modules.data_paths import data_path
+
+TRIALS = Path(__import__('os').environ.get('NEXUS_MINING_TRIALS', str(data_path('mining', 'optimization_trials.json')))).expanduser().resolve()
 
 
 def _load() -> list[dict[str, Any]]:
@@ -44,6 +44,7 @@ def record_trial(data: dict[str, Any]) -> dict[str, Any]:
       'classification':'measurement_only',
       'note':'A/B măsurat local. Nu este dovadă de profit sau validitate de consens; rezultatul nu se aplică automat minerului.'
     }
+    TRIALS.parent.mkdir(parents=True, exist_ok=True)
     rows=_load(); rows.append(result); TRIALS.write_text(json.dumps(rows[-500:],indent=2,ensure_ascii=False),encoding='utf-8')
     return result
 
