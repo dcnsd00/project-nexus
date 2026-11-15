@@ -5,7 +5,7 @@ def test_runtime_registers_local_services_without_starting_them():
     manager = build_runtime()
     snapshot = manager.snapshot()
     names = {row["name"] for row in snapshot["services"]}
-    assert {"data_paths", "crypto_engine", "math_intelligence", "provider_registry", "rcsc_research", "research_hub", "mining_switch_controller", "blockchain_regtest", "edge_manager", "earnings_intelligence", "coin_catalog", "mining_optimizer"} <= names
+    assert {"data_paths", "crypto_engine", "math_intelligence", "provider_registry", "rcsc_research", "research_hub", "mining_switch_controller", "blockchain_regtest", "edge_manager", "earnings_intelligence", "coin_catalog", "mining_optimizer", "depin_fieldstation"} <= names
     assert snapshot["running"] == 0
     assert snapshot["system_ready"] is False
 
@@ -174,4 +174,24 @@ def test_mining_optimizer_runtime_probe_is_read_only():
     assert details["automatic_parameter_application"] is False
     assert details["automatic_coin_switching"] is False
     assert mining_optimization.TRIALS.exists() is existed_before
+    assert manager.stop_all()["running"] == 0
+
+
+def test_fieldstation_runtime_probe_does_not_create_data_or_start_server(tmp_path, monkeypatch):
+    import importlib
+    from modules import data_paths
+
+    monkeypatch.setattr(data_paths, "DATA_DIR", tmp_path / "nexus-data")
+    fieldstation = importlib.import_module("adapters.fieldstation.crypto_fieldstation.app")
+    fieldstation = importlib.reload(fieldstation)
+    assert not fieldstation.DATA_DIR.exists()
+    manager = build_runtime()
+    snapshot = manager.start_all()
+    by_name = {row["name"]: row for row in snapshot["services"]}
+    details = by_name["depin_fieldstation"]["health"]["details"]
+    assert details["data_loaded"] is False
+    assert details["server_started"] is False
+    assert details["network_calls_by_probe"] is False
+    assert details["miner_autostart_enabled"] is False
+    assert not fieldstation.DATA_DIR.exists()
     assert manager.stop_all()["running"] == 0
