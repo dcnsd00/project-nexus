@@ -5,7 +5,7 @@ def test_runtime_registers_local_services_without_starting_them():
     manager = build_runtime()
     snapshot = manager.snapshot()
     names = {row["name"] for row in snapshot["services"]}
-    assert {"data_paths", "crypto_engine", "math_intelligence", "provider_registry", "rcsc_research"} <= names
+    assert {"data_paths", "crypto_engine", "math_intelligence", "provider_registry", "rcsc_research", "research_hub"} <= names
     assert snapshot["running"] == 0
     assert snapshot["system_ready"] is False
 
@@ -66,4 +66,22 @@ def test_rcsc_runtime_adapter_is_read_only_and_does_not_initialize_database():
     assert rcsc["mode"] == "local_read_only_no_schema_mutation_no_provider_access"
     assert rcsc["details"]["database_present"] is existed_before
     assert database.exists() is existed_before
+    assert manager.stop_all()["running"] == 0
+
+
+def test_research_hub_runtime_probe_is_read_only():
+    from modules import research_hub
+
+    history_path = research_hub.HISTORY
+    existed_before = history_path.exists()
+    manager = build_runtime()
+    snapshot = manager.start_all()
+    by_name = {row["name"]: row for row in snapshot["services"]}
+
+    hub = by_name["research_hub"]["health"]
+    assert hub["ok"] is True
+    assert hub["details"]["shortcuts_registered"] == len(research_hub.SHORTCUTS)
+    assert hub["details"]["external_uploads"] is False
+    assert hub["details"]["auto_apply"] is False
+    assert history_path.exists() is existed_before
     assert manager.stop_all()["running"] == 0
