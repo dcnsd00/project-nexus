@@ -36,6 +36,19 @@ ALGORITHM_PROFILES: dict[str, AlgorithmProfile] = {
     "SHA-512": AlgorithmProfile("SHA-512", "sha2", ("CPU",), (), ("OpenSSL", "Python hashlib"), "research_only", "Digest benchmark only; not a supported PoW pool algorithm."),
     "SHA-3": AlgorithmProfile("SHA-3", "sha3", ("CPU",), (), ("OpenSSL", "Python hashlib"), "research_only", "Digest benchmark only; not a supported PoW pool algorithm."),
     "BLAKE2": AlgorithmProfile("BLAKE2", "blake", ("CPU",), (), ("OpenSSL", "Python hashlib"), "research_only", "Digest benchmark only; not a supported PoW pool algorithm."),
+    "Blake3": AlgorithmProfile("Blake3", "blake3", (), (), (), "catalog_only", "Pool catalog entry exists; device/backend/protocol contract is not yet validated."),
+    "Equihash-125-4": AlgorithmProfile("Equihash-125-4", "equihash", (), (), (), "catalog_only", "Pool catalog entry exists; device/backend/protocol contract is not yet validated."),
+    "Equihash": AlgorithmProfile("Equihash", "equihash", (), (), (), "catalog_only", "Pool catalog entry exists; device/backend/protocol contract is not yet validated."),
+    "X11": AlgorithmProfile("X11", "x11", (), (), (), "catalog_only", "Pool catalog entry exists; device/backend/protocol contract is not yet validated."),
+    "Eaglesong": AlgorithmProfile("Eaglesong", "eaglesong", (), (), (), "catalog_only", "Pool catalog entry exists; device/backend/protocol contract is not yet validated."),
+    "NexaPow": AlgorithmProfile("NexaPow", "nexapow", (), (), (), "catalog_only", "Pool catalog entry exists; device/backend/protocol contract is not yet validated."),
+    "Octopus": AlgorithmProfile("Octopus", "octopus", (), (), (), "catalog_only", "Pool catalog entry exists; device/backend/protocol contract is not yet validated."),
+    "Ethash": AlgorithmProfile("Ethash", "ethash_dag", (), (), (), "catalog_only", "Pool catalog entry exists; device/backend/protocol contract is not yet validated."),
+    "Blake2s-Kadena": AlgorithmProfile("Blake2s-Kadena", "blake2s", (), (), (), "catalog_only", "Pool catalog entry exists; device/backend/protocol contract is not yet validated."),
+    "Blake2b-Sia": AlgorithmProfile("Blake2b-Sia", "blake2b", (), (), (), "catalog_only", "Pool catalog entry exists; device/backend/protocol contract is not yet validated."),
+    "zkSNARK": AlgorithmProfile("zkSNARK", "proof_system", (), (), (), "catalog_only", "Not treated as a generic PoW miner algorithm; requires a coin-specific proving backend."),
+    "Blake2b": AlgorithmProfile("Blake2b", "blake2b", (), (), (), "catalog_only", "Pool catalog entry exists; device/backend/protocol contract is not yet validated."),
+    "XelisHash": AlgorithmProfile("XelisHash", "xelishash", (), (), (), "catalog_only", "Pool catalog entry exists; device/backend/protocol contract is not yet validated."),
 }
 
 
