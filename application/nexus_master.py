@@ -325,6 +325,7 @@ from mining import controller as mining_controller  # noqa: E402
 from mining import installer as mining_installer  # noqa: E402
 from mining.hybrid_orchestrator import build_hybrid_plan  # noqa: E402
 from mining.hybrid_supervisor import HybridSupervisor  # noqa: E402
+from modules.mining_switch_controller import evaluate_candidate, switch_if_approved, DEFAULT_POLICY as MINING_SWITCH_DEFAULT_POLICY  # noqa: E402
 from mining.development_pow import define_experiment  # noqa: E402
 from mining.randomx_benchmark import run_thread_sweep as run_randomx_thread_sweep, run_native_reference_benchmark, run_synthetic_blocks_benchmark as run_randomx_synthetic_blocks_benchmark  # noqa: E402
 from modules.mining_efficiency_optimizer import rank_candidates as rank_mining_candidates  # noqa: E402
@@ -847,6 +848,57 @@ def hybrid_gpu_switch(payload: dict):
     request = _hybrid_safe_request(payload, "gpu")
     result = hybrid_supervisor.switch_gpu(request)
     if not result.get("switched"):
+        raise HTTPException(status_code=409, detail=result)
+    return result
+
+
+
+class MiningSwitchEvaluationRequest(BaseModel):
+    current: dict
+    candidate: dict
+    state: dict = Field(default_factory=dict)
+    policy: dict = Field(default_factory=dict)
+
+
+@app.post("/api/mining/hybrid/engine/{engine}/switch/evaluate")
+def hybrid_switch_evaluate(engine: str, payload: MiningSwitchEvaluationRequest):
+    """Evaluate a source-backed candidate; this endpoint never changes a running worker."""
+    if engine not in {"cpu", "gpu"}:
+        raise HTTPException(status_code=400, detail="engine must be cpu or gpu")
+    policy = {**MINING_SWITCH_DEFAULT_POLICY, **payload.policy}
+    # Runtime configuration may disable automatic switching globally; request data
+    # cannot enable it when the process-level setting is off.
+    import os
+    policy["auto_switch_enabled"] = (
+        os.getenv("NEXUS_AUTO_SWITCH_ENABLED", "0").strip().lower() in {"1", "true", "yes"}
+        and bool(payload.policy.get("auto_switch_enabled", False))
+    )
+    decision = evaluate_candidate(payload.current, payload.candidate, payload.state, policy)
+    return {"engine": engine, "decision": decision, "worker_changed": False,
+            "execution": "evaluation_only", "requires_live_source_adapters": True}
+
+
+@app.post("/api/mining/hybrid/engine/{engine}/switch/apply")
+def hybrid_switch_apply(engine: str, payload: MiningSwitchEvaluationRequest):
+    """Explicitly approved switch; disabled until live evidence adapters are validated."""
+    if engine not in {"cpu", "gpu"}:
+        raise HTTPException(status_code=400, detail="engine must be cpu or gpu")
+    import os
+    if os.getenv("NEXUS_AUTO_SWITCH_ENABLED", "0").strip().lower() not in {"1", "true", "yes"}:
+        raise HTTPException(status_code=409, detail="mining_switch_globally_disabled")
+    if payload.candidate.get("evidence_status") != "verified":
+        raise HTTPException(status_code=409, detail="candidate_evidence_not_verified")
+    if payload.candidate.get("source_adapter_verified") is not True:
+        raise HTTPException(status_code=409, detail="live_source_adapter_not_verified")
+    worker_config = payload.candidate.get("worker_config")
+    if not isinstance(worker_config, dict):
+        raise HTTPException(status_code=422, detail="worker_config_required")
+    request = _hybrid_safe_request(worker_config, engine)
+    candidate = {**payload.candidate, "worker_request": request}
+    policy = {**MINING_SWITCH_DEFAULT_POLICY, **payload.policy, "auto_switch_enabled": True}
+    result = switch_if_approved(hybrid_supervisor, engine, payload.current, candidate,
+                                payload.state, policy)
+    if not result["executed"]:
         raise HTTPException(status_code=409, detail=result)
     return result
 
