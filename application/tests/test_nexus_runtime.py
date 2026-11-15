@@ -5,7 +5,7 @@ def test_runtime_registers_local_services_without_starting_them():
     manager = build_runtime()
     snapshot = manager.snapshot()
     names = {row["name"] for row in snapshot["services"]}
-    assert {"data_paths", "crypto_engine", "math_intelligence", "provider_registry", "rcsc_research", "research_hub", "mining_switch_controller", "blockchain_regtest"} <= names
+    assert {"data_paths", "crypto_engine", "math_intelligence", "provider_registry", "rcsc_research", "research_hub", "mining_switch_controller", "blockchain_regtest", "edge_manager"} <= names
     assert snapshot["running"] == 0
     assert snapshot["system_ready"] is False
 
@@ -115,4 +115,18 @@ def test_blockchain_regtest_runtime_probe_never_starts_nodes_or_calls_network():
     assert details["network_calls_by_probe"] is False
     assert details["nodes_started_by_runtime"] is False
     assert details["execution_requires_explicit_local_benchmark"] is True
+    assert manager.stop_all()["running"] == 0
+
+
+def test_edge_manager_is_integrated_as_local_pilot_without_network_or_miner_control():
+    manager = build_runtime()
+    snapshot = manager.start_all()
+    by_name = {row["name"]: row for row in snapshot["services"]}
+    edge = by_name["edge_manager"]["health"]
+    assert edge["ok"] is True
+    assert edge["module"] == "nexus_edge"
+    assert edge["mode"] == "local_control_plane_no_transport"
+    assert edge["details"]["network_io_enabled"] is False
+    assert edge["details"]["wallet_access_enabled"] is False
+    assert edge["details"]["miner_autostart_enabled"] is False
     assert manager.stop_all()["running"] == 0
