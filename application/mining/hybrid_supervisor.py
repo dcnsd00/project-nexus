@@ -218,7 +218,8 @@ class HybridSupervisor:
                 return {'switched': False, 'error': f'{type(exc).__name__}: {exc}', 'rolled_back': rolled_back,
                         'cpu_pid_unchanged': (self._workers.get('cpu', {}).get('process').pid if self._workers.get('cpu') else None) == cpu_pid}
 
-    def status(self) -> dict:
+    def status(self, read_only: bool = False) -> dict:
+        """Return supervisor state; read_only disables restart and stale-worker termination."""
         with self._lock:
             engines = {}
             for engine in ('cpu', 'gpu'):
@@ -231,7 +232,7 @@ class HybridSupervisor:
                     data = json.loads(item['status_path'].read_text(encoding='utf-8'))
                 except Exception:
                     data = {}
-                if (proc.poll() is not None and data.get('state') in ('failed', 'running', 'starting') and self._restart_policy.get('enabled')
+                if (not read_only and proc.poll() is not None and data.get('state') in ('failed', 'running', 'starting') and self._restart_policy.get('enabled')
                         and item.get('restart_count', 0) < self._restart_policy.get('max_restarts', 0)):
                     next_count = item.get('restart_count', 0) + 1
                     self._launch(engine, item['request'], restart_count=next_count)
@@ -245,9 +246,10 @@ class HybridSupervisor:
                 if proc.poll() is not None and state in ('starting', 'running'):
                     state = 'failed'
                 elif stale:
-                    self.stop(engine)
-                    item = self._workers.get(engine, item)
-                    proc = item['process']
+                    if not read_only:
+                        self.stop(engine)
+                        item = self._workers.get(engine, item)
+                        proc = item['process']
                     state = 'failed'
                     data['last_error'] = 'stale_heartbeat'
                 engines[engine] = {**data, 'state': state, 'pid': proc.pid,
