@@ -27,7 +27,7 @@ def default_data_dir() -> Path:
 DATA_DIR = default_data_dir()
 
 
-def data_path(*parts: str, create_parent: bool = True) -> Path:
+def data_path(*parts: str, create_parent: bool = False) -> Path:
     """Return a path under the central NEXUS data directory."""
     if not parts or any(Path(part).is_absolute() or ".." in Path(part).parts for part in parts):
         raise ValueError("NEXUS data path must be a non-empty relative path")
