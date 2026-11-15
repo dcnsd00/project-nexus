@@ -2,7 +2,7 @@
 The live CPU scanner/submission lifecycle is implemented in stratum_miner.py.
 """
 from __future__ import annotations
-import json, socket, ssl, time, re, hashlib
+import json, socket, ssl, time, re, hashlib, math
 from typing import Any
 
 _HEX = re.compile(r'^(?:[0-9a-fA-F]{2})*$')
@@ -33,15 +33,45 @@ def parse_notify(params: Any) -> dict:
     if not isinstance(params,list) or len(params)<9:
         raise StratumSessionError('mining.notify are mai puțin de 9 parametri.')
     job_id, prev_hash, coinb1, coinb2, branches, version, nbits, ntime, clean = params[:9]
+    if not isinstance(job_id, str) or not job_id or len(job_id) > 128:
+        raise StratumSessionError('job_id invalid.')
     for name,value in [('prev_hash',prev_hash),('coinb1',coinb1),('coinb2',coinb2),('version',version),('nbits',nbits),('ntime',ntime)]:
         if not isinstance(value,str) or not _HEX.fullmatch(value): raise StratumSessionError(f'Câmp hex invalid: {name}.')
+    if len(coinb1) > 131072 or len(coinb2) > 131072 or len(coinb1) + len(coinb2) > 196608:
+        raise StratumSessionError('Coinbase fields exceed safety limit.')
     if len(prev_hash)!=64 or len(version)!=8 or len(nbits)!=8 or len(ntime)!=8:
         raise StratumSessionError('Lungime invalidă pentru prev_hash/version/nbits/ntime.')
     if not isinstance(branches,list) or len(branches)>64 or any(not isinstance(x,str) or len(x)!=64 or not _HEX.fullmatch(x) for x in branches):
         raise StratumSessionError('Lista Merkle branches este invalidă.')
     if not isinstance(clean,bool): raise StratumSessionError('clean_jobs trebuie să fie boolean.')
-    return {'job_id':str(job_id),'prev_hash':prev_hash,'coinb1_bytes':len(coinb1)//2,'coinb2_bytes':len(coinb2)//2,
+    return {'job_id':job_id,'prev_hash':prev_hash,'coinb1_bytes':len(coinb1)//2,'coinb2_bytes':len(coinb2)//2,
             'merkle_branch_count':len(branches),'version':version,'nbits':nbits,'ntime':ntime,'clean_jobs':clean}
+
+
+def parse_difficulty(params: Any) -> float:
+    """Validate mining.set_difficulty; reject zero, negative, NaN and infinity."""
+    if not isinstance(params, list) or len(params) != 1:
+        raise StratumSessionError("mining.set_difficulty parameters invalid.")
+    value = params[0]
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise StratumSessionError("Pool difficulty must be numeric.")
+    difficulty = float(value)
+    if not math.isfinite(difficulty) or difficulty <= 0:
+        raise StratumSessionError("Pool difficulty must be positive and finite.")
+    return difficulty
+
+
+def parse_set_extranonce(params: Any) -> tuple[str, int]:
+    """Validate mining.set_extranonce fields before using them in coinbase assembly."""
+    if not isinstance(params, list) or len(params) != 2:
+        raise StratumSessionError("mining.set_extranonce parameters invalid.")
+    extranonce1, size = params
+    if not isinstance(extranonce1, str) or not _HEX.fullmatch(extranonce1) or len(extranonce1) > 128:
+        raise StratumSessionError("extranonce1 invalid.")
+    if isinstance(size, bool) or not isinstance(size, int) or not 0 <= size <= 32:
+        raise StratumSessionError("extranonce2_size invalid.")
+    return extranonce1, size
+
 
 def build_coinbase_hash(coinb1: str, extranonce1: str, extranonce2: str, coinb2: str) -> bytes:
     parts=[coinb1,extranonce1,extranonce2,coinb2]
@@ -90,12 +120,11 @@ def probe_job(host: str, port: int, username: str, password: str='x', use_tls: b
                 if mid==2: authorized=msg.get('result') is True and not msg.get('error')
             method=msg.get('method'); params=msg.get('params')
             if method=='mining.set_difficulty' and isinstance(params,list) and params:
-                try: difficulty=float(params[0])
-                except (ValueError,TypeError): pass
+                difficulty=parse_difficulty(params)
             elif method=='mining.notify':
                 job=parse_notify(params)
-            elif method=='mining.set_extranonce' and isinstance(params,list) and len(params)>=2:
-                extranonce1,extranonce2_size=params[0],params[1]
+            elif method=='mining.set_extranonce':
+                extranonce1,extranonce2_size=parse_set_extranonce(params)
             if subscribed and authorized and job:
                 break
         if not subscribed or not authorized:
