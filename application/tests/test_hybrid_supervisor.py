@@ -178,3 +178,33 @@ def test_read_only_status_reports_stale_without_stopping_worker(tmp_path):
     assert result['process_alive'] is True
     assert item['process'].poll() is None
     sup.stop_mode()
+
+
+def test_switch_engine_replaces_configuration_and_preserves_worker_health(tmp_path):
+    sup = HybridSupervisor(runtime_root=tmp_path)
+    sup.start({'cpu': {'command': _cmd(), 'coin': 'COIN-A', 'algorithm': 'Algo-A'}}, mode='standard')
+    deadline = time.time() + 5
+    while time.time() < deadline and sup.status()['engines']['cpu']['state'] != 'running':
+        time.sleep(.05)
+
+    result = sup.switch_engine('cpu', {'command': _cmd(), 'coin': 'COIN-B', 'algorithm': 'Algo-B'})
+    assert result['switched'] is True
+    assert result['coin'] == 'COIN-B'
+    assert sup._workers['cpu']['request']['coin'] == 'COIN-B'
+    assert sup.status()['engines']['cpu']['state'] == 'running'
+    sup.stop_mode()
+
+
+def test_switch_engine_rejects_missing_candidate_backend_without_stopping_current(tmp_path):
+    sup = HybridSupervisor(runtime_root=tmp_path)
+    sup.start({'cpu': {'command': _cmd(), 'coin': 'COIN-A'}}, mode='standard')
+    deadline = time.time() + 5
+    while time.time() < deadline and sup.status()['engines']['cpu']['state'] != 'running':
+        time.sleep(.05)
+
+    result = sup.switch_engine('cpu', {'coin': 'COIN-B'})
+    assert result['switched'] is False
+    assert result['error'] == 'candidate_worker_command_missing'
+    assert sup.status()['engines']['cpu']['state'] == 'running'
+    assert sup._workers['cpu']['request']['coin'] == 'COIN-A'
+    sup.stop_mode()
