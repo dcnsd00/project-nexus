@@ -88,3 +88,15 @@ def test_bounded_differential_pipeline_runs_and_saves_holdout_result():
 def test_independent_stored_result_verification_passes():
     result = service.run_verification()
     assert result["successful"] is True, result["output"]
+
+
+def test_status_does_not_create_research_directories_and_save_creates_them(monkeypatch, tmp_path):
+    results_root = tmp_path / "deferred" / "runs"
+    monkeypatch.setattr(service, "RESULTS_ROOT", results_root)
+    status = service.status()
+    assert status["saved_runs"] == 0
+    assert not results_root.exists()
+
+    saved = service._save("measurement", {"probe": True})
+    assert results_root.is_dir()
+    assert (results_root / f"{saved['run_id']}.json").is_file()
