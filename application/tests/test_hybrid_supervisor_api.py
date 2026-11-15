@@ -80,3 +80,57 @@ def test_randomx_benchmark_api_rejects_unbounded_thread_sweeps():
     with TestClient(app) as client:
         response = client.post('/api/mining/randomx/benchmark', json={'threads': list(range(1, 10))})
         assert response.status_code == 400
+
+
+def _switch_payload():
+    import time
+    now = time.time()
+    return {
+        "current": {"coin": "COIN-A", "algorithm": "Algo-A", "net_profit_ron_day": 10.0},
+        "candidate": {
+            "coin": "COIN-B", "algorithm": "Algo-B",
+            "evidence_status": "verified", "source_checked_unix": now,
+            "source_adapter_verified": False,
+            "hardware_compatible": True, "miner_supported": True,
+            "pool_reachable": True, "pool_authorized": True,
+            "windows": [
+                {"duration_seconds": 600, "net_profit_ron_day": 15.0,
+                 "reject_ratio": 0.01, "temperature_c": 60, "shares_accepted": True},
+                {"duration_seconds": 600, "net_profit_ron_day": 16.0,
+                 "reject_ratio": 0.01, "temperature_c": 61, "shares_accepted": True},
+                {"duration_seconds": 600, "net_profit_ron_day": 15.5,
+                 "reject_ratio": 0.01, "temperature_c": 62, "shares_accepted": True},
+            ],
+        },
+        "state": {"current_started_unix": now - 3600, "last_switch_unix": now - 3600,
+                  "switches_last_24h": []},
+        "policy": {"auto_switch_enabled": True},
+    }
+
+
+def test_switch_evaluation_api_is_read_only_and_global_default_is_off(monkeypatch):
+    monkeypatch.delenv("NEXUS_AUTO_SWITCH_ENABLED", raising=False)
+    with TestClient(app) as client:
+        response = client.post('/api/mining/hybrid/engine/cpu/switch/evaluate', json=_switch_payload())
+        assert response.status_code == 200
+        data = response.json()
+        assert data["worker_changed"] is False
+        assert data["execution"] == "evaluation_only"
+        assert data["decision"]["should_switch"] is False
+        assert "automatic_switch_disabled" in data["decision"]["reasons"]
+
+
+def test_switch_apply_api_fails_closed_without_global_opt_in(monkeypatch):
+    monkeypatch.delenv("NEXUS_AUTO_SWITCH_ENABLED", raising=False)
+    with TestClient(app) as client:
+        response = client.post('/api/mining/hybrid/engine/cpu/switch/apply', json=_switch_payload())
+        assert response.status_code == 409
+        assert response.json()["detail"] == "mining_switch_globally_disabled"
+
+
+def test_switch_apply_api_requires_verified_live_source_adapter(monkeypatch):
+    monkeypatch.setenv("NEXUS_AUTO_SWITCH_ENABLED", "1")
+    with TestClient(app) as client:
+        response = client.post('/api/mining/hybrid/engine/cpu/switch/apply', json=_switch_payload())
+        assert response.status_code == 409
+        assert response.json()["detail"] == "live_source_adapter_not_verified"
