@@ -1611,3 +1611,36 @@ def mining_capability_evaluate(req: MiningCapabilityRequest):
         return nexus_evaluate_capability(req.algorithm, req.device, req.miner_id, pool)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
+
+
+# Algorithm-specific backend adapters (read-only discovery/evaluation only).
+from mining.backend_adapters import (
+    backend_catalog as nexus_backend_catalog,
+    discover_backends as nexus_discover_backends,
+    evaluate_backend as nexus_evaluate_backend,
+)
+
+@app.get("/api/mining/backends")
+def mining_backend_catalog():
+    return {
+        "backends": nexus_backend_catalog(),
+        "execution_enabled": False,
+        "note": "Backend profiles are candidates; executable discovery and pool/share validation are separate stages.",
+    }
+
+@app.get("/api/mining/backends/discovery")
+def mining_backend_discovery():
+    return {
+        "backends": nexus_discover_backends(),
+        "execution_enabled": False,
+        "note": "Executable presence does not prove algorithm compatibility, pool authorization, accepted shares or profitability.",
+    }
+
+class MiningBackendEvaluationRequest(BaseModel):
+    backend_id: str = Field(min_length=1, max_length=64)
+    algorithm: str = Field(min_length=1, max_length=64)
+    device_class: str = Field(min_length=2, max_length=16)
+
+@app.post("/api/mining/backends/evaluate")
+def mining_backend_evaluate(req: MiningBackendEvaluationRequest):
+    return nexus_evaluate_backend(req.backend_id, req.algorithm, req.device_class)
