@@ -21,9 +21,10 @@ from decimal import Decimal
 from pathlib import Path
 from typing import Any
 
+from modules.data_paths import data_path
+
 ROOT = Path(__file__).resolve().parent
-OUT = ROOT.parent / "results"
-OUT.mkdir(parents=True, exist_ok=True)
+OUT = data_path("blockchain", "regtest")
 
 BTC_URL = "http://127.0.0.1:18443/"
 BTC_USER = "nexus_local"
@@ -381,6 +382,7 @@ def main() -> int:
         }
         result["elapsed_seconds"] = round(time.perf_counter() - started, 3)
         result["status"] = "PASS"
+        OUT.mkdir(parents=True, exist_ok=True)
         (OUT / "node_integration_v0.5.json").write_text(json.dumps(result, indent=2))
         report = [
             "# NEXUS 0.5.0 — Local Node Integration Report", "",
@@ -410,6 +412,7 @@ def main() -> int:
         result["status"] = "FAIL"
         result["error"] = f"{type(exc).__name__}: {exc}"
         result["elapsed_seconds"] = round(time.perf_counter() - started, 3)
+        OUT.mkdir(parents=True, exist_ok=True)
         (OUT / "node_integration_v0.5.json").write_text(json.dumps(result, indent=2))
         print(result["error"], file=sys.stderr)
         return 1
