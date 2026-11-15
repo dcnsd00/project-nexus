@@ -325,7 +325,7 @@ from mining import controller as mining_controller  # noqa: E402
 from mining import installer as mining_installer  # noqa: E402
 from mining.hybrid_orchestrator import build_hybrid_plan  # noqa: E402
 from mining.hybrid_supervisor import HybridSupervisor  # noqa: E402
-from modules.mining_switch_controller import evaluate_candidate, switch_if_approved, DEFAULT_POLICY as MINING_SWITCH_DEFAULT_POLICY  # noqa: E402
+from modules.mining_switch_controller import (evaluate_candidate, switch_if_approved, DEFAULT_POLICY as MINING_SWITCH_DEFAULT_POLICY, load_switch_state, record_active_configuration, record_successful_switch)  # noqa: E402
 from mining.development_pow import define_experiment  # noqa: E402
 from mining.randomx_benchmark import run_thread_sweep as run_randomx_thread_sweep, run_native_reference_benchmark, run_synthetic_blocks_benchmark as run_randomx_synthetic_blocks_benchmark  # noqa: E402
 from modules.mining_efficiency_optimizer import rank_candidates as rank_mining_candidates  # noqa: E402
@@ -873,7 +873,8 @@ def hybrid_switch_evaluate(engine: str, payload: MiningSwitchEvaluationRequest):
         os.getenv("NEXUS_AUTO_SWITCH_ENABLED", "0").strip().lower() in {"1", "true", "yes"}
         and bool(payload.policy.get("auto_switch_enabled", False))
     )
-    decision = evaluate_candidate(payload.current, payload.candidate, payload.state, policy)
+    state = load_switch_state(engine)
+    decision = evaluate_candidate(payload.current, payload.candidate, state, policy)
     return {"engine": engine, "decision": decision, "worker_changed": False,
             "execution": "evaluation_only", "requires_live_source_adapters": True}
 
