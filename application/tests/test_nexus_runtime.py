@@ -5,7 +5,7 @@ def test_runtime_registers_local_services_without_starting_them():
     manager = build_runtime()
     snapshot = manager.snapshot()
     names = {row["name"] for row in snapshot["services"]}
-    assert {"data_paths", "crypto_engine", "math_intelligence", "provider_registry", "rcsc_research", "research_hub", "mining_switch_controller", "blockchain_regtest", "edge_manager"} <= names
+    assert {"data_paths", "crypto_engine", "math_intelligence", "provider_registry", "rcsc_research", "research_hub", "mining_switch_controller", "blockchain_regtest", "edge_manager", "earnings_intelligence"} <= names
     assert snapshot["running"] == 0
     assert snapshot["system_ready"] is False
 
@@ -129,4 +129,21 @@ def test_edge_manager_is_integrated_as_local_pilot_without_network_or_miner_cont
     assert edge["details"]["network_io_enabled"] is False
     assert edge["details"]["wallet_access_enabled"] is False
     assert edge["details"]["miner_autostart_enabled"] is False
+    assert manager.stop_all()["running"] == 0
+
+
+def test_earnings_intelligence_runtime_probe_does_not_create_database():
+    from pathlib import Path
+    from modules import earnings_intelligence
+
+    db_path = Path(earnings_intelligence.DB_PATH)
+    existed_before = db_path.exists()
+    manager = build_runtime()
+    snapshot = manager.start_all()
+    by_name = {row["name"]: row for row in snapshot["services"]}
+    details = by_name["earnings_intelligence"]["health"]["details"]
+    assert details["database_present"] is existed_before
+    assert details["provider_connectors_live"] == 0
+    assert details["execution_mode"] == "shadow_only"
+    assert db_path.exists() is existed_before
     assert manager.stop_all()["running"] == 0
