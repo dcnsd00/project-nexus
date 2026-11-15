@@ -739,7 +739,7 @@ def _hybrid_safe_request(data: dict, engine: str) -> dict:
             raise HTTPException(status_code=409, detail={"error": "gpu_resource_guard", "reasons": check["reasons"]})
     if len(req.args) > 80 or any(not isinstance(x, str) or len(x) > 512 for x in req.args):
         raise HTTPException(status_code=400, detail="invalid_miner_arguments")
-    return {"command": [binary, *req.args], "miner_id": req.miner_id, "algorithm": req.algorithm}
+    return {"command": [binary, *req.args], "miner_id": req.miner_id, "algorithm": req.algorithm, "coin": pool.get("coin"), "pool_id": pool.get("id")}
 
 
 @app.post("/api/mining/mode/{mode}/start")
@@ -796,6 +796,10 @@ def hybrid_start(payload: dict):
         raise HTTPException(status_code=400, detail=str(exc))
     if result.get("error") == "mode_conflict":
         raise HTTPException(status_code=409, detail=result)
+    if result.get("started") and mode == "standard":
+        for engine in result.get("started_engines", []):
+            request = plan.get(engine, {})
+            record_active_configuration(engine, request.get("coin"), request.get("algorithm"))
     return result
 
 
@@ -831,6 +835,8 @@ def hybrid_engine_start(engine: str, payload: dict):
     result = hybrid_supervisor.start({engine: request}, mode=mode)
     if not result.get("started"):
         raise HTTPException(status_code=409, detail=result)
+    if mode == "standard":
+        record_active_configuration(engine, request.get("coin"), request.get("algorithm"))
     return result
 
 
