@@ -5,7 +5,7 @@ def test_runtime_registers_local_services_without_starting_them():
     manager = build_runtime()
     snapshot = manager.snapshot()
     names = {row["name"] for row in snapshot["services"]}
-    assert {"crypto_engine", "math_intelligence", "provider_registry"} <= names
+    assert {"data_paths", "crypto_engine", "math_intelligence", "provider_registry"} <= names
     assert snapshot["running"] == 0
     assert snapshot["system_ready"] is False
 
@@ -16,6 +16,10 @@ def test_runtime_starts_only_local_read_only_adapters():
     assert snapshot["system_ready"] is True
     assert snapshot["running"] == snapshot["total"]
     by_name = {row["name"]: row for row in snapshot["services"]}
+    assert by_name["data_paths"]["health"]["ok"] is True
+    data_health = by_name["data_paths"]["health"]["details"]
+    assert data_health["data_root"]
+    assert data_health["filesystem_created_by_probe"] is False
     assert by_name["crypto_engine"]["health"]["ok"] is True
     assert by_name["provider_registry"]["health"]["details"]["live_connections_verified"] == 0
     assert by_name["provider_registry"]["health"]["details"]["writes_enabled"] is False
