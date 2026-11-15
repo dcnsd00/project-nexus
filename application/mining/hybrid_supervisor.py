@@ -9,7 +9,7 @@ import os
 import threading
 import time
 from pathlib import Path
-from typing import Any
+from typing import Any\n\nfrom modules.data_paths import data_path
 
 
 _VALID_MODES = {'standard', 'development'}
@@ -18,7 +18,7 @@ _VALID_ENGINES = {'cpu', 'gpu'}
 
 class HybridSupervisor:
     def __init__(self, runtime_root: str | Path | None = None, heartbeat_timeout: float = 5.0):
-        self.runtime_root = Path(runtime_root or (Path.home() / '.nexus' / 'hybrid')).resolve()
+        self.runtime_root = Path(runtime_root).expanduser().resolve() if runtime_root else data_path('mining', 'hybrid').resolve()
         self.heartbeat_timeout = max(1.0, float(heartbeat_timeout))
         self._lock = threading.RLock()
         self._mode: str | None = None
