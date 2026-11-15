@@ -209,9 +209,17 @@ def _crypto_probe(module: Any) -> dict[str, Any]:
     algorithms = engine.algorithms()
     if not algorithms:
         raise RuntimeError("no hashing algorithms available")
-    return {"algorithms_available": len(algorithms),
-            "sha256_self_test": engine.digest_hex("sha256", b"NEXUS") ==
-            "".join(__import__("hashlib").sha256(b"NEXUS").hexdigest())}
+    import hashlib
+    sha256_ok = engine.digest("sha256", b"NEXUS") == hashlib.sha256(b"NEXUS").digest()
+    sha256d_ok = engine.digest("sha256d", b"NEXUS") == hashlib.sha256(
+        hashlib.sha256(b"NEXUS").digest()).digest()
+    if not sha256_ok or not sha256d_ok:
+        raise RuntimeError("cryptographic primitive self-test failed")
+    names = sorted(row["name"] for row in algorithms)
+    return {"algorithms_available": len(algorithms), "algorithm_names": names,
+            "sha256_self_test": sha256_ok, "sha256d_self_test": sha256d_ok,
+            "pow_algorithms_not_implemented_here": ["RandomX", "KawPow", "Scrypt", "Ethash"],
+            "note": "Hash API primitives are not equivalent to coin-specific PoW miners."}
 
 
 def _math_probe(module: Any) -> dict[str, Any]:
