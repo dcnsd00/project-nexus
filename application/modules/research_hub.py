@@ -3,10 +3,11 @@ from __future__ import annotations
 import hashlib, json, time, secrets
 from pathlib import Path
 from datetime import datetime, timezone
+import os
+from modules.data_paths import data_path
 
 ROOT = Path(__file__).resolve().parents[1]
-HISTORY = ROOT / "modules" / "research_hub" / "history"
-HISTORY.mkdir(parents=True, exist_ok=True)
+HISTORY = Path(os.environ.get("NEXUS_RESEARCH_HUB_DIR", str(data_path("research", "hub", "history")))).expanduser().resolve()
 
 SHORTCUTS = [
  {"id":"sha256_diff","title":"SHA-256 diferențial","category":"Criptanaliză","purpose":"Caută bias-uri statistice în compresia SHA-256 cu runde configurabile.","input":"Runde 1–64; set de probe; poziția diferenței.","output":"Bias, interval de încredere, p ajustat și verdict.","application":"Cercetare și verificare; nu este scurtătură de mining pentru SHA-256 complet.","risk":"Local-only; reduced-round nu este compatibil cu consensul."},
@@ -26,6 +27,7 @@ def catalog():
 def _save(kind, result):
     rid=datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S')+'_'+secrets.token_hex(5)
     payload={"id":rid,"created_utc":datetime.now(timezone.utc).isoformat(),"kind":kind,"result":result,"privacy":"local_only"}
+    HISTORY.mkdir(parents=True, exist_ok=True)
     (HISTORY/f'{rid}.json').write_text(json.dumps(payload,indent=2,ensure_ascii=False),encoding='utf-8')
     return payload
 
@@ -56,6 +58,8 @@ def run_toy_collision(bits:int=16,max_attempts:int=200_000):
 
 def history(limit=30):
     rows=[]
+    if not HISTORY.is_dir():
+        return {"count": 0, "items": [], "privacy": "local_only"}
     for p in sorted(HISTORY.glob('*.json'),key=lambda x:x.stat().st_mtime,reverse=True)[:max(1,min(int(limit),100))]:
         try: rows.append(json.loads(p.read_text(encoding='utf-8')))
         except Exception: pass
