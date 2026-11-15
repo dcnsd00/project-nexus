@@ -59,3 +59,12 @@ def test_backend_evaluation_enforces_algorithm_device_pair():
     assert allowed.json()["compatible"] is True
     assert blocked.status_code == 200
     assert blocked.json()["compatible"] is False
+
+def test_compatibility_matrix_api_reports_static_only_evidence():
+    with TestClient(app) as client:
+        response = client.get("/api/mining/capabilities/compatibility-matrix")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["pool_profile_count"] == len(data["entries"])
+    assert data["live_pool_checks_performed"] is False
+    assert data["execution_enabled"] is False
