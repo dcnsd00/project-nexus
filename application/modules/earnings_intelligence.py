@@ -416,4 +416,4 @@ def list_telemetry(device_id:str|None=None,limit:int=Query(100,ge=1,le=2000)):
     with _db() as c:return [dict(r) for r in c.execute(q,args)]
 
 
-init_db()
+# Database schema is created lazily by explicit API operations, never at module import.
