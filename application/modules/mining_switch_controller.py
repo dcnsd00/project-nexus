@@ -6,6 +6,7 @@ reach the supervisor. Automatic switching is opt-in and rate-limited.
 """
 from __future__ import annotations
 
+import math
 import time
 from typing import Any
 
@@ -24,12 +25,29 @@ DEFAULT_POLICY = {
 }
 
 
+def _effective_policy(policy: dict[str, Any] | None) -> dict[str, Any]:
+    supplied = policy or {}
+    cfg = {**DEFAULT_POLICY, **supplied}
+    # User configuration may tighten safety, never weaken the hard minimums.
+    cfg["minimum_net_improvement_percent"] = max(15.0, float(cfg["minimum_net_improvement_percent"]))
+    cfg["minimum_windows"] = max(3, int(cfg["minimum_windows"]))
+    cfg["minimum_window_seconds"] = max(300, float(cfg["minimum_window_seconds"]))
+    cfg["maximum_source_age_seconds"] = min(900, float(cfg["maximum_source_age_seconds"]))
+    cfg["minimum_dwell_seconds"] = max(900, float(cfg["minimum_dwell_seconds"]))
+    cfg["cooldown_seconds"] = max(1800, float(cfg["cooldown_seconds"]))
+    cfg["maximum_switches_per_24h"] = min(3, int(cfg["maximum_switches_per_24h"]))
+    cfg["maximum_reject_ratio"] = min(0.03, float(cfg["maximum_reject_ratio"]))
+    cfg["maximum_temperature_c"] = min(85.0, float(cfg["maximum_temperature_c"]))
+    cfg["auto_switch_enabled"] = bool(supplied.get("auto_switch_enabled", False))
+    return cfg
+
+
 def evaluate_candidate(current: dict[str, Any], candidate: dict[str, Any],
                        state: dict[str, Any] | None = None,
                        policy: dict[str, Any] | None = None,
                        now: float | None = None) -> dict[str, Any]:
     """Evaluate a discovered coin/config; never starts or stops a miner."""
-    cfg = {**DEFAULT_POLICY, **(policy or {})}
+    cfg = _effective_policy(policy)
     state = state or {}
     now = time.time() if now is None else float(now)
     reasons: list[str] = []
@@ -38,8 +56,15 @@ def evaluate_candidate(current: dict[str, Any], candidate: dict[str, Any],
         reasons.append("candidate_evidence_not_verified")
     if candidate.get("source_checked_unix") is None:
         reasons.append("missing_source_timestamp")
-    elif now - float(candidate["source_checked_unix"]) > cfg["maximum_source_age_seconds"]:
-        reasons.append("candidate_source_stale")
+    else:
+        try:
+            source_time = float(candidate["source_checked_unix"])
+            if not math.isfinite(source_time) or source_time > now + 60:
+                reasons.append("invalid_source_timestamp")
+            elif now - source_time > cfg["maximum_source_age_seconds"]:
+                reasons.append("candidate_source_stale")
+        except (TypeError, ValueError):
+            reasons.append("invalid_source_timestamp")
     if candidate.get("hardware_compatible") is not True:
         reasons.append("hardware_compatibility_unconfirmed")
     if candidate.get("miner_supported") is not True:
@@ -60,6 +85,9 @@ def evaluate_candidate(current: dict[str, Any], candidate: dict[str, Any],
             temp = float(window["temperature_c"])
         except (KeyError, TypeError, ValueError):
             reasons.append("incomplete_measurement_window")
+            continue
+        if not all(math.isfinite(x) for x in (duration, net, reject, temp)) or duration <= 0 or net < 0 or not 0 <= reject <= 1 or temp < -20 or temp > 150:
+            reasons.append("invalid_measurement_window")
             continue
         if duration < float(cfg["minimum_window_seconds"]):
             reasons.append("measurement_window_too_short")
