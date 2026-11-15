@@ -4,6 +4,7 @@ No wallet signing, no seed/private-key storage, no transaction broadcasting.
 """
 from __future__ import annotations
 import base64
+import copy
 import concurrent.futures as cf
 import hashlib
 import json
@@ -25,9 +26,10 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
 
+from modules.data_paths import data_path
+
 APP_DIR = Path(__file__).resolve().parent
-DATA_DIR = APP_DIR / "data"
-DATA_DIR.mkdir(exist_ok=True)
+DATA_DIR = data_path("fieldstation")
 ADDRESSES_FILE = DATA_DIR / "addresses.json"
 JOURNAL_FILE = DATA_DIR / "journals.json"
 LEADS_FILE = DATA_DIR / "leads.json"
@@ -72,8 +74,7 @@ def utc_now() -> str:
 
 def load_json(path: Path, default: Any) -> Any:
     if not path.exists():
-        save_json(path, default)
-        return default
+        return copy.deepcopy(default)
     try:
         return json.loads(path.read_text(encoding="utf-8"))
     except Exception:
@@ -88,13 +89,16 @@ def load_json(path: Path, default: Any) -> Any:
 
 
 def save_json(path: Path, data: Any) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
     temp = path.with_suffix(path.suffix + ".tmp")
     temp.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
     temp.replace(path)
 
-ADDRESSES = load_json(ADDRESSES_FILE, DEFAULT_ADDRESSES)
-JOURNALS = load_json(JOURNAL_FILE, {})
-LEADS = load_json(LEADS_FILE, DEFAULT_LEADS)
+# Importing Fieldstation is side-effect free. Persistent state is loaded only
+# when the standalone service is explicitly started.
+ADDRESSES = copy.deepcopy(DEFAULT_ADDRESSES)
+JOURNALS: dict[str, Any] = {}
+LEADS = copy.deepcopy(DEFAULT_LEADS)
 CASES = DEFAULT_CASES
 
 # Preserve the material state captured in the preceding research report. These are
@@ -118,13 +122,21 @@ INITIAL_JOURNALS = {
         {"timestamp":"2026-10-19", "status":"estimare de planificare; verificare la lansare obligatorie", "experiment":"verificare pre-lansare în catalog public", "result":"două puzzle-uri raportate gratuite, aproximativ 151.568 și 151.572 sats (303.140 sats împreună); regula finală, eligibilitatea, adreselor exacte și finanțarea nu trebuie presupuse", "sources":["https://proofofsolve.com", "https://github.com/floflo777/open-crypto-puzzles/issues/47"], "next_step":"la data lansării verifică regulile oficiale, soldurile și eligibility; nu plăti taxa pentru Alcatraz", "resources_used":"cercetare web/documentară; nicio revendicare"}
     ]
 }
-_journal_seeded = False
-for _case_id, _entries in INITIAL_JOURNALS.items():
-    if _case_id not in JOURNALS:
-        JOURNALS[_case_id] = _entries
-        _journal_seeded = True
-if _journal_seeded:
-    save_json(JOURNAL_FILE, JOURNALS)
+def ensure_data_loaded() -> None:
+    """Load and seed persistent state only during explicit Fieldstation startup."""
+    global ADDRESSES, JOURNALS, LEADS
+    ADDRESSES = load_json(ADDRESSES_FILE, DEFAULT_ADDRESSES)
+    JOURNALS = load_json(JOURNAL_FILE, {})
+    LEADS = load_json(LEADS_FILE, DEFAULT_LEADS)
+    seeded = False
+    for case_id, entries in INITIAL_JOURNALS.items():
+        if case_id not in JOURNALS:
+            JOURNALS[case_id] = copy.deepcopy(entries)
+            seeded = True
+    if seeded:
+        save_json(JOURNAL_FILE, JOURNALS)
+
+
 
 STATE_LOCK = threading.RLock()
 STATE: dict[str, Any] = {
@@ -1173,6 +1185,7 @@ def main():
     global SERVER
     if sys.version_info < (3, 9):
         print("Necesită Python 3.9+."); sys.exit(2)
+    ensure_data_loaded()
     SERVER = ThreadingHTTPServer((HOST, PORT), Handler)
     SERVER.daemon_threads = True
     print(f"Crypto Fieldstation rulează local: http://{HOST}:{PORT}")
