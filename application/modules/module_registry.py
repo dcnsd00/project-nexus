@@ -22,7 +22,7 @@ MODULES: tuple[dict[str, Any], ...] = (
     {"id": "mining_switch_controller", "name": "Conditional Mining Switch", "paths": ("modules/mining_switch_controller.py",), "route_prefixes": ("/api/mining/hybrid",), "runtime_service": "mining_switch_controller", "critical": False},
     {"id": "blockchain_regtest", "name": "Local Blockchain Regtest", "paths": ("modules/blockchain_regtest/nexus_v05_integration.py",), "route_prefixes": (), "runtime_service": "blockchain_regtest", "critical": False},
     {"id": "edge_manager", "name": "NEXUS EDGE Manager", "paths": ("nexus_edge/manager.py", "nexus_edge/service.py"), "route_prefixes": (), "runtime_service": "edge_manager", "critical": False},
-    {"id": "depin_fieldstation", "name": "DePIN Fieldstation", "paths": ("adapters/fieldstation/crypto_fieldstation/app.py",), "route_prefixes": (), "critical": False},
+    {"id": "depin_fieldstation", "name": "DePIN Fieldstation", "paths": ("adapters/fieldstation/crypto_fieldstation/app.py",), "route_prefixes": (), "runtime_service": "depin_fieldstation", "critical": False},
 )
 
 
