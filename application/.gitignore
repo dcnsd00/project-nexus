@@ -5,3 +5,4 @@ __pycache__/
 *.py[cod]
 mining/native/build/*
 logs/
+\n# Mutable NEXUS runtime data (never part of source control)\ndata/\nruntime/\nlogs/\nresults/\n*.log\n*.sqlite\n*.sqlite3\n
