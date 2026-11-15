@@ -207,3 +207,18 @@ def test_math_intelligence_runtime_executes_safe_local_self_tests():
     assert health["details"]["candidate_auto_apply"] is False
     assert health["details"]["network_calls_by_probe"] is False
     assert manager.stop_all()["running"] == 0
+
+def test_mining_capability_registry_is_registered_and_read_only():
+    manager = build_runtime()
+    snapshot = manager.start_all()
+    by_name = {row["name"]: row for row in snapshot["services"]}
+    health = by_name["mining_capability_registry"]["health"]
+    assert health["ok"] is True
+    details = health["details"]
+    assert details["algorithm_profiles"] >= 8
+    assert details["production_profiled"] >= 1
+    assert details["common_nexus_services"]
+    assert details["probe_performs_network_calls"] is False
+    assert details["probe_starts_miners"] is False
+    assert details["operational_compatibility_verified"] is False
+    assert manager.stop_all()["running"] == 0
