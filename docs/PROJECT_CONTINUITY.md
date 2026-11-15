@@ -133,3 +133,21 @@ Current working branch: `integration/source-import-safe-0.10.25`. Changes remain
 - EDGE remains an **in-memory pilot**, not production DePIN: no persistent node/task store, MQTT/HTTPS transport, ESP32-C5 firmware, OTA, or physical device validation.
 - Added Earnings Intelligence as a read-only Runtime service; its health probe inspects existing SQLite state without creating the database. Live provider connectors remain zero.
 - Extended Module Registry to distinguish route registration, LifecycleManager registration and actual operational validation. Runtime registration is not reported as proof of operational readiness.
+
+## Branch topology audit — 2026-11-15
+
+Repository: `dcnsd00/project-nexus`. No open pull requests were present at audit time.
+
+- `main`: canonical baseline, HEAD `529072b777d010ac47711dd6c821b30fef7ecdf9`; latest recorded CI run for this HEAD succeeded. Kept unchanged during current integration.
+- `integration/import-0.10.25`: stale bootstrap branch, 40 commits behind `main`, no recent CI run; do not use as integration target.
+- `integration/nexus-master-0.10.25`: architecture/EDGE line, 13 commits ahead of `main`; latest HEAD CI succeeded. Contains the unified architecture, EDGE foundation, sanitized import bundle and canonical continuity baseline.
+- `feature/nexus-edge-foundation`: EDGE feature line, 9 commits ahead of `main`, 4 commits behind `integration/nexus-master-0.10.25`; latest HEAD CI succeeded. Its EDGE source and tests were imported into the general branch; the branch itself was not merged.
+- `integration/source-import-safe-0.10.25`: active general integration line, 103 commits ahead of `main` at the audit baseline. It diverges from `integration/nexus-master-0.10.25` (103 commits ahead and 13 behind), so do not perform a blind merge. It is the only branch receiving the current runtime/mining/data integration work.
+- No pull requests were open at the audit time. No branch has been merged into `main` by this work.
+
+Consolidation decision:
+1. Continue all implementation on `integration/source-import-safe-0.10.25`.
+2. Preserve `main` as stable baseline.
+3. Import missing architecture documentation and selected verified EDGE source/tests from the architecture/feature branches; this is content consolidation, not a branch merge.
+4. Review the 13 commits unique to `integration/nexus-master-0.10.25` individually before any ancestry merge or PR. Avoid force-push and avoid merging divergent histories without conflict review.
+5. Retire `integration/import-0.10.25` only after confirming no external work depends on it; no deletion performed.
