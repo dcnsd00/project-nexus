@@ -40,3 +40,22 @@
      assert "/api/research/rcsc/collect" in paths
      assert "/api/research/rcsc/analyze" in paths
      assert "/api/research/rcsc/verify-header" in paths
+--- a/application/modules/module_registry.py
++++ b/application/modules/module_registry.py
+@@ -25,6 +25,16 @@
+ def _route_paths(app: Any | None) -> set[str]:
+     if app is None:
+         return set()
++    # OpenAPI is the stable public surface across FastAPI versions. Newer
++    # FastAPI releases may keep included routers as lazy internal objects
++    # without a direct .path attribute.
++    try:
++        schema = app.openapi()
++        paths = schema.get("paths", {}) if isinstance(schema, dict) else {}
++        if isinstance(paths, dict):
++            return {path for path in paths if isinstance(path, str)}
++    except Exception:
++        pass
+     paths: set[str] = set()
+     for route in getattr(app, "routes", ()):
+         path = getattr(route, "path", None)
