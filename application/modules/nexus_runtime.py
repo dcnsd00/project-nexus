@@ -181,7 +181,7 @@ class MiningSupervisorAdapter:
     def health_check(self) -> dict[str, Any]:
         if self.supervisor is None:
             return {"ok": False, "reason": "supervisor_not_initialized"}
-        status = self.supervisor.status()
+        status = self.supervisor.status(read_only=True)
         states = {name: item.get("state") for name, item in status.get("engines", {}).items()}
         return {"ok": True, "module": "mining.hybrid_supervisor",
                 "label": "Mining Supervisor",
