@@ -1566,3 +1566,48 @@ def nexus_module_registry_health():
         "operational_verified": False,
         "note": "This is a structural integration check, not a live functional health test.",
     }
+
+
+# Shared algorithm-specific capability layer (evaluation only; never launches miners).
+from modules.mining_capability_registry import (
+    ALGORITHM_PROFILES as NEXUS_ALGORITHM_PROFILES,
+    algorithm_profile as nexus_algorithm_profile,
+    catalog_coverage as nexus_catalog_coverage,
+    evaluate_capability as nexus_evaluate_capability,
+)
+
+@app.get("/api/mining/capabilities/algorithms")
+def mining_algorithm_capabilities():
+    return {
+        "algorithms": [nexus_algorithm_profile(name) for name in NEXUS_ALGORITHM_PROFILES],
+        "common_nexus_services": [
+            "crypto_engine", "math_intelligence", "research_hub",
+            "earnings_intelligence", "mining_optimization",
+            "mining_switch_controller", "provider_registry", "telemetry",
+            "audit_log", "hardware_inventory", "pool_registry", "wallet_read_only",
+        ],
+        "policy": "Algorithm profiles describe capability boundaries; live backend, pool authorization and accepted shares require separate validation.",
+    }
+
+@app.get("/api/mining/capabilities/pool-coverage")
+def mining_capability_pool_coverage():
+    return nexus_catalog_coverage(ROOT / "mining" / "pools.json")
+
+class MiningCapabilityRequest(BaseModel):
+    algorithm: str = Field(min_length=1, max_length=64)
+    device: str = Field(min_length=2, max_length=16)
+    miner_id: str = Field(min_length=1, max_length=64)
+    pool_id: str | None = Field(default=None, max_length=80)
+
+@app.post("/api/mining/capabilities/evaluate")
+def mining_capability_evaluate(req: MiningCapabilityRequest):
+    pool = None
+    if req.pool_id:
+        catalog = json.loads((ROOT / "mining" / "pools.json").read_text(encoding="utf-8"))
+        pool = next((item for item in catalog.get("pools", []) if item.get("id") == req.pool_id), None)
+        if pool is None:
+            raise HTTPException(status_code=404, detail="Pool profile not found")
+    try:
+        return nexus_evaluate_capability(req.algorithm, req.device, req.miner_id, pool)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
