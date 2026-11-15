@@ -226,6 +226,16 @@ def _integrations_probe(module: Any) -> dict[str, Any]:
             "writes_enabled": False}
 
 
+def _research_hub_probe(module: Any) -> dict[str, Any]:
+    catalog = module.catalog()
+    history = module.history(limit=1)
+    return {"shortcuts_registered": len(catalog.get("shortcuts", [])),
+            "saved_experiments": history.get("count", 0),
+            "privacy": catalog.get("privacy"),
+            "external_uploads": catalog.get("external_uploads", True),
+            "auto_apply": False}
+
+
 def _sha2_probe(module: Any) -> dict[str, Any]:
     status = module.status()
     return {"package": status.get("package"),
@@ -261,6 +271,12 @@ def build_runtime(root: str | Path | None = None) -> LifecycleManager:
         factory=lambda: ModuleAdapter("modules.integration_registry", _integrations_probe, "Provider Registry"),
         dependencies=("crypto_engine",), critical=False,
     ))
+    if (base / "modules" / "research_hub.py").is_file():
+        manager.register(ServiceSpec(
+            name="research_hub",
+            factory=lambda: ModuleAdapter("modules.research_hub", _research_hub_probe, "Research Hub"),
+            dependencies=("crypto_engine", "data_paths"), critical=False,
+        ))
     if (base / "modules" / "rcsc_service.py").is_file():
         manager.register(ServiceSpec(
             name="rcsc_research",
