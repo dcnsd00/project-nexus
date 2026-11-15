@@ -151,6 +151,13 @@ class MiningSupervisorAdapter:
         self.supervisor = None
 
 
+def _data_paths_probe(module: Any) -> dict[str, Any]:
+    layout = module.data_layout()
+    return {"data_root": layout["root"], "directories": {
+        key: value for key, value in layout.items() if key != "root"},
+        "filesystem_created_by_probe": False}
+
+
 def _crypto_probe(module: Any) -> dict[str, Any]:
     engine = module.CryptoEngine()
     algorithms = engine.algorithms()
@@ -185,6 +192,13 @@ def build_runtime(root: str | Path | None = None) -> LifecycleManager:
     base = Path(root or Path(__file__).resolve().parents[1]).resolve()
     manager = LifecycleManager()
 
+    # Canonical mutable-data location is a foundational runtime service.
+    manager.register(ServiceSpec(
+        name="data_paths",
+        factory=lambda: ModuleAdapter("modules.data_paths", _data_paths_probe, "Central Data Layer"),
+        critical=True,
+    ))
+
     # Critical local cryptographic primitive layer.
     manager.register(ServiceSpec(
         name="crypto_engine",
@@ -194,7 +208,7 @@ def build_runtime(root: str | Path | None = None) -> LifecycleManager:
     manager.register(ServiceSpec(
         name="math_intelligence",
         factory=lambda: ModuleAdapter("modules.math_intelligence", _math_probe, "Math Intelligence"),
-        dependencies=("crypto_engine",), critical=False,
+        dependencies=("crypto_engine", "data_paths"), critical=False,
     ))
     manager.register(ServiceSpec(
         name="provider_registry",
