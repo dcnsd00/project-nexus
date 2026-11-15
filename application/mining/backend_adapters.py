@@ -7,6 +7,7 @@ credentials. A discovered executable is not proof of pool or share compatibility
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass
+import math
 import os
 import shutil
 from typing import Any, Callable
@@ -129,8 +130,13 @@ def normalize_telemetry(backend_id: str, raw: dict[str, Any]) -> dict[str, Any]:
     def number(*keys: str) -> float | None:
         for key in keys:
             value = raw.get(key)
-            if isinstance(value, (int, float)) and not isinstance(value, bool) and value >= 0:
-                return float(value)
+            if isinstance(value, (int, float)) and not isinstance(value, bool):
+                try:
+                    numeric = float(value)
+                except (OverflowError, ValueError):
+                    continue
+                if math.isfinite(numeric) and numeric >= 0:
+                    return numeric
         return None
     def count(*keys: str) -> int | None:
         value = number(*keys)
