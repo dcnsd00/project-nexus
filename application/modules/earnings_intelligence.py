@@ -7,11 +7,13 @@ from __future__ import annotations
 import json, os, sqlite3, time, uuid
 from pathlib import Path
 from typing import Any, Optional
+
+from modules.data_paths import data_path
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field
 
 router = APIRouter(prefix="/api/intel", tags=["NEXUS Earnings Intelligence"])
-DB_PATH = Path(os.getenv("NEXUS_INTEL_DB", "./data/nexus_intelligence.db"))
+DB_PATH = Path(os.getenv("NEXUS_INTEL_DB", str(data_path("db", "nexus_intelligence.db")))).expanduser().resolve()
 
 
 def _db():
