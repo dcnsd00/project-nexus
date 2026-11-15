@@ -5,7 +5,7 @@ def test_runtime_registers_local_services_without_starting_them():
     manager = build_runtime()
     snapshot = manager.snapshot()
     names = {row["name"] for row in snapshot["services"]}
-    assert {"data_paths", "crypto_engine", "math_intelligence", "provider_registry", "rcsc_research", "research_hub", "mining_switch_controller", "blockchain_regtest", "edge_manager", "earnings_intelligence"} <= names
+    assert {"data_paths", "crypto_engine", "math_intelligence", "provider_registry", "rcsc_research", "research_hub", "mining_switch_controller", "blockchain_regtest", "edge_manager", "earnings_intelligence", "coin_catalog"} <= names
     assert snapshot["running"] == 0
     assert snapshot["system_ready"] is False
 
@@ -146,4 +146,18 @@ def test_earnings_intelligence_runtime_probe_does_not_create_database():
     assert details["provider_connectors_live"] == 0
     assert details["execution_mode"] == "shadow_only"
     assert db_path.exists() is existed_before
+    assert manager.stop_all()["running"] == 0
+
+
+def test_coin_catalog_runtime_probe_does_not_fetch_or_write_cache():
+    from modules import coin_catalog
+
+    existed_before = coin_catalog.CACHE.exists()
+    manager = build_runtime()
+    snapshot = manager.start_all()
+    by_name = {row["name"]: row for row in snapshot["services"]}
+    details = by_name["coin_catalog"]["health"]["details"]
+    assert details["provider"] == "CoinPaprika"
+    assert details["network_calls_by_probe"] is False
+    assert coin_catalog.CACHE.exists() is existed_before
     assert manager.stop_all()["running"] == 0
