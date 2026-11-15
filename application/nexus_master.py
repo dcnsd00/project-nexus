@@ -38,6 +38,8 @@ from modules.earnings_intelligence import router as intel_router  # noqa: E402
 app.include_router(intel_router)
 from modules.integration_registry import router as integrations_router  # noqa: E402
 app.include_router(integrations_router)
+from modules.pool_failover_api import router as pool_failover_router  # noqa: E402
+app.include_router(pool_failover_router)
 from tools_audit_vault import audit as audit_wallet_vault  # noqa: E402
 
 def _tool(name: str) -> dict:
