@@ -49,3 +49,13 @@ def test_catalog_coverage_reports_algorithms_without_claiming_live_validation(tm
     assert result["pool_profile_count"] == 3
     assert result["algorithm_count"] == 2
     assert result["catalog_is_live_validation"] is False
+
+def test_catalog_only_algorithms_are_visible_but_fail_closed():
+    for algorithm in ("Blake3", "Equihash-125-4", "X11", "Eaglesong",
+                      "NexaPow", "Octopus", "Ethash", "Blake2s-Kadena",
+                      "Blake2b-Sia", "zkSNARK", "XelisHash"):
+        profile = algorithm_profile(algorithm)
+        assert profile["status"] == "catalog_only"
+        assert profile["production_supported"] is False
+        result = evaluate_capability(algorithm, "GPU", "unverified-miner")
+        assert result["compatible"] is False
