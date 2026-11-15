@@ -325,7 +325,7 @@ from mining import controller as mining_controller  # noqa: E402
 from mining import installer as mining_installer  # noqa: E402
 from mining.hybrid_orchestrator import build_hybrid_plan  # noqa: E402
 from mining.hybrid_supervisor import HybridSupervisor  # noqa: E402
-from modules.mining_switch_controller import (evaluate_candidate, switch_if_approved, DEFAULT_POLICY as MINING_SWITCH_DEFAULT_POLICY, load_switch_state, record_active_configuration, record_successful_switch)  # noqa: E402
+from modules.mining_switch_controller import (evaluate_candidate, switch_if_approved, DEFAULT_POLICY as MINING_SWITCH_DEFAULT_POLICY, load_switch_state, record_active_configuration, record_successful_switch, source_adapter_status)  # noqa: E402
 from mining.development_pow import define_experiment  # noqa: E402
 from mining.randomx_benchmark import run_thread_sweep as run_randomx_thread_sweep, run_native_reference_benchmark, run_synthetic_blocks_benchmark as run_randomx_synthetic_blocks_benchmark  # noqa: E402
 from modules.mining_efficiency_optimizer import rank_candidates as rank_mining_candidates  # noqa: E402
@@ -895,8 +895,9 @@ def hybrid_switch_apply(engine: str, payload: MiningSwitchEvaluationRequest):
         raise HTTPException(status_code=409, detail="mining_switch_globally_disabled")
     if payload.candidate.get("evidence_status") != "verified":
         raise HTTPException(status_code=409, detail="candidate_evidence_not_verified")
-    if payload.candidate.get("source_adapter_verified") is not True:
-        raise HTTPException(status_code=409, detail="live_source_adapter_not_verified")
+    source_status = source_adapter_status()
+    if not source_status.get("verified"):
+        raise HTTPException(status_code=409, detail={"error": "live_source_adapter_not_verified", "source_status": source_status})
     worker_config = payload.candidate.get("worker_config")
     if not isinstance(worker_config, dict):
         raise HTTPException(status_code=422, detail="worker_config_required")
