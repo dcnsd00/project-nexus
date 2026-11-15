@@ -1,3 +1,4 @@
+from modules import mining_switch_controller as switch_controller
 from modules.mining_switch_controller import evaluate_candidate
 
 
@@ -104,3 +105,22 @@ def test_future_timestamp_and_non_finite_measurements_are_rejected():
     assert result["should_switch"] is False
     assert "invalid_source_timestamp" in result["reasons"]
     assert "invalid_measurement_window" in result["reasons"]
+
+
+def test_switch_state_persists_active_configuration_and_cooldown(tmp_path, monkeypatch):
+    monkeypatch.setattr(switch_controller, "_STATE_PATH", tmp_path / "state" / "switch.json")
+    assert switch_controller.load_switch_state("gpu") == {}
+    active = switch_controller.record_active_configuration("gpu", "COIN-A", "Algo-A", now=1000)
+    assert active["current_started_unix"] == 1000
+    assert switch_controller.load_switch_state("gpu")["current_coin"] == "COIN-A"
+    switched = switch_controller.record_successful_switch("gpu", "COIN-B", "Algo-B", now=5000)
+    assert switched["last_switch_unix"] == 5000
+    persisted = switch_controller.load_switch_state("gpu")
+    assert persisted["current_coin"] == "COIN-B"
+    assert persisted["switches_last_24h"] == [5000]
+
+
+def test_switch_candidate_without_persisted_baseline_is_blocked():
+    result = evaluate_candidate(_current(), _candidate(), {}, {"auto_switch_enabled": True}, now=10_000)
+    assert result["should_switch"] is False
+    assert "current_configuration_not_tracked" in result["reasons"]
