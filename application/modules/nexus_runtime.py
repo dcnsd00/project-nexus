@@ -9,6 +9,7 @@ from __future__ import annotations
 import importlib
 import importlib.util
 import sqlite3
+import shutil
 import sys
 from pathlib import Path
 from typing import Any, Callable
@@ -234,6 +235,18 @@ def _integrations_probe(module: Any) -> dict[str, Any]:
             "writes_enabled": False}
 
 
+def _blockchain_regtest_probe(module: Any) -> dict[str, Any]:
+    compose_file = Path(module.__file__).with_name("docker-compose.yml")
+    return {"bitcoin_rpc": module.BTC_URL, "evm_nodes": sorted(module.EVM_NODES),
+            "all_endpoints_loopback": all(
+                str(value).startswith(("http://127.0.0.1:", "http://localhost:"))
+                for value in [module.BTC_URL, *[entry[1] for entry in module.EVM_NODES.values()]]),
+            "compose_file_present": compose_file.is_file(),
+            "docker_available": bool(shutil.which("docker")),
+            "network_calls_by_probe": False, "nodes_started_by_runtime": False,
+            "execution_requires_explicit_local_benchmark": True}
+
+
 def _mining_switch_probe(module: Any) -> dict[str, Any]:
     policy = dict(module.DEFAULT_POLICY)
     return {"policy": policy, "automatic_switch_enabled": policy["auto_switch_enabled"],
@@ -288,6 +301,12 @@ def build_runtime(root: str | Path | None = None) -> LifecycleManager:
         factory=lambda: ModuleAdapter("modules.integration_registry", _integrations_probe, "Provider Registry"),
         dependencies=("crypto_engine",), critical=False,
     ))
+    if (base / "modules" / "blockchain_regtest" / "nexus_v05_integration.py").is_file():
+        manager.register(ServiceSpec(
+            name="blockchain_regtest",
+            factory=lambda: ModuleAdapter("modules.blockchain_regtest.nexus_v05_integration", _blockchain_regtest_probe, "Local Blockchain Regtest"),
+            dependencies=("crypto_engine", "data_paths"), critical=False,
+        ))
     if (base / "modules" / "mining_switch_controller.py").is_file():
         manager.register(ServiceSpec(
             name="mining_switch_controller",
