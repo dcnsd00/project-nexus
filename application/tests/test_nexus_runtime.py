@@ -195,3 +195,15 @@ def test_fieldstation_runtime_probe_does_not_create_data_or_start_server(tmp_pat
     assert details["miner_autostart_enabled"] is False
     assert not fieldstation.DATA_DIR.exists()
     assert manager.stop_all()["running"] == 0
+
+def test_math_intelligence_runtime_executes_safe_local_self_tests():
+    manager = build_runtime()
+    snapshot = manager.start_all()
+    by_name = {row["name"]: row for row in snapshot["services"]}
+    health = by_name["math_intelligence"]["health"]
+    assert health["ok"] is True
+    assert health["details"]["modular_solver_self_test"] is True
+    assert health["details"]["candidate_triage_self_test"] is True
+    assert health["details"]["candidate_auto_apply"] is False
+    assert health["details"]["network_calls_by_probe"] is False
+    assert manager.stop_all()["running"] == 0
