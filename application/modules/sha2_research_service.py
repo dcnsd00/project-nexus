@@ -17,6 +17,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from modules.data_paths import data_path
 from research.sha2_independent import nexus_sha
 from research.sha2_independent.nexus_sha import (
     benchmark as sha_benchmark,
@@ -31,8 +32,8 @@ from research.sha2_independent.nexus_sha import (
 
 ROOT = Path(__file__).resolve().parents[1]
 PACKAGE_ROOT = ROOT / "research" / "sha2_independent"
-RESULTS_ROOT = Path(os.environ.get("NEXUS_SHA2_RESULTS_DIR", str(PACKAGE_ROOT / "results" / "nexus_api")))
-VERIFICATION_RESULTS_ROOT = Path(os.environ.get("NEXUS_SHA2_VERIFICATION_RESULTS_DIR", str(PACKAGE_ROOT / "results")))
+RESULTS_ROOT = Path(os.environ.get("NEXUS_SHA2_RESULTS_DIR", str(data_path("research", "sha2", "runs"))))
+VERIFICATION_RESULTS_ROOT = Path(os.environ.get("NEXUS_SHA2_VERIFICATION_RESULTS_DIR", str(data_path("research", "sha2", "verification"))))
 RESULTS_ROOT.mkdir(parents=True, exist_ok=True)
 _RUN_LOCK = threading.Lock()
 
