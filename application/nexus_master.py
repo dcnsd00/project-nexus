@@ -1573,6 +1573,7 @@ from modules.mining_capability_registry import (
     ALGORITHM_PROFILES as NEXUS_ALGORITHM_PROFILES,
     algorithm_profile as nexus_algorithm_profile,
     catalog_coverage as nexus_catalog_coverage,
+    compatibility_matrix as nexus_compatibility_matrix,
     evaluate_capability as nexus_evaluate_capability,
 )
 
@@ -1618,6 +1619,7 @@ from mining.backend_adapters import (
     backend_catalog as nexus_backend_catalog,
     discover_backends as nexus_discover_backends,
     evaluate_backend as nexus_evaluate_backend,
+    backend_catalog as nexus_static_backend_catalog,
 )
 
 @app.get("/api/mining/backends")
@@ -1644,3 +1646,10 @@ class MiningBackendEvaluationRequest(BaseModel):
 @app.post("/api/mining/backends/evaluate")
 def mining_backend_evaluate(req: MiningBackendEvaluationRequest):
     return nexus_evaluate_backend(req.backend_id, req.algorithm, req.device_class)
+
+
+@app.get("/api/mining/capabilities/compatibility-matrix")
+def mining_compatibility_matrix():
+    return nexus_compatibility_matrix(
+        ROOT / "mining" / "pools.json", nexus_static_backend_catalog()
+    )
