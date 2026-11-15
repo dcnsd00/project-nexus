@@ -379,10 +379,34 @@ def _mining_capability_probe(module: Any) -> dict[str, Any]:
     }
 
 
+
+def _mining_backend_adapter_probe(module: Any) -> dict[str, Any]:
+    catalog = module.backend_catalog()
+    discovery = module.discover_backends()
+    return {
+        "backend_profiles": len(catalog),
+        "executable_candidates_found": sum(bool(row.get("available")) for row in discovery),
+        "device_adapters_required": sum(row.get("discovery_status") == "device_adapter_required" for row in discovery),
+        "all_discovery_results_operationally_validated": all(
+            row.get("operationally_validated") is False for row in discovery
+        ),
+        "probe_starts_miners": False,
+        "probe_contacts_pools": False,
+        "mode": "local_backend_catalog_and_executable_discovery_only",
+    }
+
+
 def build_runtime(root: str | Path | None = None) -> LifecycleManager:
     """Build the NEXUS runtime graph; no service starts until start_all()."""
     base = Path(root or Path(__file__).resolve().parents[1]).resolve()
     manager = LifecycleManager()
+
+    if (base / "mining" / "backend_adapters.py").is_file():
+        manager.register(ServiceSpec(
+            name="mining_backend_adapters",
+            factory=lambda: ModuleAdapter("mining.backend_adapters", _mining_backend_adapter_probe, "Mining Backend Adapters"),
+            dependencies=("crypto_engine", "data_paths"), critical=False,
+        ))
 
     # Canonical mutable-data location is a foundational runtime service.
     manager.register(ServiceSpec(
