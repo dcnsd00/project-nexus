@@ -125,3 +125,11 @@ Current working branch: `integration/source-import-safe-0.10.25`. Changes remain
 4. Add end-to-end tests with fake local Stratum endpoints and worker processes, including stale data, pool rejection, low profitability, thermal trips, cooldown, switch rollback and restart persistence.
 5. Audit and integrate remaining wallet, blockchain Regtest/Anvil, Math, DePIN/EDGE and dashboard functions through the existing runtime; preserve no-autostart/no-sign/no-broadcast rules.
 6. Build and validate the Windows package, then run target-machine checks on the user's Windows 11 laptop and actual installed miner binaries. Keep `main` unchanged until reviewed PR and full CI.
+
+### EDGE and runtime inventory update — 2026-11-15
+- Imported the existing `feature/nexus-edge-foundation` package into `application/nexus_edge/` without rewriting it: transport-agnostic in-memory node registry, HMAC heartbeat/result verification, capability scheduling, leases, expiry/requeue and bounded payloads.
+- Added the existing EDGE manager/service test suites under `application/tests/`.
+- Registered EDGE as optional `edge_manager` in the shared NEXUS LifecycleManager runtime. Runtime tests confirm no network I/O, wallet access or miner autostart.
+- EDGE remains an **in-memory pilot**, not production DePIN: no persistent node/task store, MQTT/HTTPS transport, ESP32-C5 firmware, OTA, or physical device validation.
+- Added Earnings Intelligence as a read-only Runtime service; its health probe inspects existing SQLite state without creating the database. Live provider connectors remain zero.
+- Extended Module Registry to distinguish route registration, LifecycleManager registration and actual operational validation. Runtime registration is not reported as proof of operational readiness.
