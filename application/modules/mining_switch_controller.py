@@ -6,8 +6,14 @@ reach the supervisor. Automatic switching is opt-in and rate-limited.
 """
 from __future__ import annotations
 
+import json
 import math
+import os
+import threading
 import time
+from pathlib import Path
+
+from modules.data_paths import data_path
 from typing import Any
 
 
@@ -23,6 +29,75 @@ DEFAULT_POLICY = {
     "maximum_reject_ratio": 0.03,
     "maximum_temperature_c": 85.0,
 }
+
+
+_STATE_PATH = Path(os.getenv("NEXUS_MINING_SWITCH_STATE", str(data_path("mining", "switch_state.json")))).expanduser().resolve()
+_STATE_LOCK = threading.RLock()
+
+
+def load_switch_state(engine: str) -> dict[str, Any]:
+    if engine not in {"cpu", "gpu"}:
+        raise ValueError("engine must be cpu or gpu")
+    with _STATE_LOCK:
+        try:
+            raw = json.loads(_STATE_PATH.read_text(encoding="utf-8"))
+            row = raw.get(engine, {}) if isinstance(raw, dict) else {}
+            return row if isinstance(row, dict) else {}
+        except (OSError, ValueError, AttributeError):
+            return {}
+
+
+def record_active_configuration(engine: str, coin: str | None, algorithm: str | None,
+                                now: float | None = None) -> dict[str, Any]:
+    if engine not in {"cpu", "gpu"}:
+        raise ValueError("engine must be cpu or gpu")
+    now = time.time() if now is None else float(now)
+    with _STATE_LOCK:
+        try:
+            raw = json.loads(_STATE_PATH.read_text(encoding="utf-8"))
+            if not isinstance(raw, dict):
+                raw = {}
+        except (OSError, ValueError):
+            raw = {}
+        previous = raw.get(engine, {}) if isinstance(raw.get(engine), dict) else {}
+        same = previous.get("current_coin") == coin and previous.get("current_algorithm") == algorithm
+        if not same:
+            previous["current_started_unix"] = now
+        previous["current_coin"] = coin
+        previous["current_algorithm"] = algorithm
+        raw[engine] = previous
+        _STATE_PATH.parent.mkdir(parents=True, exist_ok=True)
+        temporary = _STATE_PATH.with_suffix(_STATE_PATH.suffix + ".tmp")
+        temporary.write_text(json.dumps(raw, ensure_ascii=False, sort_keys=True), encoding="utf-8")
+        os.replace(temporary, _STATE_PATH)
+        return dict(previous)
+
+
+def record_successful_switch(engine: str, coin: str | None, algorithm: str | None,
+                             now: float | None = None) -> dict[str, Any]:
+    if engine not in {"cpu", "gpu"}:
+        raise ValueError("engine must be cpu or gpu")
+    now = time.time() if now is None else float(now)
+    with _STATE_LOCK:
+        try:
+            raw = json.loads(_STATE_PATH.read_text(encoding="utf-8"))
+            if not isinstance(raw, dict):
+                raw = {}
+        except (OSError, ValueError):
+            raw = {}
+        previous = raw.get(engine, {}) if isinstance(raw.get(engine), dict) else {}
+        history = [float(x) for x in previous.get("switches_last_24h", [])
+                   if now - float(x) < 86400]
+        history.append(now)
+        previous.update({"current_coin": coin, "current_algorithm": algorithm,
+                         "current_started_unix": now, "last_switch_unix": now,
+                         "switches_last_24h": history})
+        raw[engine] = previous
+        _STATE_PATH.parent.mkdir(parents=True, exist_ok=True)
+        temporary = _STATE_PATH.with_suffix(_STATE_PATH.suffix + ".tmp")
+        temporary.write_text(json.dumps(raw, ensure_ascii=False, sort_keys=True), encoding="utf-8")
+        os.replace(temporary, _STATE_PATH)
+        return dict(previous)
 
 
 def _effective_policy(policy: dict[str, Any] | None) -> dict[str, Any]:
