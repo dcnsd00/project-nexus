@@ -169,6 +169,51 @@ class HybridSupervisor:
                 return {'stopped': False, 'error': 'mode_mismatch', 'active_mode': self._mode}
             return self.stop()
 
+    def switch_engine(self, engine: str, request: dict, startup_timeout: float = 8.0) -> dict:
+        """Replace one worker configuration, restoring the previous worker on failure."""
+        if engine not in _VALID_ENGINES:
+            raise ValueError('engine must be cpu or gpu')
+        if not isinstance(request, dict) or not isinstance(request.get('command'), list) or not request['command']:
+            return {'switched': False, 'error': 'candidate_worker_command_missing'}
+        with self._lock:
+            if self._mode != 'standard':
+                return {'switched': False, 'error': 'standard_mode_required'}
+            previous = self._workers.get(engine, {}).get('request')
+            if previous is None:
+                return {'switched': False, 'error': 'no_active_worker_to_replace'}
+            self.stop(engine)
+            try:
+                self._launch(engine, request)
+                deadline = time.time() + max(2.0, min(float(startup_timeout), 30.0))
+                while time.time() < deadline:
+                    state = self.status(read_only=True)['engines'][engine]['state']
+                    if state == 'running':
+                        return {'switched': True, 'engine': engine,
+                                'coin': request.get('coin'), 'algorithm': request.get('algorithm'),
+                                'rolled_back': False}
+                    if state == 'failed':
+                        break
+                    time.sleep(.1)
+                self.stop(engine)
+                raise RuntimeError('candidate_worker_failed_startup')
+            except Exception as exc:
+                rolled_back = False
+                try:
+                    self._launch(engine, previous)
+                    rollback_deadline = time.time() + max(2.0, min(float(startup_timeout), 30.0))
+                    while time.time() < rollback_deadline:
+                        state = self.status(read_only=True)['engines'][engine]['state']
+                        if state == 'running':
+                            rolled_back = True
+                            break
+                        if state == 'failed':
+                            break
+                        time.sleep(.1)
+                except Exception:
+                    rolled_back = False
+                return {'switched': False, 'engine': engine,
+                        'error': f'{type(exc).__name__}: {exc}', 'rolled_back': rolled_back}
+
     def switch_gpu(self, request: dict) -> dict:
         with self._lock:
             if self._mode is None:
