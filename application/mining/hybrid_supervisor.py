@@ -9,7 +9,9 @@ import os
 import threading
 import time
 from pathlib import Path
-from typing import Any\n\nfrom modules.data_paths import data_path
+from typing import Any
+
+from modules.data_paths import data_path
 
 
 _VALID_MODES = {'standard', 'development'}
