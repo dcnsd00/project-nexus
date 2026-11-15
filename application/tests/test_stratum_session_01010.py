@@ -53,3 +53,35 @@ def test_probe_job_local_mock_server():
     assert result['ok'] and result['job_received'] and result['authorized']
     assert result['difficulty']==64 and result['job']['job_id']=='job-1'
     assert 'no share submitted' in result['scope']
+
+
+def test_parse_notify_rejects_invalid_job_ids_and_oversized_coinbase():
+    bad = JOB.copy()
+    bad[0] = ""
+    with pytest.raises(StratumSessionError):
+        parse_notify(bad)
+    bad = JOB.copy()
+    bad[2] = "aa" * 100000
+    with pytest.raises(StratumSessionError):
+        parse_notify(bad)
+
+
+@pytest.mark.parametrize("value", [0, -1, float("nan"), float("inf"), True, "1"])
+def test_stratum_difficulty_rejects_non_positive_or_non_finite_values(value):
+    from mining.stratum_session import parse_difficulty
+    with pytest.raises(StratumSessionError):
+        parse_difficulty([value])
+
+
+@pytest.mark.parametrize("value", [0.000001, 1, 64, 1e30])
+def test_stratum_difficulty_accepts_positive_finite_values(value):
+    from mining.stratum_session import parse_difficulty
+    assert parse_difficulty([value]) == float(value)
+
+
+def test_set_extranonce_validates_hex_and_size_boundaries():
+    from mining.stratum_session import parse_set_extranonce
+    assert parse_set_extranonce(["aabb", 4]) == ("aabb", 4)
+    for params in (["xyz", 4], ["aa", -1], ["aa", 33], ["aa", True], ["aa"], ["aa", 1.5]):
+        with pytest.raises(StratumSessionError):
+            parse_set_extranonce(params)
