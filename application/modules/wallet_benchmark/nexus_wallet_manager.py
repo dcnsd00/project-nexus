@@ -6,10 +6,10 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from cryptography.hazmat.primitives.asymmetric import ec
-from nexus_wallet_benchmark import SECP256K1_N, evm_address, validate_address
+from modules.data_paths import data_path\nfrom nexus_wallet_benchmark import SECP256K1_N, evm_address, validate_address
 
 router = APIRouter(prefix="/api/wallet", tags=["wallet"])
-DB = Path(os.getenv("NEXUS_WALLET_DB", "./data/nexus_wallets.db"))
+DB = Path(os.getenv("NEXUS_WALLET_DB", str(data_path("db", "nexus_wallets.db")))).expanduser().resolve()
 NETWORKS = {"ETHEREUM","BASE","BNB","POLYGON","ARBITRUM"}
 @contextmanager
 def db():
