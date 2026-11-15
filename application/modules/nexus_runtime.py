@@ -253,7 +253,8 @@ def _mining_switch_probe(module: Any) -> dict[str, Any]:
             "requires_verified_source": True, "minimum_measurement_windows": policy["minimum_windows"],
             "cooldown_seconds": policy["cooldown_seconds"],
             "daily_switch_limit": policy["maximum_switches_per_24h"],
-            "worker_execution": "only through transactional MiningSupervisor.switch_engine",\n            "source_adapter": module.source_adapter_status()}
+            "worker_execution": "only through transactional MiningSupervisor.switch_engine",
+            "source_adapter": module.source_adapter_status()}
 
 
 def _research_hub_probe(module: Any) -> dict[str, Any]:
