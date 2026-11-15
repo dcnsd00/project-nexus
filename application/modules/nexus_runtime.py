@@ -266,6 +266,14 @@ def _integrations_probe(module: Any) -> dict[str, Any]:
             "writes_enabled": False}
 
 
+def _mining_optimizer_probe(module: Any) -> dict[str, Any]:
+    history = module.list_trials(limit=1)
+    return {"recorded_trials": history.get("count", 0),
+            "policy": history.get("policy"),
+            "automatic_parameter_application": False,
+            "automatic_coin_switching": False}
+
+
 def _coin_catalog_probe(module: Any) -> dict[str, Any]:
     return {"provider": "CoinPaprika", "endpoint": module.URL,
             "cache_present": module.CACHE.is_file(),
@@ -361,6 +369,12 @@ def build_runtime(root: str | Path | None = None) -> LifecycleManager:
         factory=lambda: ModuleAdapter("modules.integration_registry", _integrations_probe, "Provider Registry"),
         dependencies=("crypto_engine",), critical=False,
     ))
+    if (base / "modules" / "mining_optimization.py").is_file():
+        manager.register(ServiceSpec(
+            name="mining_optimizer",
+            factory=lambda: ModuleAdapter("modules.mining_optimization", _mining_optimizer_probe, "Mining Optimization Ledger"),
+            dependencies=("crypto_engine", "data_paths", "mining_supervisor"), critical=False,
+        ))
     if (base / "modules" / "coin_catalog.py").is_file():
         manager.register(ServiceSpec(
             name="coin_catalog",
