@@ -118,6 +118,52 @@ class WalletReadOnlyAdapter:
         self.module = None
 
 
+class RCSCReadOnlyAdapter:
+    """Inspect RCSC persistence without creating its database or contacting providers."""
+
+    def __init__(self):
+        self.module: Any = None
+
+    def initialize(self) -> None:
+        self.module = importlib.import_module("modules.rcsc_service")
+
+    def start(self) -> None:
+        if self.module is None:
+            raise RuntimeError("RCSC module was not imported")
+        # Do not call status(): its current implementation initializes SQLite tables.
+
+    def health_check(self) -> dict[str, Any]:
+        if self.module is None:
+            return {"ok": False, "reason": "rcsc_module_not_initialized"}
+        db_path = Path(self.module.DB_PATH).expanduser().resolve()
+        if not db_path.is_file():
+            details = {"database_present": False, "schema_checked": False,
+                       "stored_blocks": None, "stored_runs": None,
+                       "database_path": str(db_path)}
+        else:
+            uri = db_path.as_uri() + "?mode=ro"
+            with sqlite3.connect(uri, uri=True, timeout=2) as conn:
+                tables = {row[0] for row in conn.execute(
+                    "SELECT name FROM sqlite_master WHERE type='table'")}
+                blocks = (conn.execute("SELECT COUNT(*) FROM blocks").fetchone()[0]
+                          if "blocks" in tables else None)
+                runs = (conn.execute("SELECT COUNT(*) FROM runs").fetchone()[0]
+                        if "runs" in tables else None)
+            details = {"database_present": True, "schema_checked": True,
+                       "tables_present": sorted(tables.intersection({"blocks", "runs"})),
+                       "stored_blocks": blocks, "stored_runs": runs,
+                       "database_path": str(db_path)}
+        return {"ok": True, "module": "modules.rcsc_service", "label": "RCSC Research",
+                "details": details,
+                "mode": "local_read_only_no_schema_mutation_no_provider_access"}
+
+    def stop(self) -> None:
+        pass
+
+    def shutdown(self) -> None:
+        self.module = None
+
+
 class MiningSupervisorAdapter:
     """Expose supervisor status only; never start a mining mode or worker."""
 
@@ -215,6 +261,12 @@ def build_runtime(root: str | Path | None = None) -> LifecycleManager:
         factory=lambda: ModuleAdapter("modules.integration_registry", _integrations_probe, "Provider Registry"),
         dependencies=("crypto_engine",), critical=False,
     ))
+    if (base / "modules" / "rcsc_service.py").is_file():
+        manager.register(ServiceSpec(
+            name="rcsc_research",
+            factory=RCSCReadOnlyAdapter,
+            dependencies=("crypto_engine", "data_paths"), critical=False,
+        ))
     if (base / "modules" / "sha2_research_service.py").is_file():
         manager.register(ServiceSpec(
             name="sha2_research",
