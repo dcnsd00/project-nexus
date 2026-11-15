@@ -222,3 +222,17 @@ def test_mining_capability_registry_is_registered_and_read_only():
     assert details["probe_starts_miners"] is False
     assert details["operational_compatibility_verified"] is False
     assert manager.stop_all()["running"] == 0
+
+
+def test_mining_backend_adapters_are_registered_read_only():
+    manager = build_runtime()
+    snapshot = manager.start_all()
+    by_name = {row["name"]: row for row in snapshot["services"]}
+    health = by_name["mining_backend_adapters"]["health"]
+    assert health["ok"] is True
+    details = health["details"]
+    assert details["backend_profiles"] >= 8
+    assert details["all_discovery_results_operationally_validated"] is True
+    assert details["probe_starts_miners"] is False
+    assert details["probe_contacts_pools"] is False
+    assert manager.stop_all()["running"] == 0
