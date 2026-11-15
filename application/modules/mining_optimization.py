@@ -1,11 +1,11 @@
 from __future__ import annotations
-import json, math, time
+import json, math, time, os
 from pathlib import Path
 from typing import Any
 
 from modules.data_paths import data_path
 
-TRIALS = Path(__import__('os').environ.get('NEXUS_MINING_TRIALS', str(data_path('mining', 'optimization_trials.json')))).expanduser().resolve()
+TRIALS = Path(os.environ.get('NEXUS_MINING_TRIALS', str(data_path('mining', 'optimization_trials.json')))).expanduser().resolve()
 
 
 def _load() -> list[dict[str, Any]]:
