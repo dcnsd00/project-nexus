@@ -48,9 +48,11 @@ def _route_paths(app: Any | None) -> set[str]:
 
 
 def build_module_registry(root: str | Path, app: Any | None = None,
-                          modules: Iterable[dict[str, Any]] = MODULES) -> dict[str, Any]:
+                          modules: Iterable[dict[str, Any]] = MODULES,
+                          runtime_services: Iterable[str] | None = None) -> dict[str, Any]:
     base = Path(root)
     routes = _route_paths(app)
+    active_runtime_services = set(runtime_services or ())
     results: list[dict[str, Any]] = []
     for item in modules:
         present_paths = [rel for rel in item["paths"] if (base / rel).is_file()]
