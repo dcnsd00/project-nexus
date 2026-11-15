@@ -234,6 +234,15 @@ def _integrations_probe(module: Any) -> dict[str, Any]:
             "writes_enabled": False}
 
 
+def _mining_switch_probe(module: Any) -> dict[str, Any]:
+    policy = dict(module.DEFAULT_POLICY)
+    return {"policy": policy, "automatic_switch_enabled": policy["auto_switch_enabled"],
+            "requires_verified_source": True, "minimum_measurement_windows": policy["minimum_windows"],
+            "cooldown_seconds": policy["cooldown_seconds"],
+            "daily_switch_limit": policy["maximum_switches_per_24h"],
+            "worker_execution": "only through transactional MiningSupervisor.switch_engine"}
+
+
 def _research_hub_probe(module: Any) -> dict[str, Any]:
     catalog = module.catalog()
     history = module.history(limit=1)
@@ -279,6 +288,12 @@ def build_runtime(root: str | Path | None = None) -> LifecycleManager:
         factory=lambda: ModuleAdapter("modules.integration_registry", _integrations_probe, "Provider Registry"),
         dependencies=("crypto_engine",), critical=False,
     ))
+    if (base / "modules" / "mining_switch_controller.py").is_file():
+        manager.register(ServiceSpec(
+            name="mining_switch_controller",
+            factory=lambda: ModuleAdapter("modules.mining_switch_controller", _mining_switch_probe, "Mining Switch Controller"),
+            dependencies=("crypto_engine", "data_paths", "mining_supervisor"), critical=False,
+        ))
     if (base / "modules" / "research_hub.py").is_file():
         manager.register(ServiceSpec(
             name="research_hub",
