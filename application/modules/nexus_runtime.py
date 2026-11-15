@@ -256,8 +256,21 @@ def _crypto_probe(module: Any) -> dict[str, Any]:
 
 def _math_probe(module: Any) -> dict[str, Any]:
     catalog = module.research_catalog()
+    congruence = module.solve_modular_congruence(14, 30, 100)
+    triage = module.triage_candidate({
+        "baseline_hashrate": 100.0, "candidate_hashrate": 102.0,
+        "duration_seconds": 300, "accepted_shares": 1000,
+        "rejected_shares": 0, "exact_equivalence_verified": True,
+        "independent_runs": 3,
+    })
+    if not congruence.get("solvable") or not congruence.get("verification"):
+        raise RuntimeError("math modular solver self-test failed")
+    if triage.get("auto_apply") is not False or triage.get("verdict") != "PROMISING_MEASURED_GAIN":
+        raise RuntimeError("math candidate triage self-test failed")
     return {"research_catalog_entries": len(catalog.get("shortcuts", [])),
-            "auto_apply": False}
+            "modular_solver_self_test": True,
+            "candidate_triage_self_test": True,
+            "candidate_auto_apply": False, "network_calls_by_probe": False}
 
 
 def _integrations_probe(module: Any) -> dict[str, Any]:
