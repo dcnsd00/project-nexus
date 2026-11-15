@@ -52,6 +52,37 @@ class ModuleAdapter:
 
 
 
+class EdgeServiceAdapter:
+    """Lifecycle adapter for the in-memory EDGE pilot; no network or device control."""
+
+    def __init__(self):
+        self.service: Any = None
+
+    def initialize(self) -> None:
+        module = importlib.import_module("nexus_edge.service")
+        self.service = module.EdgeService()
+
+    def start(self) -> None:
+        if self.service is None:
+            raise RuntimeError("EDGE service was not initialized")
+        self.service.initialize()
+        self.service.start()
+
+    def health_check(self) -> dict[str, Any]:
+        if self.service is None:
+            return {"ok": False, "reason": "edge_service_not_initialized"}
+        return self.service.health_check()
+
+    def stop(self) -> None:
+        if self.service is not None:
+            self.service.stop()
+
+    def shutdown(self) -> None:
+        if self.service is not None:
+            self.service.shutdown()
+        self.service = None
+
+
 class WalletReadOnlyAdapter:
     """Load wallet route module and inspect its DB without creating or decrypting it."""
 
@@ -302,6 +333,12 @@ def build_runtime(root: str | Path | None = None) -> LifecycleManager:
         factory=lambda: ModuleAdapter("modules.integration_registry", _integrations_probe, "Provider Registry"),
         dependencies=("crypto_engine",), critical=False,
     ))
+    if (base / "nexus_edge" / "service.py").is_file():
+        manager.register(ServiceSpec(
+            name="edge_manager",
+            factory=EdgeServiceAdapter,
+            dependencies=("crypto_engine", "data_paths"), critical=False,
+        ))
     if (base / "modules" / "blockchain_regtest" / "nexus_v05_integration.py").is_file():
         manager.register(ServiceSpec(
             name="blockchain_regtest",
