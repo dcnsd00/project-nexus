@@ -8,7 +8,9 @@ import urllib.request
 from pathlib import Path
 from typing import Any
 
-CACHE = Path(__file__).resolve().parents[1] / "data" / "coinpaprika_coins.json"
+from modules.data_paths import data_path
+
+CACHE = Path(os.getenv("NEXUS_COIN_CATALOG_CACHE", str(data_path("cache", "coinpaprika_coins.json")))).expanduser().resolve()
 BUNDLED = Path(__file__).resolve().parents[1] / "mining" / "coins.json"
 URL = "https://api.coinpaprika.com/v1/coins"
 CACHE_TTL_SECONDS = 6 * 3600
