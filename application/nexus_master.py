@@ -1619,7 +1619,6 @@ from mining.backend_adapters import (
     backend_catalog as nexus_backend_catalog,
     discover_backends as nexus_discover_backends,
     evaluate_backend as nexus_evaluate_backend,
-    backend_catalog as nexus_static_backend_catalog,
 )
 
 @app.get("/api/mining/backends")
