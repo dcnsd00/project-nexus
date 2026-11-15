@@ -11,6 +11,8 @@ def test_data_path_uses_single_central_root(tmp_path, monkeypatch):
     assert target == tmp_path / "research" / "sha2" / "runs" / "result.json"
     assert not target.parent.exists()
     data_paths.data_path("research", "sha2", "runs", "result.json", create_parent=True)
+    assert not target.parent.exists()
+    data_paths.data_path("research", "sha2", "runs", "result.json", create_parent=True)
     assert target.parent.is_dir()
 
 
