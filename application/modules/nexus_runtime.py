@@ -266,6 +266,16 @@ def _integrations_probe(module: Any) -> dict[str, Any]:
             "writes_enabled": False}
 
 
+def _fieldstation_probe(module: Any) -> dict[str, Any]:
+    return {"host": module.HOST, "port": module.PORT,
+            "data_directory": str(module.DATA_DIR),
+            "data_loaded": False, "server_started": False,
+            "miner_autostart_enabled": False, "wallet_signing_enabled": False,
+            "transaction_broadcast_enabled": False,
+            "network_calls_by_probe": False,
+            "startup_requires_explicit_standalone_command": True}
+
+
 def _mining_optimizer_probe(module: Any) -> dict[str, Any]:
     history = module.list_trials(limit=1)
     return {"recorded_trials": history.get("count", 0),
@@ -369,6 +379,12 @@ def build_runtime(root: str | Path | None = None) -> LifecycleManager:
         factory=lambda: ModuleAdapter("modules.integration_registry", _integrations_probe, "Provider Registry"),
         dependencies=("crypto_engine",), critical=False,
     ))
+    if (base / "adapters" / "fieldstation" / "crypto_fieldstation" / "app.py").is_file():
+        manager.register(ServiceSpec(
+            name="depin_fieldstation",
+            factory=lambda: ModuleAdapter("adapters.fieldstation.crypto_fieldstation.app", _fieldstation_probe, "DePIN Crypto Fieldstation"),
+            dependencies=("crypto_engine", "data_paths"), critical=False,
+        ))
     if (base / "modules" / "mining_optimization.py").is_file():
         manager.register(ServiceSpec(
             name="mining_optimizer",
