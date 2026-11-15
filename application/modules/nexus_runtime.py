@@ -364,6 +364,21 @@ def _sha2_probe(module: Any) -> dict[str, Any]:
             "network_access": False, "miner_auto_apply": False}
 
 
+def _mining_capability_probe(module: Any) -> dict[str, Any]:
+    profiles = [module.algorithm_profile(name) for name in module.ALGORITHM_PROFILES]
+    return {
+        "algorithm_profiles": len(profiles),
+        "production_profiled": sum(bool(row.get("production_supported")) for row in profiles),
+        "research_only": sum(row.get("status") == "research_only" for row in profiles),
+        "common_nexus_services": list(module.COMMON_NEXUS_SERVICES),
+        "pool_catalog_path": str(Path(__file__).resolve().parents[1] / "mining" / "pools.json"),
+        "probe_performs_network_calls": False,
+        "probe_starts_miners": False,
+        "operational_compatibility_verified": False,
+        "mode": "local_capability_registry_only",
+    }
+
+
 def build_runtime(root: str | Path | None = None) -> LifecycleManager:
     """Build the NEXUS runtime graph; no service starts until start_all()."""
     base = Path(root or Path(__file__).resolve().parents[1]).resolve()
@@ -377,6 +392,12 @@ def build_runtime(root: str | Path | None = None) -> LifecycleManager:
     ))
 
     # Critical local cryptographic primitive layer.
+    if (base / "modules" / "mining_capability_registry.py").is_file():
+        manager.register(ServiceSpec(
+            name="mining_capability_registry",
+            factory=lambda: ModuleAdapter("modules.mining_capability_registry", _mining_capability_probe, "Mining Capability Registry"),
+            dependencies=("crypto_engine", "data_paths"), critical=False,
+        ))
     manager.register(ServiceSpec(
         name="crypto_engine",
         factory=lambda: ModuleAdapter("modules.crypto_engine.engine", _crypto_probe, "Crypto Engine"),
