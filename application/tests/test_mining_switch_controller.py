@@ -73,3 +73,34 @@ def test_hot_or_high_reject_candidate_is_rejected():
     assert result["should_switch"] is False
     assert "temperature_limit" in result["reasons"]
     assert "reject_ratio_exceeds_limit" in result["reasons"]
+
+
+def test_policy_cannot_be_weakened_by_request():
+    candidate = _candidate()
+    result = evaluate_candidate(
+        _current(), candidate, _state(),
+        {"auto_switch_enabled": True, "minimum_net_improvement_percent": 0,
+         "minimum_windows": 1, "minimum_window_seconds": 1,
+         "maximum_source_age_seconds": 999999, "cooldown_seconds": 0,
+         "minimum_dwell_seconds": 0, "maximum_switches_per_24h": 100,
+         "maximum_reject_ratio": 1.0, "maximum_temperature_c": 150},
+        now=10_000,
+    )
+    assert result["policy"]["minimum_net_improvement_percent"] == 15
+    assert result["policy"]["minimum_windows"] == 3
+    assert result["policy"]["minimum_window_seconds"] == 300
+    assert result["policy"]["maximum_source_age_seconds"] == 900
+    assert result["policy"]["cooldown_seconds"] == 1800
+    assert result["policy"]["maximum_switches_per_24h"] == 3
+    assert result["policy"]["maximum_reject_ratio"] == 0.03
+    assert result["policy"]["maximum_temperature_c"] == 85
+
+
+def test_future_timestamp_and_non_finite_measurements_are_rejected():
+    candidate = _candidate(now=10_000)
+    candidate["source_checked_unix"] = 20_000
+    candidate["windows"][0]["net_profit_ron_day"] = float("nan")
+    result = evaluate_candidate(_current(), candidate, _state(), {"auto_switch_enabled": True}, now=10_000)
+    assert result["should_switch"] is False
+    assert "invalid_source_timestamp" in result["reasons"]
+    assert "invalid_measurement_window" in result["reasons"]
