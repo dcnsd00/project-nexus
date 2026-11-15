@@ -21,6 +21,11 @@ def test_runtime_starts_only_local_read_only_adapters():
     assert data_health["data_root"]
     assert data_health["filesystem_created_by_probe"] is False
     assert by_name["crypto_engine"]["health"]["ok"] is True
+    crypto_details = by_name["crypto_engine"]["health"]["details"]
+    assert crypto_details["sha256_self_test"] is True
+    assert crypto_details["sha256d_self_test"] is True
+    assert {"sha256", "sha256d"} <= set(crypto_details["algorithm_names"])
+    assert {"RandomX", "KawPow", "Scrypt", "Ethash"} <= set(crypto_details["pow_algorithms_not_implemented_here"])
     assert by_name["provider_registry"]["health"]["details"]["live_connections_verified"] == 0
     assert by_name["provider_registry"]["health"]["details"]["writes_enabled"] is False
     assert manager.stop_all()["running"] == 0
