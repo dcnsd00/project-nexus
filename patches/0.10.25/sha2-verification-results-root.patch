@@ -29,3 +29,14 @@
  
  
  def test_research_package_status_is_truthful():
+--- a/application/tests/rcsc/test_rcsc_integration.py
++++ b/application/tests/rcsc/test_rcsc_integration.py
+@@ -29,7 +29,7 @@
+ def test_rcsc_api_routes_registered():
+     import nexus_master
+-    paths = {route.path for route in nexus_master.app.routes}
++    paths = set(nexus_master.app.openapi()["paths"])
+     assert "/api/research/rcsc/status" in paths
+     assert "/api/research/rcsc/collect" in paths
+     assert "/api/research/rcsc/analyze" in paths
+     assert "/api/research/rcsc/verify-header" in paths
