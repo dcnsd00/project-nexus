@@ -1650,5 +1650,5 @@ def mining_backend_evaluate(req: MiningBackendEvaluationRequest):
 @app.get("/api/mining/capabilities/compatibility-matrix")
 def mining_compatibility_matrix():
     return nexus_compatibility_matrix(
-        ROOT / "mining" / "pools.json", nexus_static_backend_catalog()
+        ROOT / "mining" / "pools.json", nexus_backend_catalog()
     )
