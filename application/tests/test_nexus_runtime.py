@@ -101,4 +101,6 @@ def test_mining_switch_controller_is_registered_disabled_by_default():
     assert controller["details"]["automatic_switch_enabled"] is False
     assert controller["details"]["minimum_measurement_windows"] == 3
     assert controller["details"]["cooldown_seconds"] == 1800
+    assert controller["details"]["source_adapter"]["verified"] is False
+    assert controller["details"]["source_adapter"]["providers_live"] == 0
     assert manager.stop_all()["running"] == 0
