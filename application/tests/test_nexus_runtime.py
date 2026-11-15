@@ -5,7 +5,7 @@ def test_runtime_registers_local_services_without_starting_them():
     manager = build_runtime()
     snapshot = manager.snapshot()
     names = {row["name"] for row in snapshot["services"]}
-    assert {"data_paths", "crypto_engine", "math_intelligence", "provider_registry", "rcsc_research", "research_hub", "mining_switch_controller"} <= names
+    assert {"data_paths", "crypto_engine", "math_intelligence", "provider_registry", "rcsc_research", "research_hub", "mining_switch_controller", "blockchain_regtest"} <= names
     assert snapshot["running"] == 0
     assert snapshot["system_ready"] is False
 
@@ -103,4 +103,16 @@ def test_mining_switch_controller_is_registered_disabled_by_default():
     assert controller["details"]["cooldown_seconds"] == 1800
     assert controller["details"]["source_adapter"]["verified"] is False
     assert controller["details"]["source_adapter"]["providers_live"] == 0
+    assert manager.stop_all()["running"] == 0
+
+
+def test_blockchain_regtest_runtime_probe_never_starts_nodes_or_calls_network():
+    manager = build_runtime()
+    snapshot = manager.start_all()
+    by_name = {row["name"]: row for row in snapshot["services"]}
+    details = by_name["blockchain_regtest"]["health"]["details"]
+    assert details["all_endpoints_loopback"] is True
+    assert details["network_calls_by_probe"] is False
+    assert details["nodes_started_by_runtime"] is False
+    assert details["execution_requires_explicit_local_benchmark"] is True
     assert manager.stop_all()["running"] == 0
