@@ -5,7 +5,7 @@ def test_runtime_registers_local_services_without_starting_them():
     manager = build_runtime()
     snapshot = manager.snapshot()
     names = {row["name"] for row in snapshot["services"]}
-    assert {"data_paths", "crypto_engine", "math_intelligence", "provider_registry", "rcsc_research", "research_hub"} <= names
+    assert {"data_paths", "crypto_engine", "math_intelligence", "provider_registry", "rcsc_research", "research_hub", "mining_switch_controller"} <= names
     assert snapshot["running"] == 0
     assert snapshot["system_ready"] is False
 
@@ -89,4 +89,16 @@ def test_research_hub_runtime_probe_is_read_only():
     assert hub["details"]["external_uploads"] is False
     assert hub["details"]["auto_apply"] is False
     assert history_path.exists() is existed_before
+    assert manager.stop_all()["running"] == 0
+
+
+def test_mining_switch_controller_is_registered_disabled_by_default():
+    manager = build_runtime()
+    snapshot = manager.start_all()
+    by_name = {row["name"]: row for row in snapshot["services"]}
+    controller = by_name["mining_switch_controller"]["health"]
+    assert controller["ok"] is True
+    assert controller["details"]["automatic_switch_enabled"] is False
+    assert controller["details"]["minimum_measurement_windows"] == 3
+    assert controller["details"]["cooldown_seconds"] == 1800
     assert manager.stop_all()["running"] == 0
