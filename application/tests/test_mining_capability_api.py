@@ -33,3 +33,29 @@ def test_capability_evaluate_blocks_randomx_gpu_and_unknown_pool():
     assert blocked.status_code == 200
     assert blocked.json()["compatible"] is False
     assert missing.status_code == 404
+
+
+def test_backend_catalog_and_discovery_are_read_only():
+    with TestClient(app) as client:
+        catalog = client.get("/api/mining/backends")
+        discovery = client.get("/api/mining/backends/discovery")
+    assert catalog.status_code == 200
+    assert catalog.json()["execution_enabled"] is False
+    assert any(x["backend_id"] == "xmrig" for x in catalog.json()["backends"])
+    assert discovery.status_code == 200
+    assert discovery.json()["execution_enabled"] is False
+    assert all(x["operationally_validated"] is False for x in discovery.json()["backends"])
+
+
+def test_backend_evaluation_enforces_algorithm_device_pair():
+    with TestClient(app) as client:
+        allowed = client.post("/api/mining/backends/evaluate", json={
+            "backend_id": "xmrig", "algorithm": "RandomX", "device_class": "CPU"
+        })
+        blocked = client.post("/api/mining/backends/evaluate", json={
+            "backend_id": "xmrig", "algorithm": "RandomX", "device_class": "GPU"
+        })
+    assert allowed.status_code == 200
+    assert allowed.json()["compatible"] is True
+    assert blocked.status_code == 200
+    assert blocked.json()["compatible"] is False
