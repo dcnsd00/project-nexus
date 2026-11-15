@@ -5,6 +5,7 @@ from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+from modules.data_paths import data_path
 
 ROOT = Path(__file__).resolve().parents[1]
 PKG = ROOT / "research" / "rcsc" / "nexus_rcsc"
@@ -16,7 +17,7 @@ from nexus_rcsc.collector import MempoolClient
 from nexus_rcsc.analysis import analyze
 from nexus_rcsc.associations import reward_conditioned_nonce_tests
 
-DB_PATH = Path(os.environ.get("NEXUS_RCSC_DB", str(ROOT / "data" / "nexus_rcsc.sqlite3")))
+DB_PATH = Path(os.environ.get("NEXUS_RCSC_DB", str(data_path("db", "nexus_rcsc.sqlite3")))).expanduser().resolve()
 _LOCK = threading.RLock()
 HOLDOUT_MINIMUM_RECORDS = 200
 
