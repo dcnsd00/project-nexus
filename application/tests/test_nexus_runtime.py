@@ -5,7 +5,7 @@ def test_runtime_registers_local_services_without_starting_them():
     manager = build_runtime()
     snapshot = manager.snapshot()
     names = {row["name"] for row in snapshot["services"]}
-    assert {"data_paths", "crypto_engine", "math_intelligence", "provider_registry", "rcsc_research", "research_hub", "mining_switch_controller", "blockchain_regtest", "edge_manager", "earnings_intelligence", "coin_catalog"} <= names
+    assert {"data_paths", "crypto_engine", "math_intelligence", "provider_registry", "rcsc_research", "research_hub", "mining_switch_controller", "blockchain_regtest", "edge_manager", "earnings_intelligence", "coin_catalog", "mining_optimizer"} <= names
     assert snapshot["running"] == 0
     assert snapshot["system_ready"] is False
 
@@ -160,4 +160,18 @@ def test_coin_catalog_runtime_probe_does_not_fetch_or_write_cache():
     assert details["provider"] == "CoinPaprika"
     assert details["network_calls_by_probe"] is False
     assert coin_catalog.CACHE.exists() is existed_before
+    assert manager.stop_all()["running"] == 0
+
+
+def test_mining_optimizer_runtime_probe_is_read_only():
+    from modules import mining_optimization
+
+    existed_before = mining_optimization.TRIALS.exists()
+    manager = build_runtime()
+    snapshot = manager.start_all()
+    by_name = {row["name"]: row for row in snapshot["services"]}
+    details = by_name["mining_optimizer"]["health"]["details"]
+    assert details["automatic_parameter_application"] is False
+    assert details["automatic_coin_switching"] is False
+    assert mining_optimization.TRIALS.exists() is existed_before
     assert manager.stop_all()["running"] == 0
