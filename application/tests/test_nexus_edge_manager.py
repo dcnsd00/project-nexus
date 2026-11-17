@@ -57,6 +57,28 @@ class EdgeManagerTests(unittest.TestCase):
                         "edge-c5-001", timestamp, 2, "0" * 64,
                     )
 
+
+    def test_authenticated_request_rejects_oversized_or_non_object_payload(self):
+        timestamp = self.clock()
+        oversized = {"data": "x" * 256}
+        message = {
+            "kind": "node_request", "action": "telemetry.push",
+            "node_id": "edge-c5-002", "timestamp": timestamp,
+            "sequence": 2, "payload": oversized,
+        }
+        tiny = EdgeManager(clock=self.clock, max_payload_bytes=128)
+        tiny.register_node("edge-c5-002", ["telemetry"], self.secret)
+        with self.assertRaisesRegex(EdgeError, "payload exceeds configured size limit"):
+            tiny.authenticate_request(
+                "edge-c5-002", "telemetry.push", timestamp, 2, oversized,
+                sign_message(self.secret, message),
+            )
+
+        with self.assertRaisesRegex(EdgeError, "payload must be a JSON object"):
+            self.manager.authenticate_request(
+                "edge-c5-001", "telemetry.push", timestamp, 2, ["not", "an", "object"], "0" * 64,
+            )
+
     def test_rejects_stale_heartbeat(self):
         old = self.clock() - 60
         msg = {"kind": "heartbeat", "node_id": "edge-c5-001", "timestamp": old, "sequence": 2}
