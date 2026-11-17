@@ -30,7 +30,17 @@ _core_lifespan = app.router.lifespan_context
 async def _nexus_lifespan(application):
     async with _core_lifespan(application):
         initialize_wallet_schema()
-        yield
+        # Network transports remain disabled unless the operator opts in.
+        import asyncio
+        try:
+            await asyncio.to_thread(_edge_transport.start)
+        except Exception as exc:
+            _edge_transport.set_start_error(type(exc).__name__)
+        application.state.edge_transport = _edge_transport
+        try:
+            yield
+        finally:
+            await asyncio.to_thread(_edge_transport.stop)
 app.router.lifespan_context = _nexus_lifespan
 from nexus_wallet_recovery_api import router as wallet_recovery_router  # noqa: E402
 app.include_router(wallet_recovery_router)
@@ -41,6 +51,15 @@ app.include_router(integrations_router)
 from modules.pool_failover_api import router as pool_failover_router  # noqa: E402
 app.include_router(pool_failover_router)
 from tools_audit_vault import audit as audit_wallet_vault  # noqa: E402
+
+# NEXUS EDGE transport runtime: strictly opt-in; no broker connection by default.
+from nexus_edge.runtime import EdgeTransportRuntime  # noqa: E402
+_edge_transport = EdgeTransportRuntime()
+
+@app.get("/api/edge/transports")
+def edge_transport_status():
+    return _edge_transport.status()
+
 
 def _tool(name: str) -> dict:
     path = shutil.which(name)
