@@ -184,4 +184,5 @@ def authenticate_mqtt_uplink(manager: Any, topic: str, body: dict[str, Any], *,
         node_id, "mqtt.uplink", body["timestamp"], body["sequence"],
         body["payload"], body["signature"],
     )
-    return {"accepted": True, "node_id": node_id, "transport": "mqtts"}
+    return {"accepted": True, "node_id": node_id, "transport": "mqtts",
+            "payload": body["payload"]}
