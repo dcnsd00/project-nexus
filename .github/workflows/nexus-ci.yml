@@ -49,6 +49,10 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+      - name: Set up Node.js for dashboard validation
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
       - name: Install dependencies
         shell: bash
         run: |
@@ -68,9 +72,28 @@ jobs:
         run: |
           ROOT="${{ needs.source-detection.outputs.root }}"
           python -m compileall -q "$ROOT"
-      - name: Run test suite
+      - name: Validate dashboard and wallet JavaScript
+        shell: bash
+        run: |
+          ROOT="${{ needs.source-detection.outputs.root }}"
+          python "$ROOT/tools_check_dashboard_js.py" "$ROOT"
+      - name: Run primary application test suite
         shell: bash
         run: |
           ROOT="${{ needs.source-detection.outputs.root }}"
           cd "$ROOT"
           python -m pytest -q --disable-warnings --maxfail=1
+      - name: Run adapter, wallet and independent SHA-2 suites
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROOT="${{ needs.source-detection.outputs.root }}"
+          MM="$ROOT/adapters/multiminer_x/MULTIMINER_X_v1.0"
+          (cd "$MM" && PYTHONPATH="$MM" python -m pytest -q tests)
+          FS="$ROOT/adapters/fieldstation/crypto_fieldstation"
+          (cd "$FS" && PYTHONPATH="$FS" python -m pytest -q tests)
+          WALLET="$ROOT/modules/wallet_benchmark"
+          (cd "$WALLET" && PYTHONPATH="$WALLET" python -m pytest -q tests)
+          (cd "$WALLET/v05" && PYTHONPATH="$WALLET:$WALLET/v05" python -m pytest -q test_v05_unit.py)
+          RESEARCH="$ROOT/research/sha2_independent"
+          (cd "$RESEARCH" && PYTHONPATH="$RESEARCH" python research_main.py test --out-dir "$RUNNER_TEMP/nexus-sha2-results")
