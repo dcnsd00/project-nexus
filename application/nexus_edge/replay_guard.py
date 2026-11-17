@@ -7,6 +7,7 @@ a sequence can be accepted at most once, including across process restarts.
 from __future__ import annotations
 
 import sqlite3
+from contextlib import closing
 from pathlib import Path
 from threading import Lock
 from typing import Protocol
@@ -46,7 +47,10 @@ class SQLiteReplayGuard:
         self.database = Path(database).expanduser().resolve()
         self.database.parent.mkdir(parents=True, exist_ok=True)
         self.timeout_s = float(timeout_s)
-        with self._connect() as connection:
+        with closing(self._connect()) as connection:
+            version = int(connection.execute("PRAGMA user_version").fetchone()[0])
+            if version not in (0, 1):
+                raise RuntimeError(f"unsupported EDGE replay database schema version: {version}")
             connection.execute(
                 """
                 CREATE TABLE IF NOT EXISTS edge_protocol_sequences (
@@ -56,9 +60,8 @@ class SQLiteReplayGuard:
                 )
                 """
             )
-            connection.execute(
-                "PRAGMA user_version = 1"
-            )
+            if version == 0:
+                connection.execute("PRAGMA user_version = 1")
 
     def _connect(self) -> sqlite3.Connection:
         connection = sqlite3.connect(
@@ -69,7 +72,7 @@ class SQLiteReplayGuard:
 
     def accept(self, node_id: str, sequence: int) -> None:
         _validate(node_id, sequence)
-        with self._connect() as connection:
+        with closing(self._connect()) as connection:
             try:
                 connection.execute("BEGIN IMMEDIATE")
                 row = connection.execute(
