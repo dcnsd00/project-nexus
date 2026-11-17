@@ -171,6 +171,17 @@ class EdgeManager:
             raise EdgeError(str(exc)) from exc
 
     @_synchronized
+    def record_authenticated_heartbeat(self, node_id: str, timestamp: float) -> dict[str, Any]:
+        """Update liveness after the transport has authenticated and replay-checked a request."""
+        node = self._get_node(node_id)
+        now = self._clock()
+        if abs(now - float(timestamp)) > self.heartbeat_ttl_s:
+            raise EdgeError("heartbeat timestamp outside allowed clock-skew window")
+        node.last_seen = now
+        self._persist()
+        return self.node_status(node_id)
+
+    @_synchronized
     def submit_task(
         self, task_type: str, payload: dict[str, Any],
         required_capabilities: list[str] | tuple[str, ...], *,
