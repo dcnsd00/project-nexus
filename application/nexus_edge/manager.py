@@ -15,6 +15,8 @@ import uuid
 from dataclasses import dataclass, field
 from typing import Any, Callable
 
+from .replay_guard import MemoryReplayGuard, ReplayGuard
+
 
 class EdgeError(ValueError):
     """Raised when a node or task operation violates the EDGE contract."""
@@ -80,6 +82,7 @@ class EdgeManager:
         lease_s: int = 60,
         max_payload_bytes: int = 65_536,
         clock: Callable[[], float] = time.time,
+        replay_guard: ReplayGuard | None = None,
     ) -> None:
         if heartbeat_ttl_s < 1 or lease_s < 1 or max_payload_bytes < 128:
             raise EdgeError("invalid EDGE manager limits")
@@ -87,6 +90,7 @@ class EdgeManager:
         self.lease_s = lease_s
         self.max_payload_bytes = max_payload_bytes
         self._clock = clock
+        self._replay_guard = replay_guard or MemoryReplayGuard()
         self._nodes: dict[str, _Node] = {}
         self._tasks: dict[str, _Task] = {}
 
@@ -108,14 +112,18 @@ class EdgeManager:
         self._nodes[node_id] = _Node(node_id, caps, secret, max_parallel)
         return self.node_status(node_id)
 
-    def heartbeat(self, node_id: str, timestamp: float, signature: str) -> dict[str, Any]:
+    def heartbeat(self, node_id: str, timestamp: float, sequence: int, signature: str) -> dict[str, Any]:
         node = self._get_node(node_id)
         now = self._clock()
         if abs(now - float(timestamp)) > self.heartbeat_ttl_s:
             raise EdgeError("heartbeat timestamp outside allowed clock-skew window")
-        message = {"kind": "heartbeat", "node_id": node_id, "timestamp": timestamp}
+        message = {"kind": "heartbeat", "node_id": node_id, "timestamp": timestamp, "sequence": sequence}
         if not _verify(node.secret, message, signature):
             raise EdgeError("invalid heartbeat signature")
+        try:
+            self._replay_guard.accept(node_id, sequence)
+        except ValueError as exc:
+            raise EdgeError(str(exc)) from exc
         node.last_seen = now
         return self.node_status(node_id)
 
