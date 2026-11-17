@@ -50,7 +50,7 @@ class EdgeTransportRuntime:
             manager = manager_factory()
 
             def on_message(topic: str, body: dict[str, Any]) -> None:
-                accepted = authenticate_mqtt_uplink(manager, topic, body)
+                accepted = authenticate_mqtt_uplink(manager, topic, body, topic_prefix=config.topic_prefix)
                 with self._lock:
                     self._received.append(accepted)
 
