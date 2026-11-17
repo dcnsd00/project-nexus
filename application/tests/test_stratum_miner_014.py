@@ -114,7 +114,14 @@ def test_controller_starts_and_stops_integrated_native_worker(monkeypatch):
     assert running['miner_id']=='nexus-btc-cpu'
     assert running['metrics']['accepted_shares']>=1
     assert running['metrics']['native_requested'] is True
-    assert running['metrics']['engine'].startswith(('native_sha256d_variant_', 'exact_sha256d_midstate'))
+    engine = running['metrics']['engine']
+    native_available = running['metrics']['native']['available']
+    if native_available:
+        assert engine.startswith('native_sha256d_variant_'), engine
+    else:
+        # Windows CI may not have the optional MSYS2/MinGW toolchain.
+        # The exact Python SHA-256d fallback must still submit a valid share.
+        assert engine == 'python_exact_sha256d_chunked_fallback', engine
     stopped=controller.stop()
     assert stopped['status']=='stopped'
     pool['thread'].join(3)
