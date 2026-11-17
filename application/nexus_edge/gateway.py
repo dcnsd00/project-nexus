@@ -40,12 +40,13 @@ class NodeEnvelope(BaseModel):
     signature: str = Field(min_length=64, max_length=64, pattern=r"^[0-9a-fA-F]{64}$")
 
 
-def create_edge_manager_from_env() -> EdgeManager:
+def create_edge_manager_from_env(env: dict[str, str] | None = None) -> EdgeManager:
     """Create durable gateway state; fail closed if encryption key is absent."""
-    key = os.environ.get("NEXUS_EDGE_STORAGE_KEY")
+    values = os.environ if env is None else env
+    key = values.get("NEXUS_EDGE_STORAGE_KEY")
     if not key:
         raise RuntimeError("NEXUS_EDGE_STORAGE_KEY is required for online EDGE gateway")
-    database = os.environ.get("NEXUS_EDGE_DATABASE", "./data/db/edge_state.sqlite3")
+    database = values.get("NEXUS_EDGE_DATABASE", "./data/db/edge_state.sqlite3")
     try:
         key_bytes = key.encode("ascii")
     except UnicodeEncodeError as exc:
@@ -56,11 +57,13 @@ def create_edge_manager_from_env() -> EdgeManager:
 
 
 def create_edge_app(manager: EdgeManager | None = None, *,
-                    provisioning_token: str | None = None) -> FastAPI:
-    token = provisioning_token if provisioning_token is not None else os.environ.get("NEXUS_EDGE_PROVISIONING_TOKEN")
+                    provisioning_token: str | None = None,
+                    env: dict[str, str] | None = None) -> FastAPI:
+    values = os.environ if env is None else env
+    token = provisioning_token if provisioning_token is not None else values.get("NEXUS_EDGE_PROVISIONING_TOKEN")
     if not token or len(token) < 32:
         raise RuntimeError("NEXUS_EDGE_PROVISIONING_TOKEN must contain at least 32 characters")
-    edge = manager or create_edge_manager_from_env()
+    edge = manager or create_edge_manager_from_env(dict(values))
     app = FastAPI(title="NEXUS EDGE Gateway", version="1.0.0")
     router = APIRouter(prefix="/v1/edge", tags=["NEXUS EDGE"])
 

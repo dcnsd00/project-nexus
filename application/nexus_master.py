@@ -36,10 +36,16 @@ async def _nexus_lifespan(application):
             await asyncio.to_thread(_edge_transport.start)
         except Exception as exc:
             _edge_transport.set_start_error(type(exc).__name__)
+        try:
+            await asyncio.to_thread(_edge_gateway_runtime.start, application)
+        except Exception as exc:
+            _edge_gateway_runtime.set_start_error(type(exc).__name__)
         application.state.edge_transport = _edge_transport
+        application.state.edge_gateway = _edge_gateway_runtime
         try:
             yield
         finally:
+            await asyncio.to_thread(_edge_gateway_runtime.stop, application)
             await asyncio.to_thread(_edge_transport.stop)
 app.router.lifespan_context = _nexus_lifespan
 from nexus_wallet_recovery_api import router as wallet_recovery_router  # noqa: E402
@@ -54,11 +60,17 @@ from tools_audit_vault import audit as audit_wallet_vault  # noqa: E402
 
 # NEXUS EDGE transport runtime: strictly opt-in; no broker connection by default.
 from nexus_edge.runtime import EdgeTransportRuntime  # noqa: E402
+from nexus_edge.gateway_runtime import EdgeGatewayRuntime  # noqa: E402
 _edge_transport = EdgeTransportRuntime()
+_edge_gateway_runtime = EdgeGatewayRuntime()
 
 @app.get("/api/edge/transports")
 def edge_transport_status():
     return _edge_transport.status()
+
+@app.get("/api/edge/gateway")
+def edge_gateway_status():
+    return _edge_gateway_runtime.status()
 
 
 def _tool(name: str) -> dict:

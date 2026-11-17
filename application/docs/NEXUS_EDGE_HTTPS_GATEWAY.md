@@ -51,3 +51,25 @@ must transfer it to the device through a separate authenticated channel.
 - Hardware-in-the-loop validation is still required for ESP32-C5 and Android agents.
 
 Task completion requires both an authenticated request envelope and the existing task-result HMAC. This prevents an unauthenticated client from submitting a result and preserves the manager's result-integrity contract.
+
+
+## NEXUS MASTER lifecycle integration
+
+The gateway can be mounted as a sub-application of the main NEXUS MASTER
+control plane. It remains disabled unless `NEXUS_EDGE_GATEWAY_ENABLED=true`.
+When enabled, its routes are available under
+`/edge/v1/edge/*`; the read-only lifecycle state is exposed at
+`GET /api/edge/gateway`. Startup fails closed for missing/weak operator
+credentials or missing durable-storage encryption key. NEXUS MASTER records
+only the exception type in its status and continues its other local services.
+The mounted gateway is removed during application shutdown.
+
+Set these environment values in the protected service environment:
+- `NEXUS_EDGE_GATEWAY_ENABLED=true`
+- `NEXUS_EDGE_PROVISIONING_TOKEN` (at least 32 characters)
+- `NEXUS_EDGE_STORAGE_KEY` (Fernet URL-safe base64 key)
+- Optional: `NEXUS_EDGE_DATABASE`
+
+This integration does not enable WAN exposure. Keep the MASTER listener on
+loopback or a trusted LAN and use a verified TLS reverse proxy for remote
+access. Live network, node, and hardware validation remain separate gates.
