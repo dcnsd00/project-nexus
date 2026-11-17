@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import importlib
 import importlib.util
+import os
 import sqlite3
 import shutil
 import sys
@@ -53,17 +54,30 @@ class ModuleAdapter:
 
 
 class EdgeServiceAdapter:
-    """Lifecycle adapter for the in-memory EDGE pilot; no network or device control."""
+    """Lifecycle adapter for EDGE with opt-in durable state and no network control."""
 
     def __init__(self):
         self.service: Any = None
+        self.persistence_configured = False
 
     def initialize(self) -> None:
         module = importlib.import_module("nexus_edge.service")
         from modules.data_paths import data_path
         from nexus_edge.replay_guard import SQLiteReplayGuard
-        replay_store = SQLiteReplayGuard(data_path("db", "edge_replay.sqlite3", create_parent=True))
-        self.service = module.EdgeService(replay_guard=replay_store)
+
+        database = data_path("db", "edge_state.sqlite3", create_parent=True)
+        replay_store = SQLiteReplayGuard(database)
+        storage_key = os.environ.get("NEXUS_EDGE_STORAGE_KEY")
+        edge_store = None
+        if storage_key:
+            from nexus_edge.sqlite_store import SQLiteEdgeStore
+            # Fernet keys are URL-safe base64 strings. Never generate or persist
+            # a key here: operators must provision a stable secret out-of-band.
+            edge_store = SQLiteEdgeStore(database, encryption_key=storage_key.encode("ascii"))
+            self.persistence_configured = True
+        self.service = module.EdgeService(
+            replay_guard=replay_store, store=edge_store
+        )
 
     def start(self) -> None:
         if self.service is None:

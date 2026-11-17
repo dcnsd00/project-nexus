@@ -16,10 +16,11 @@ class EdgeService:
     """
 
     def __init__(self, manager: EdgeManager | None = None, *,
-                 replay_guard: ReplayGuard | None = None) -> None:
-        if manager is not None and replay_guard is not None:
-            raise ValueError("provide either manager or replay_guard, not both")
-        self.manager = manager or EdgeManager(replay_guard=replay_guard)
+                 replay_guard: ReplayGuard | None = None,
+                 store: Any | None = None) -> None:
+        if manager is not None and (replay_guard is not None or store is not None):
+            raise ValueError("provide either manager or manager dependencies, not both")
+        self.manager = manager or EdgeManager(replay_guard=replay_guard, store=store)
         self.initialized = False
         self.started = False
 

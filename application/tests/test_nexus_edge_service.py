@@ -1,5 +1,10 @@
+import tempfile
 import unittest
+from pathlib import Path
 
+from cryptography.fernet import Fernet
+
+from nexus_edge import SQLiteEdgeStore, SQLiteReplayGuard
 from nexus_edge.service import EdgeService
 
 
@@ -20,6 +25,17 @@ class EdgeServiceTests(unittest.TestCase):
         self.assertFalse(service.health_check()["ok"])
         service.shutdown()
         self.assertFalse(service.health_check()["ok"])
+
+    def test_service_wires_durable_store_into_manager(self):
+        with tempfile.TemporaryDirectory() as directory:
+            database = Path(directory) / "edge.sqlite3"
+            key = Fernet.generate_key()
+            store = SQLiteEdgeStore(database, encryption_key=key)
+            replay = SQLiteReplayGuard(database)
+            service = EdgeService(replay_guard=replay, store=store)
+            service.initialize()
+            service.start()
+            self.assertEqual(service.health_check()["details"]["mode"], "sqlite_persistent")
 
     def test_start_requires_initialize(self):
         service = EdgeService()
