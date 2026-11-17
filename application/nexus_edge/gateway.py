@@ -106,6 +106,17 @@ def create_edge_app(manager: EdgeManager | None = None, *,
         except EdgeError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
 
+    @router.post("/nodes/{node_id}/uplink/{network}")
+    def uplink(node_id: str, network: str, body: NodeEnvelope):
+        if network not in {"lorawan", "iot"}:
+            raise HTTPException(status_code=404, detail="unsupported uplink network")
+        try:
+            authenticate(node_id, f"{network}.uplink", body)
+        except HTTPException:
+            raise
+        return {"accepted": True, "node_id": node_id, "network": network,
+                "payload": body.payload, "note": "application payload authenticated; decoder/NS adapter is deployment-specific"}
+
     @router.post("/nodes/{node_id}/heartbeat")
     def heartbeat(node_id: str, body: NodeEnvelope):
         if body.payload:

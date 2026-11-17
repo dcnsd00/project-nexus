@@ -166,3 +166,18 @@ def mqtt_config_from_env(env: dict[str, str] | None = None) -> MQTTConfig:
         client_key=source.get("NEXUS_EDGE_MQTT_KEY"),
         topic_prefix=source.get("NEXUS_EDGE_MQTT_TOPIC_PREFIX", "nexus/v1"),
     )
+
+def authenticate_mqtt_uplink(manager: Any, topic: str, body: dict[str, Any]) -> dict[str, Any]:
+    """Validate an MQTTS topic/envelope and consume its node sequence exactly once."""
+    match = re.fullmatch(r"nexus/v1/nodes/([A-Za-z0-9][A-Za-z0-9._:-]{2,63})/up", topic)
+    if not match:
+        raise ValueError("unexpected NEXUS MQTT uplink topic")
+    required = {"timestamp", "sequence", "payload", "signature"}
+    if set(body) != required or not isinstance(body["payload"], dict):
+        raise ValueError("invalid MQTT uplink envelope")
+    node_id = match.group(1)
+    manager.authenticate_request(
+        node_id, "mqtt.uplink", body["timestamp"], body["sequence"],
+        body["payload"], body["signature"],
+    )
+    return {"accepted": True, "node_id": node_id, "transport": "mqtts"}

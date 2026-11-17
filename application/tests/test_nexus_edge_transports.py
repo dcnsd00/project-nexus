@@ -60,3 +60,26 @@ def test_two_server_primary_standby_requires_shared_or_replicated_backend():
     bad=DeploymentTopology(DeploymentMode.PRIMARY_STANDBY,2,"sqlite")
     with pytest.raises(ValueError,match="replicated/shared"):
         bad.validate()
+
+def test_mqtt_uplink_requires_node_hmac_and_monotonic_sequence():
+    from nexus_edge.transports import authenticate_mqtt_uplink
+    from nexus_edge.manager import EdgeManager, sign_message
+    from nexus_edge.replay_guard import MemoryReplayGuard
+    manager=EdgeManager(replay_guard=MemoryReplayGuard())
+    secret=b"n"*32
+    manager.register_node("esp32-node-09",["telemetry"],secret)
+    timestamp=1_800_000_000
+    payload={"temperature_c":23.5}
+    message={"kind":"node_request","action":"mqtt.uplink","node_id":"esp32-node-09",
+             "timestamp":timestamp,"sequence":1,"payload":payload}
+    body={"timestamp":timestamp,"sequence":1,"payload":payload,
+          "signature":sign_message(secret,message)}
+    topic="nexus/v1/nodes/esp32-node-09/up"
+    assert authenticate_mqtt_uplink(manager,topic,body)["accepted"] is True
+    with pytest.raises(ValueError,match="replayed|out-of-order"):
+        authenticate_mqtt_uplink(manager,topic,body)
+
+def test_mqtt_uplink_rejects_unexpected_topic():
+    from nexus_edge.transports import authenticate_mqtt_uplink
+    with pytest.raises(ValueError,match="topic"):
+        authenticate_mqtt_uplink(object(),"other/topic",{})
