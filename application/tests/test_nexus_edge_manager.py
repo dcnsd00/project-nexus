@@ -79,7 +79,7 @@ class EdgeManagerTests(unittest.TestCase):
         self.manager.register_node("edge-data-002", ["telemetry"], b"x" * 32)
         ts = self.clock()
         msg = {"kind": "heartbeat", "node_id": "edge-data-002", "timestamp": ts}
-        self.manager.heartbeat("edge-data-002", ts, sign_message(b"x" * 32, msg))
+        self.manager.heartbeat("edge-data-002", ts, 1, sign_message(b"x" * 32, msg))
         self.manager.submit_task("math.verify", {"input": "x"}, ["math.verify"])
         self.assertIsNone(self.manager.claim_task("edge-data-002"))
 
