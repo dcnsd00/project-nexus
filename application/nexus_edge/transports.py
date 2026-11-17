@@ -167,9 +167,13 @@ def mqtt_config_from_env(env: dict[str, str] | None = None) -> MQTTConfig:
         topic_prefix=source.get("NEXUS_EDGE_MQTT_TOPIC_PREFIX", "nexus/v1"),
     )
 
-def authenticate_mqtt_uplink(manager: Any, topic: str, body: dict[str, Any]) -> dict[str, Any]:
-    """Validate an MQTTS topic/envelope and consume its node sequence exactly once."""
-    match = re.fullmatch(r"nexus/v1/nodes/([A-Za-z0-9][A-Za-z0-9._:-]{2,63})/up", topic)
+def authenticate_mqtt_uplink(manager: Any, topic: str, body: dict[str, Any], *,
+                             topic_prefix: str = "nexus/v1") -> dict[str, Any]:
+    """Validate a configured MQTTS topic/envelope and consume its node sequence exactly once."""
+    if not isinstance(topic_prefix, str) or not re.fullmatch(r"[A-Za-z0-9/_-]{1,96}", topic_prefix):
+        raise ValueError("invalid NEXUS MQTT topic prefix")
+    pattern = re.escape(topic_prefix) + r"/nodes/([A-Za-z0-9][A-Za-z0-9._:-]{2,63})/up"
+    match = re.fullmatch(pattern, topic)
     if not match:
         raise ValueError("unexpected NEXUS MQTT uplink topic")
     required = {"timestamp", "sequence", "payload", "signature"}
