@@ -39,6 +39,19 @@ All runs below completed with conclusion SUCCESS:
 - The existing workflow reports a Node.js 20 deprecation warning for `actions/checkout@v4` and `actions/setup-python@v5`; it did not fail the jobs.
 - Validation scope: GitHub-hosted Linux CI. Windows installation, physical hardware, ESP32 communication, live mining and payouts remain unvalidated.
 
+## Active increment — NEXUS EDGE protocol anti-replay and SQLite
+
+- Feature branch: `feature/edge-replay-protection-sqlite-v1`
+- Base: `integration/source-import-safe-0.10.25`; `main` remains untouched.
+- Added `application/nexus_edge/replay_guard.py`: in-memory and SQLite-backed replay guard implementations.
+- Heartbeats now sign and carry a monotonically increasing per-node sequence; duplicate and out-of-order sequences are rejected.
+- SQLite uses an atomic write transaction and persists only sequence counters, not HMAC secret material.
+- NEXUS Runtime injects the SQLite replay guard at the canonical `NEXUS_DATA_DIR/db/edge_replay.sqlite3` path.
+- Updated EDGE foundation documentation to distinguish implemented replay protection from still-ephemeral node/task state.
+- Initial full CI exposed one legacy test call using the old heartbeat signature; corrected in commit `057b0402a90ed97d29272e7ff8685df0dddcb011`.
+- Current branch head is being re-tested. Do not treat this increment as tested or integrated until the latest full CI run completes successfully.
+- Still pending: durable node/task/lease persistence, key provisioning/rotation, protocol versioning, transport, ESP32 firmware and physical validation.
+
 ## Next engineering increment
 1. Create a separate feature branch for NEXUS EDGE persistence and protocol hardening.
 2. Define storage interfaces and migration/version contracts before implementation; test restart recovery and crash consistency.
