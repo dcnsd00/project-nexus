@@ -7,7 +7,7 @@ from nexus_edge.manager import EdgeManager, sign_message
 from nexus_edge.replay_guard import MemoryReplayGuard
 
 def _envelope(secret, node_id, action, seq, payload=None, timestamp=None):
-    timestamp = time.time() if timestamp is None else timestamp
+    timestamp = int(time.time()) if timestamp is None else timestamp
     payload = payload or {}
     message = {"kind":"node_request","action":action,"node_id":node_id,
                "timestamp":timestamp,"sequence":seq,"payload":payload}

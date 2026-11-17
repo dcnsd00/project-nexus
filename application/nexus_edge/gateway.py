@@ -33,7 +33,7 @@ class TaskRequest(BaseModel):
 
 
 class NodeEnvelope(BaseModel):
-    timestamp: float
+    timestamp: int
     sequence: int = Field(ge=1)
     payload: dict[str, Any] = Field(default_factory=dict)
     signature: str = Field(min_length=64, max_length=64, pattern=r"^[0-9a-fA-F]{64}$")
@@ -108,6 +108,8 @@ def create_edge_app(manager: EdgeManager | None = None, *,
 
     @router.post("/nodes/{node_id}/heartbeat")
     def heartbeat(node_id: str, body: NodeEnvelope):
+        if body.payload:
+            raise HTTPException(status_code=400, detail="heartbeat payload must be empty")
         authenticate(node_id, "heartbeat", body)
         # authenticate_request consumed the sequence; heartbeat() has its own
         # replay check, so this endpoint updates liveness without a second check.
@@ -118,6 +120,8 @@ def create_edge_app(manager: EdgeManager | None = None, *,
 
     @router.post("/nodes/{node_id}/claim")
     def claim(node_id: str, body: NodeEnvelope):
+        if body.payload:
+            raise HTTPException(status_code=400, detail="claim payload must be empty")
         authenticate(node_id, "claim_task", body)
         try:
             return {"task": edge.claim_task(node_id)}
@@ -131,6 +135,18 @@ def create_edge_app(manager: EdgeManager | None = None, *,
         authenticate(node_id, "start_task", body)
         try:
             return edge.start_task(node_id, task_id)
+        except EdgeError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    @router.post("/nodes/{node_id}/tasks/{task_id}/complete")
+    def complete(node_id: str, task_id: str, body: NodeEnvelope):
+        required = {"task_id", "result", "result_signature"}
+        if set(body.payload) != required or body.payload.get("task_id") != task_id:
+            raise HTTPException(status_code=400, detail="signed payload must contain task_id, result, and result_signature")
+        authenticate(node_id, "complete_task", body)
+        try:
+            return edge.complete_task(node_id, task_id, body.payload["result"],
+                                      body.payload["result_signature"])
         except EdgeError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
 
