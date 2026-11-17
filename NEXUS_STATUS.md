@@ -26,23 +26,27 @@ Updated: 2026-11-17
 - GitHub Actions run 43761167547 (2026-11-15) completed with source-detection and python-tests successful on the integration branch.
 - That CI result does not validate Windows installation, physical hardware or live pool payouts.
 
-## Current implementation increment — CI pending
+## Current implementation increment — CI verified
 - Isolate noncritical service failures so independent services continue starting.
 - Mark dependents of failed services as BLOCKED.
 - Preserve rollback and startup-abort behavior for critical failures.
 - Remove the duplicate earnings_intelligence registry entry; retain the actual /api/intel route.
 - Reject future duplicate or empty module registry IDs.
 - Add regression tests for optional failure, blocked dependents and registry uniqueness.
-- This increment is being committed on the feature branch named above. GitHub Actions results will be recorded after the workflow completes.
+- Commit: 78cb5c3c4e128545f73d6d03be212bda8b3db8fc.
+- GitHub Actions run 44039323668: SUCCESS (2026-11-17).
+- `source-detection`: SUCCESS; Python 3.12 setup and dependency installation: SUCCESS; `compileall`: SUCCESS; full `pytest`: **495 passed, 1 warning, 30.13s**.
+- Warning: GitHub Actions reports Node.js 20 deprecation for the existing checkout/setup actions; it did not fail the test job.
+- This verifies the repository's Linux CI run. It does not verify installation on Windows, physical devices, or live mining.
 
 ## Next implementation sequence
-1. Verify this branch's GitHub Actions run and fix any CI failures.
+1. Open a reviewable pull request from this feature branch into integration/source-import-safe-0.10.25; keep main unchanged.
 2. Review the runtime's degraded/blocked service reporting and dependency policy.
 3. Add EDGE persistence and protocol replay protection.
 4. Add transport adapter and local broker integration tests.
 5. Develop ESP32-C5 firmware as a separate component/branch; integrate only after host-side protocol tests pass.
 6. Continue Mining, Wallet, RCSC, Math and Strategy Engine integration with tests in GitHub.
-7. Open pull requests against main only after review gates pass.
+7. Promote changes toward main only through a separately reviewed pull request after all integration gates pass.
 
 ## Status vocabulary
 - PRESENT: source file exists on a named branch.
