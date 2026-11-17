@@ -101,6 +101,9 @@ def test_mqtt_uplink_respects_configured_topic_prefix():
         topic_prefix="custom/edge",
     )
     assert accepted["accepted"] is True
+    with pytest.raises(ValueError, match="invalid NEXUS MQTT topic prefix"):
+        authenticate_mqtt_uplink(manager, "custom/edge/nodes/esp32-node-10/up", body,
+                                 topic_prefix="../invalid")
     with pytest.raises(ValueError, match="topic"):
         authenticate_mqtt_uplink(
             manager, "nexus/v1/nodes/esp32-node-10/up", body,
