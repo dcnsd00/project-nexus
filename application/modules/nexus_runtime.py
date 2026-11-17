@@ -60,7 +60,10 @@ class EdgeServiceAdapter:
 
     def initialize(self) -> None:
         module = importlib.import_module("nexus_edge.service")
-        self.service = module.EdgeService()
+        from modules.data_paths import data_path
+        from nexus_edge.replay_guard import SQLiteReplayGuard
+        replay_store = SQLiteReplayGuard(data_path("db", "edge_replay.sqlite3", create_parent=True))
+        self.service = module.EdgeService(replay_guard=replay_store)
 
     def start(self) -> None:
         if self.service is None:
