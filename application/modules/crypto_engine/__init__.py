@@ -1,4 +1,5 @@
-"""NEXUS cryptographic primitives: standard-library hashes and explicit composites."""
+"""NEXUS cryptographic primitives and security services."""
 from .engine import CryptoEngine, CryptoInputError, AlgorithmUnavailable
-
-__all__ = ["CryptoEngine", "CryptoInputError", "AlgorithmUnavailable"]
+from .security import CryptoSecurity, SecurityInputError, AuthenticationError, SealedMessage
+__all__ = ["CryptoEngine", "CryptoInputError", "AlgorithmUnavailable",
+           "CryptoSecurity", "SecurityInputError", "AuthenticationError", "SealedMessage"]
