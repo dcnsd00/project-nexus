@@ -348,6 +348,17 @@ def coin_catalog(refresh: bool=False, q: str="", limit: int=100):
             "warning":data.get("warning"),"upstream_error":data.get("upstream_error"),
             "total_returned":len(coins),"coins":coins[:max(1,min(limit,500))],"limit":max(1,min(limit,500))}
 
+# NEXUS live host telemetry: local measurements, bounded history, no synthetic values.
+from modules.runtime_telemetry import RuntimeTelemetry  # noqa: E402
+_runtime_telemetry = RuntimeTelemetry()
+
+@app.get("/api/nexus/telemetry")
+def nexus_runtime_telemetry(history: int = 120):
+    try:
+        return _runtime_telemetry.snapshot_with_history(history)
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail=f"Telemetry unavailable: {type(exc).__name__}")
+
 @app.get("/api/nexus/dashboard", response_class=HTMLResponse)
 def nexus_dashboard():
     return (ROOT/"dashboard.html").read_text(encoding="utf-8")
