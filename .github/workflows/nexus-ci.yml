@@ -88,6 +88,7 @@ jobs:
         run: |
           set -euo pipefail
           ROOT="${{ needs.source-detection.outputs.root }}"
+          ROOT="$(cd "$ROOT" && pwd)"
           MM="$ROOT/adapters/multiminer_x/MULTIMINER_X_v1.0"
           (cd "$MM" && PYTHONPATH="$ROOT:$MM" python -m pytest -q tests)
           FS="$ROOT/adapters/fieldstation/crypto_fieldstation"
