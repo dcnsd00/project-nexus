@@ -89,11 +89,11 @@ jobs:
           set -euo pipefail
           ROOT="${{ needs.source-detection.outputs.root }}"
           MM="$ROOT/adapters/multiminer_x/MULTIMINER_X_v1.0"
-          (cd "$MM" && PYTHONPATH="$MM" python -m pytest -q tests)
+          (cd "$MM" && PYTHONPATH="$ROOT:$MM" python -m pytest -q tests)
           FS="$ROOT/adapters/fieldstation/crypto_fieldstation"
-          (cd "$FS" && PYTHONPATH="$FS" python -m pytest -q tests)
+          (cd "$FS" && PYTHONPATH="$ROOT:$FS" python -m pytest -q tests)
           WALLET="$ROOT/modules/wallet_benchmark"
-          (cd "$WALLET" && PYTHONPATH="$WALLET" python -m pytest -q tests)
-          (cd "$WALLET/v05" && PYTHONPATH="$WALLET:$WALLET/v05" python -m pytest -q test_v05_unit.py)
+          (cd "$WALLET" && PYTHONPATH="$ROOT:$WALLET" python -m pytest -q tests)
+          (cd "$WALLET/v05" && PYTHONPATH="$ROOT:$WALLET:$WALLET/v05" python -m pytest -q test_v05_unit.py)
           RESEARCH="$ROOT/research/sha2_independent"
-          (cd "$RESEARCH" && PYTHONPATH="$RESEARCH" python research_main.py test --out-dir "$RUNNER_TEMP/nexus-sha2-results")
+          (cd "$RESEARCH" && PYTHONPATH="$ROOT:$RESEARCH" python research_main.py test --out-dir "$RUNNER_TEMP/nexus-sha2-results")
