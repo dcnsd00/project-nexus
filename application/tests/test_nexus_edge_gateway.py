@@ -35,7 +35,9 @@ def test_gateway_rejects_replayed_or_invalid_node_requests():
     client=TestClient(create_edge_app(manager, provisioning_token="p"*40))
     secret=b"s"*32
     manager.register_node("esp32-node-02",["telemetry"],secret)
-    body=_envelope(secret,"esp32-node-02","claim_task",1)
+    heartbeat=_envelope(secret,"esp32-node-02","heartbeat",1)
+    assert client.post("/v1/edge/nodes/esp32-node-02/heartbeat",json=heartbeat).status_code==200
+    body=_envelope(secret,"esp32-node-02","claim_task",2)
     first=client.post("/v1/edge/nodes/esp32-node-02/claim",json=body)
     assert first.status_code==200
     replay=client.post("/v1/edge/nodes/esp32-node-02/claim",json=body)
