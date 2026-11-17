@@ -50,16 +50,11 @@ class EdgeManagerTests(unittest.TestCase):
 
 
     def test_rejects_non_numeric_and_non_finite_protocol_timestamps(self):
-        for timestamp in ("NaN", True, float("nan"), float("inf")):
-            message = {
-                "kind": "heartbeat", "node_id": "edge-c5-001",
-                "timestamp": timestamp, "sequence": 2,
-            }
+        for timestamp in ("NaN", "Infinity", True, float("nan"), float("inf")):
             with self.subTest(timestamp=timestamp):
                 with self.assertRaisesRegex(EdgeError, "timestamp must be a finite number"):
                     self.manager.heartbeat(
-                        "edge-c5-001", timestamp, 2,
-                        sign_message(self.secret, message),
+                        "edge-c5-001", timestamp, 2, "0" * 64,
                     )
 
     def test_rejects_stale_heartbeat(self):
