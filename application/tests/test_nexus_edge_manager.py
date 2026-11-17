@@ -78,7 +78,7 @@ class EdgeManagerTests(unittest.TestCase):
     def test_task_is_not_assigned_without_capability(self):
         self.manager.register_node("edge-data-002", ["telemetry"], b"x" * 32)
         ts = self.clock()
-        msg = {"kind": "heartbeat", "node_id": "edge-data-002", "timestamp": ts}
+        msg = {"kind": "heartbeat", "node_id": "edge-data-002", "timestamp": ts, "sequence": 1}
         self.manager.heartbeat("edge-data-002", ts, 1, sign_message(b"x" * 32, msg))
         self.manager.submit_task("math.verify", {"input": "x"}, ["math.verify"])
         self.assertIsNone(self.manager.claim_task("edge-data-002"))
