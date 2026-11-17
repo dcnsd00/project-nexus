@@ -18,6 +18,7 @@ from typing import Any, Callable
 from .replay_guard import MemoryReplayGuard, ReplayGuard
 
 
+
 class EdgeError(ValueError):
     """Raised when a node or task operation violates the EDGE contract."""
 
@@ -83,6 +84,7 @@ class EdgeManager:
         max_payload_bytes: int = 65_536,
         clock: Callable[[], float] = time.time,
         replay_guard: ReplayGuard | None = None,
+        store: Any | None = None,
     ) -> None:
         if heartbeat_ttl_s < 1 or lease_s < 1 or max_payload_bytes < 128:
             raise EdgeError("invalid EDGE manager limits")
@@ -91,8 +93,12 @@ class EdgeManager:
         self.max_payload_bytes = max_payload_bytes
         self._clock = clock
         self._replay_guard = replay_guard or MemoryReplayGuard()
+        self._store = store
         self._nodes: dict[str, _Node] = {}
         self._tasks: dict[str, _Task] = {}
+        if self._store is not None:
+            self._restore(self._store.load_state())
+            self.reap_expired()
 
     def register_node(
         self, node_id: str, capabilities: list[str] | tuple[str, ...],
@@ -110,6 +116,7 @@ class EdgeManager:
         if not caps:
             raise EdgeError("at least one capability is required")
         self._nodes[node_id] = _Node(node_id, caps, secret, max_parallel)
+        self._persist()
         return self.node_status(node_id)
 
     def heartbeat(self, node_id: str, timestamp: float, sequence: int, signature: str) -> dict[str, Any]:
@@ -125,6 +132,7 @@ class EdgeManager:
         except ValueError as exc:
             raise EdgeError(str(exc)) from exc
         node.last_seen = now
+        self._persist()
         return self.node_status(node_id)
 
     def submit_task(
@@ -149,6 +157,7 @@ class EdgeManager:
         now = self._clock()
         task = _Task(identifier, task_type, payload, required, now, now + ttl_s)
         self._tasks[identifier] = task
+        self._persist()
         return self.task_status(identifier)
 
     def claim_task(self, node_id: str) -> dict[str, Any] | None:
@@ -167,6 +176,7 @@ class EdgeManager:
             task.node_id = node_id
             task.lease_until = min(task.deadline, now + self.lease_s)
             node.active_tasks.add(task.task_id)
+            self._persist()
             return self.task_status(task.task_id)
         return None
 
@@ -177,6 +187,7 @@ class EdgeManager:
         if task.lease_until is None or task.lease_until <= self._clock():
             raise EdgeError("task lease expired")
         task.state = "RUNNING"
+        self._persist()
         return self.task_status(task_id)
 
     def complete_task(
@@ -200,6 +211,7 @@ class EdgeManager:
         task.state = "SUCCEEDED"
         task.lease_until = None
         node.active_tasks.discard(task_id)
+        self._persist()
         return self.task_status(task_id)
 
     def reap_expired(self) -> dict[str, int]:
@@ -221,6 +233,8 @@ class EdgeManager:
                     task.node_id = None
                     task.lease_until = None
                     counts["requeued"] += 1
+        if counts["expired"] or counts["requeued"]:
+            self._persist()
         return counts
 
     def node_status(self, node_id: str) -> dict[str, Any]:
@@ -253,7 +267,7 @@ class EdgeManager:
             states[task.state] = states.get(task.state, 0) + 1
         return {
             "component": "nexus_edge_manager",
-            "mode": "in_memory_pilot",
+            "mode": "sqlite_persistent" if self._store is not None else "in_memory_pilot",
             "nodes_total": len(self._nodes),
             "nodes_online": sum(self._is_online(n, now) for n in self._nodes.values()),
             "tasks_total": len(self._tasks),
@@ -262,6 +276,54 @@ class EdgeManager:
             "wallet_access_enabled": False,
             "miner_autostart_enabled": False,
         }
+
+    def _persist(self) -> None:
+        if self._store is None:
+            return
+        self._store.save_state(
+            nodes=[{
+                "node_id": node.node_id,
+                "capabilities": sorted(node.capabilities),
+                "secret": node.secret,
+                "max_parallel": node.max_parallel,
+                "last_seen": node.last_seen,
+            } for node in self._nodes.values()],
+            tasks=[{
+                "task_id": task.task_id,
+                "task_type": task.task_type,
+                "payload": task.payload,
+                "required_capabilities": sorted(task.required_capabilities),
+                "created_at": task.created_at,
+                "deadline": task.deadline,
+                "state": task.state,
+                "node_id": task.node_id,
+                "lease_until": task.lease_until,
+                "result": task.result,
+                "result_sha256": task.result_sha256,
+                "error": task.error,
+            } for task in self._tasks.values()],
+        )
+
+    def _restore(self, state: dict[str, Any]) -> None:
+        for item in state.get("nodes", []):
+            node = _Node(
+                item["node_id"], frozenset(item["capabilities"]), item["secret"],
+                int(item["max_parallel"]), item.get("last_seen"), set(),
+            )
+            self._nodes[node.node_id] = node
+        for item in state.get("tasks", []):
+            task = _Task(
+                task_id=item["task_id"], task_type=item["task_type"],
+                payload=item["payload"],
+                required_capabilities=frozenset(item["required_capabilities"]),
+                created_at=float(item["created_at"]), deadline=float(item["deadline"]),
+                state=item["state"], node_id=item.get("node_id"),
+                lease_until=item.get("lease_until"), result=item.get("result"),
+                result_sha256=item.get("result_sha256"), error=item.get("error"),
+            )
+            self._tasks[task.task_id] = task
+            if task.state in {"ASSIGNED", "RUNNING"} and task.node_id in self._nodes:
+                self._nodes[task.node_id].active_tasks.add(task.task_id)
 
     def _is_online(self, node: _Node, now: float) -> bool:
         return node.last_seen is not None and now - node.last_seen <= self.heartbeat_ttl_s
