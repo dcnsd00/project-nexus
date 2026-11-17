@@ -116,6 +116,12 @@ class SQLiteEdgeStore:
                 self._connection.execute("PRAGMA journal_mode=WAL")
             self._migrate()
         except Exception as exc:
+            connection = getattr(self, "_connection", None)
+            if connection is not None:
+                try:
+                    connection.close()
+                except sqlite3.Error:
+                    pass
             raise EdgeStorageError(f"could not initialize EDGE SQLite store: {exc}") from exc
 
     def _migrate(self) -> None:
