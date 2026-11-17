@@ -127,13 +127,16 @@ class EdgePersistenceTests(unittest.TestCase):
         manager = self.manager()
         manager.register_node("edge-c5-persist", ["telemetry"], self.secret)
         manager.close()
-        with sqlite3.connect(self.db_path) as connection:
+        connection = sqlite3.connect(self.db_path)
+        try:
             columns = {
                 row[1] for row in connection.execute("PRAGMA table_info(edge_nodes)")
             }
             self.assertNotIn("secret", columns)
             self.assertNotIn("private_key", columns)
             self.assertIn("last_heartbeat_sequence", columns)
+        finally:
+            connection.close()
 
     def test_missing_key_fails_closed_on_restore(self):
         first = self.manager()
@@ -149,8 +152,11 @@ class EdgePersistenceTests(unittest.TestCase):
             store.close()
 
     def test_future_schema_is_rejected(self):
-        with sqlite3.connect(self.db_path) as connection:
+        connection = sqlite3.connect(self.db_path)
+        try:
             connection.execute("PRAGMA user_version=99")
+        finally:
+            connection.close()
         with self.assertRaisesRegex(EdgeStorageError, "newer than supported"):
             SQLiteEdgeStore(self.db_path)
 
