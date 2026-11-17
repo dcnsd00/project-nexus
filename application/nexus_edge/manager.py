@@ -242,20 +242,20 @@ class EdgeManager:
         now = self._clock()
         counts = {"expired": 0, "requeued": 0}
         for task in self._tasks.values():
-            if task.state == "QUEUED" and task.deadline <= now:
+            if task.state in {"QUEUED", "ASSIGNED", "RUNNING"} and task.deadline <= now:
+                if task.node_id in self._nodes:
+                    self._nodes[task.node_id].active_tasks.discard(task.task_id)
                 task.state = "EXPIRED"
+                task.node_id = None
+                task.lease_until = None
                 counts["expired"] += 1
             elif task.state in {"ASSIGNED", "RUNNING"} and task.lease_until is not None and task.lease_until <= now:
                 if task.node_id in self._nodes:
                     self._nodes[task.node_id].active_tasks.discard(task.task_id)
-                if task.deadline <= now:
-                    task.state = "EXPIRED"
-                    counts["expired"] += 1
-                else:
-                    task.state = "QUEUED"
-                    task.node_id = None
-                    task.lease_until = None
-                    counts["requeued"] += 1
+                task.state = "QUEUED"
+                task.node_id = None
+                task.lease_until = None
+                counts["requeued"] += 1
         if counts["expired"] or counts["requeued"]:
             self._persist()
         return counts

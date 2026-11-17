@@ -113,6 +113,39 @@ class SQLiteEdgeStoreTests(unittest.TestCase):
         self.assertIsNone(recovered["lease_until"])
         self.assertEqual(restarted.node_status("edge-c5-009")["active_tasks"], [])
 
+    def test_task_deadline_expires_before_lease_end_during_restart(self):
+        first = self.manager()
+        first.register_node("edge-c5-009", ["math.verify"], self.secret)
+        self.heartbeat(first, 1)
+        task = first.submit_task(
+            "math.verify", {"input": "deadline"}, ["math.verify"], ttl_s=5
+        )
+        first.claim_task("edge-c5-009")
+        first.start_task("edge-c5-009", task["task_id"])
+        self.clock.advance(6)
+
+        restarted = self.manager()
+        recovered = restarted.task_status(task["task_id"])
+        self.assertEqual(recovered["state"], "EXPIRED")
+        self.assertIsNone(recovered["node_id"])
+        self.assertIsNone(recovered["lease_until"])
+        self.assertEqual(restarted.node_status("edge-c5-009")["active_tasks"], [])
+
+    def test_heartbeat_sequence_cannot_be_replayed_after_manager_restart(self):
+        first = self.manager()
+        first.register_node("edge-c5-009", ["math.verify"], self.secret)
+        self.heartbeat(first, 7)
+
+        restarted = self.manager()
+        timestamp = self.clock()
+        message = {"kind": "heartbeat", "node_id": "edge-c5-009",
+                   "timestamp": timestamp, "sequence": 7}
+        with self.assertRaisesRegex(Exception, "replayed|out-of-order"):
+            restarted.heartbeat(
+                "edge-c5-009", timestamp, 7, sign_message(self.secret, message)
+            )
+        self.heartbeat(restarted, 8)
+
     def test_expired_queued_task_is_persisted_when_claim_finds_no_work(self):
         manager = self.manager()
         manager.register_node("edge-c5-009", ["math.verify"], self.secret)
