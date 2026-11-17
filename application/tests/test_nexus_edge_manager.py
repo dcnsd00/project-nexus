@@ -20,12 +20,14 @@ class EdgeManagerTests(unittest.TestCase):
         self.manager = EdgeManager(clock=self.clock, heartbeat_ttl_s=30, lease_s=10)
         self.secret = b"nexus-edge-test-secret-32-bytes!!"
         self.manager.register_node("edge-c5-001", ["telemetry", "math.verify"], self.secret)
+        self.sequence = 0
         self.beat()
 
     def beat(self):
         ts = self.clock()
-        msg = {"kind": "heartbeat", "node_id": "edge-c5-001", "timestamp": ts}
-        return self.manager.heartbeat("edge-c5-001", ts, sign_message(self.secret, msg))
+        self.sequence += 1
+        msg = {"kind": "heartbeat", "node_id": "edge-c5-001", "timestamp": ts, "sequence": self.sequence}
+        return self.manager.heartbeat("edge-c5-001", ts, self.sequence, sign_message(self.secret, msg))
 
     def test_authenticated_node_registration_and_heartbeat(self):
         self.assertTrue(self.manager.node_status("edge-c5-001")["online"])
@@ -40,13 +42,17 @@ class EdgeManagerTests(unittest.TestCase):
 
     def test_rejects_invalid_heartbeat_signature(self):
         with self.assertRaises(EdgeError):
-            self.manager.heartbeat("edge-c5-001", self.clock(), "0" * 64)
+            self.manager.heartbeat("edge-c5-001", self.clock(), 2, "0" * 64)
+
+    def test_rejects_replayed_heartbeat_sequence(self):
+        with self.assertRaises(EdgeError):
+            self.manager.heartbeat("edge-c5-001", self.clock(), 1, sign_message(self.secret, {"kind": "heartbeat", "node_id": "edge-c5-001", "timestamp": self.clock(), "sequence": 1}))
 
     def test_rejects_stale_heartbeat(self):
         old = self.clock() - 60
-        msg = {"kind": "heartbeat", "node_id": "edge-c5-001", "timestamp": old}
+        msg = {"kind": "heartbeat", "node_id": "edge-c5-001", "timestamp": old, "sequence": 2}
         with self.assertRaises(EdgeError):
-            self.manager.heartbeat("edge-c5-001", old, sign_message(self.secret, msg))
+            self.manager.heartbeat("edge-c5-001", old, 2, sign_message(self.secret, msg))
 
     def test_capability_scheduling_and_signed_result(self):
         task = self.manager.submit_task("math.verify", {"input": "abc"}, ["math.verify"])
