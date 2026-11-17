@@ -167,9 +167,11 @@ class EdgeManager:
             raise EdgeError("node is offline or has not sent an authenticated heartbeat")
         if len(node.active_tasks) >= node.max_parallel:
             return None
+        expired_changed = False
         for task in self._tasks.values():
             if task.state == "QUEUED" and task.deadline <= now:
                 task.state = "EXPIRED"
+                expired_changed = True
             if task.state != "QUEUED" or not task.required_capabilities.issubset(node.capabilities):
                 continue
             task.state = "ASSIGNED"
@@ -178,6 +180,8 @@ class EdgeManager:
             node.active_tasks.add(task.task_id)
             self._persist()
             return self.task_status(task.task_id)
+        if expired_changed:
+            self._persist()
         return None
 
     def start_task(self, node_id: str, task_id: str) -> dict[str, Any]:

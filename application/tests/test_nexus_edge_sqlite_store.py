@@ -1,3 +1,4 @@
+import sqlite3
 import tempfile
 import unittest
 from pathlib import Path
@@ -77,6 +78,24 @@ class SQLiteEdgeStoreTests(unittest.TestCase):
         self.assertIsNone(recovered["node_id"])
         self.assertIsNone(recovered["lease_until"])
         self.assertEqual(restarted.node_status("edge-c5-009")["active_tasks"], [])
+
+    def test_expired_queued_task_is_persisted_when_claim_finds_no_work(self):
+        manager = self.manager()
+        manager.register_node("edge-c5-009", ["math.verify"], self.secret)
+        self.heartbeat(manager, 1)
+        task = manager.submit_task(
+            "math.verify", {"input": "expired"}, ["math.verify"], ttl_s=1
+        )
+        self.clock.advance(2)
+
+        self.assertIsNone(manager.claim_task("edge-c5-009"))
+        self.assertEqual(manager.task_status(task["task_id"])["state"], "EXPIRED")
+        with sqlite3.connect(self.database) as connection:
+            row = connection.execute(
+                "SELECT state FROM edge_tasks WHERE task_id = ?",
+                (task["task_id"],),
+            ).fetchone()
+        self.assertEqual(row[0], "EXPIRED")
 
     def test_node_secret_is_encrypted_at_rest(self):
         manager = self.manager()
