@@ -1,4 +1,5 @@
 import json
+import time
 import pytest
 from nexus_edge.transports import MQTTBridge, MQTTConfig, NetworkPath, TransportKind, transport_matrix
 from nexus_edge.topology import DeploymentMode, DeploymentTopology
@@ -68,7 +69,7 @@ def test_mqtt_uplink_requires_node_hmac_and_monotonic_sequence():
     manager=EdgeManager(replay_guard=MemoryReplayGuard())
     secret=b"n"*32
     manager.register_node("esp32-node-09",["telemetry"],secret)
-    timestamp=1_800_000_000
+    timestamp=int(time.time())
     payload={"temperature_c":23.5}
     message={"kind":"node_request","action":"mqtt.uplink","node_id":"esp32-node-09",
              "timestamp":timestamp,"sequence":1,"payload":payload}
