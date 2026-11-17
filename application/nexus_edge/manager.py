@@ -9,6 +9,7 @@ from __future__ import annotations
 import hashlib
 import hmac
 import json
+import math
 import re
 import threading
 import time
@@ -41,6 +42,16 @@ def sign_message(secret: bytes, message: Any) -> str:
         raise EdgeError("node secret must contain at least 32 bytes")
     return hmac.new(secret, _canonical(message), hashlib.sha256).hexdigest()
 
+
+
+def _validate_timestamp(value: Any) -> float:
+    """Require a finite JSON number for signed protocol timestamps."""
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise EdgeError("timestamp must be a finite number")
+    result = float(value)
+    if not math.isfinite(result):
+        raise EdgeError("timestamp must be a finite number")
+    return result
 
 def _verify(secret: bytes, message: Any, signature: str) -> bool:
     if not isinstance(signature, str):
@@ -136,7 +147,8 @@ class EdgeManager:
     def heartbeat(self, node_id: str, timestamp: float, sequence: int, signature: str) -> dict[str, Any]:
         node = self._get_node(node_id)
         now = self._clock()
-        if abs(now - float(timestamp)) > self.heartbeat_ttl_s:
+        timestamp_value = _validate_timestamp(timestamp)
+        if abs(now - timestamp_value) > self.heartbeat_ttl_s:
             raise EdgeError("heartbeat timestamp outside allowed clock-skew window")
         message = {"kind": "heartbeat", "node_id": node_id, "timestamp": timestamp, "sequence": sequence}
         if not _verify(node.secret, message, signature):
@@ -157,7 +169,8 @@ class EdgeManager:
         """Authenticate and anti-replay-protect a node-originated control request."""
         node = self._get_node(node_id)
         now = self._clock()
-        if abs(now - float(timestamp)) > self.heartbeat_ttl_s:
+        timestamp_value = _validate_timestamp(timestamp)
+        if abs(now - timestamp_value) > self.heartbeat_ttl_s:
             raise EdgeError("request timestamp outside allowed clock-skew window")
         if not isinstance(action, str) or not re.fullmatch(r"[a-z][a-z0-9_.-]{1,63}", action):
             raise EdgeError("invalid request action")
@@ -175,7 +188,8 @@ class EdgeManager:
         """Update liveness after the transport has authenticated and replay-checked a request."""
         node = self._get_node(node_id)
         now = self._clock()
-        if abs(now - float(timestamp)) > self.heartbeat_ttl_s:
+        timestamp_value = _validate_timestamp(timestamp)
+        if abs(now - timestamp_value) > self.heartbeat_ttl_s:
             raise EdgeError("heartbeat timestamp outside allowed clock-skew window")
         node.last_seen = now
         self._persist()
