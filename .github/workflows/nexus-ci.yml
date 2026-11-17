@@ -14,8 +14,8 @@ jobs:
   source-detection:
     runs-on: ubuntu-latest
     outputs:
-      available: \${{ steps.detect.outputs.available }}
-      root: \${{ steps.detect.outputs.root }}
+      available: ${{ steps.detect.outputs.available }}
+      root: ${{ steps.detect.outputs.root }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -23,7 +23,7 @@ jobs:
         id: detect
         shell: bash
         run: |
-          if [ -f application/nexus_master.py ] && [ -d application/tests ]; then
+          if [ -d application/tests ] && [ -f application/requirements-dev.txt ]; then
             echo "available=true" >> "$GITHUB_OUTPUT"
             echo "root=application" >> "$GITHUB_OUTPUT"
             echo "NEXUS application source found in application/."
@@ -52,7 +52,7 @@ jobs:
       - name: Install dependencies
         shell: bash
         run: |
-          ROOT="\${{ needs.source-detection.outputs.root }}"
+          ROOT="${{ needs.source-detection.outputs.root }}"
           python -m pip install --upgrade pip
           if [ -f "$ROOT/requirements-dev.txt" ]; then
             python -m pip install -r "$ROOT/requirements-dev.txt"
@@ -66,12 +66,12 @@ jobs:
       - name: Compile Python sources
         shell: bash
         run: |
-          ROOT="\${{ needs.source-detection.outputs.root }}"
+          ROOT="${{ needs.source-detection.outputs.root }}"
           python -m compileall -q "$ROOT"
       - name: Run full test suite
         shell: bash
         run: |
-          ROOT="\${{ needs.source-detection.outputs.root }}"
+          ROOT="${{ needs.source-detection.outputs.root }}"
           cd "$ROOT"
           python -m pytest -q --disable-warnings --maxfail=1
 
@@ -91,7 +91,7 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
-          $root = "\${{ needs.source-detection.outputs.root }}"
+          $root = "${{ needs.source-detection.outputs.root }}"
           python -m pip install --upgrade pip
           if (Test-Path "$root/requirements-dev.txt") {
             python -m pip install -r "$root/requirements-dev.txt"
@@ -105,13 +105,13 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
-          $root = "\${{ needs.source-detection.outputs.root }}"
+          $root = "${{ needs.source-detection.outputs.root }}"
           python -m compileall -q $root
       - name: Run full test suite on Windows
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
-          $root = "\${{ needs.source-detection.outputs.root }}"
+          $root = "${{ needs.source-detection.outputs.root }}"
           Push-Location $root
           try {
             python -m pytest -q --disable-warnings --maxfail=1
