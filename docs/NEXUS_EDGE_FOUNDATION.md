@@ -1,6 +1,6 @@
 # NEXUS EDGE — foundation and integration contract
 
-Status: **prototype foundation implemented; not yet integrated into the NEXUS 0.10.25 runtime**.
+Status: **EDGE in-memory control plane integrated as an optional NEXUS runtime service; durable anti-replay guard implemented; task persistence and transport remain pending.**
 
 ## Repository baseline
 
@@ -18,7 +18,7 @@ The EDGE package is intentionally isolated so it can be merged into the applicat
 
 ## First implementation boundary
 
-The current Python package `nexus_edge/` is a transport-agnostic in-memory reference implementation. It provides:
+The current Python package `nexus_edge/` is a transport-agnostic control-plane implementation. It provides:
 - node registration with unique IDs, declared capabilities and per-node HMAC secret;
 - signed heartbeat verification and online/offline status;
 - capability-based FIFO task assignment;
@@ -27,13 +27,13 @@ The current Python package `nexus_edge/` is a transport-agnostic in-memory refer
 - HMAC-authenticated results and SHA-256 result fingerprints;
 - bounded JSON payload/result sizes and a diagnostic snapshot.
 
-It deliberately has **no network listener, persistent database, firmware binary, wallet API, private-key handling, mining control or arbitrary command execution**. A process restart loses the in-memory registry and task queue. These are explicit prototype limits, not completed production capabilities.
+It deliberately has **no network listener, firmware binary, wallet API, private-key handling, mining control or arbitrary command execution**. Node registry and task queue remain in memory and are lost on restart. The replay guard can persist monotonic heartbeat sequence numbers in SQLite, and NEXUS Runtime injects it under the canonical `NEXUS_DATA_DIR/db/edge_replay.sqlite3` path. Node secrets are not stored by this database. Task persistence, key provisioning/rotation, transport and physical-device validation remain incomplete.
 
 ## Security contract
 
 1. Provision a unique random secret per node (minimum 32 bytes); never embed a fleet-wide shared secret in firmware.
-2. Use TLS for transport. HMAC provides message authenticity, not confidentiality or replay protection by itself.
-3. Use timestamps and a bounded clock-skew window for heartbeats. Production protocol must add monotonic sequence numbers/nonces and key rotation.
+2. Use TLS for transport. HMAC provides message authenticity, not confidentiality.
+3. Heartbeats include a strictly increasing per-node sequence number and a bounded clock-skew timestamp. The replay guard rejects duplicate or out-of-order sequences and can persist the accepted sequence in SQLite. Key provisioning and rotation are still pending.
 4. Never send wallet seeds, private keys, signing requests or unrestricted shell commands to EDGE nodes.
 5. Node capabilities are allow-listed. Task payloads are typed data, not executable code.
 6. CORE remains authoritative for approvals, persistent records, financial operations and miner start/stop actions.
@@ -46,18 +46,18 @@ The NM-CYD-C5 board is an ESP32-C5-WROOM-1 development board with display/touch,
 
 1. Import and verify the exact NEXUS MASTER 0.10.25 source bundle in a Git-capable workspace.
 2. Copy this package under the application source tree as `application/nexus_edge/` (or `nexus_edge/` if the application uses repository-root layout).
-3. Add an optional `edge_manager` service to `modules/nexus_runtime.py`, dependent on the existing crypto engine and Lifecycle Manager; keep EDGE stopped until explicitly configured.
+3. Add an optional `edge_manager` service to `modules/nexus_runtime.py`, dependent on the existing crypto engine and Lifecycle Manager; the runtime injects a SQLite replay guard under the canonical NEXUS data directory.
 4. Expose read-only status through the existing Module Registry; do not duplicate the registry.
-5. Add a transport adapter and durable SQLite/PostgreSQL store only after the in-memory contract tests pass.
+5. Extend durable storage from replay counters to node metadata, task state, leases and restart recovery; do not persist HMAC secrets in plaintext.
 6. Add ESP-IDF firmware for NM-CYD-C5 and test against a local mock broker before connecting physical nodes.
 7. Validate on Windows 11 and physical hardware. CI success alone is not hardware validation.
 
 ## Test
 
-Run from repository root:
+Run from the application directory:
 
 ```bash
-python -m unittest discover -s tests -p 'test_nexus_edge_manager.py' -v
+python -m pytest tests/test_nexus_edge_manager.py tests/test_nexus_edge_replay_guard.py tests/test_nexus_edge_service.py -q
 ```
 
-This test suite validates the in-memory control-plane contract only.
+The manager tests validate scheduling and HMAC behavior; replay-guard tests validate sequence monotonicity and SQLite restart persistence. These tests do not validate MQTT/HTTPS, Windows deployment or physical ESP32 devices.
