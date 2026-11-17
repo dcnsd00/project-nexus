@@ -51,3 +51,13 @@ def test_gateway_signed_payload_is_bound_to_requested_task():
     body=_envelope(secret,"esp32-node-03","start_task",1,{"task_id":"different"})
     response=client.post("/v1/edge/nodes/esp32-node-03/tasks/task-123/start",json=body)
     assert response.status_code==400
+
+def test_gateway_reports_transport_matrix_without_claiming_external_connectivity():
+    client=TestClient(create_edge_app(EdgeManager(), provisioning_token="p"*40))
+    response=client.get("/v1/edge/transports")
+    assert response.status_code==200
+    body=response.json()
+    assert body["https_gateway"]=="active_in_this_process"
+    assert body["mqtts"]=="adapter_available_opt_in_not_started"
+    assert body["lorawan_webhook"].endswith("network_server_not_configured")
+    assert body["lan_wan_mobile_data"].startswith("same_https_api")
