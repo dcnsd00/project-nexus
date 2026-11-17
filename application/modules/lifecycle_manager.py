@@ -16,6 +16,7 @@ class ServiceState(str, Enum):
     INITIALIZED = "initialized"
     RUNNING = "running"
     DEGRADED = "degraded"
+    BLOCKED = "blocked"
     STOPPED = "stopped"
     FAILED = "failed"
 
@@ -81,42 +82,95 @@ class LifecycleManager:
         return fn() if callable(fn) else default
 
     def start_all(self) -> dict[str, Any]:
+        """Start services in dependency order with isolation for optional failures.
+
+        A failed critical service aborts startup and rolls back services that
+        started earlier. A failed optional service is recorded as FAILED while
+        independent services continue. Dependents of a failed service are
+        BLOCKED; a critical dependent still makes the overall startup fail.
+        """
         self._order = self._topological_order()
         started: list[str] = []
-        try:
-            for name in self._order:
-                rec = self._records[name]
-                failed_deps = [d for d in rec.spec.dependencies
-                               if self._records[d].state != ServiceState.RUNNING]
-                if failed_deps:
-                    raise LifecycleError(f"{name} blocked by dependencies: {failed_deps}")
+
+        for name in self._order:
+            rec = self._records[name]
+            failed_deps = [
+                dep for dep in rec.spec.dependencies
+                if self._records[dep].state != ServiceState.RUNNING
+            ]
+            if failed_deps:
+                rec.state = ServiceState.BLOCKED
+                rec.error = f"blocked by dependencies that are not running: {failed_deps}"
+                if rec.spec.critical:
+                    self._rollback_started(started)
+                    raise LifecycleError(
+                        f"critical service {name} blocked by dependencies: {failed_deps}"
+                    )
+                continue
+
+            try:
                 rec.instance = rec.spec.factory()
                 self._call(rec.instance, "initialize")
                 rec.state = ServiceState.INITIALIZED
                 self._call(rec.instance, "start")
                 rec.health = self._call(rec.instance, "health_check", True)
-                healthy = rec.health is not False and not (isinstance(rec.health, dict) and rec.health.get("ok") is False)
+                healthy = (
+                    rec.health is not False
+                    and not (
+                        isinstance(rec.health, dict)
+                        and rec.health.get("ok") is False
+                    )
+                )
                 if not healthy:
-                    raise LifecycleError(f"health check failed for {name}: {rec.health!r}")
+                    raise LifecycleError(
+                        f"health check failed for {name}: {rec.health!r}"
+                    )
                 rec.state = ServiceState.RUNNING
                 rec.error = None
                 started.append(name)
-        except Exception as exc:
-            failed_name = name
-            rec = self._records[failed_name]
-            rec.state = ServiceState.FAILED
-            rec.error = f"{type(exc).__name__}: {exc}"
-            for started_name in reversed(started):
-                self._stop_record(self._records[started_name])
-            raise LifecycleError(f"startup failed at {failed_name}: {exc}") from exc
+            except Exception as exc:
+                rec.state = ServiceState.FAILED
+                rec.error = f"{type(exc).__name__}: {exc}"
+                self._cleanup_failed_record(rec)
+                if rec.spec.critical:
+                    self._rollback_started(started)
+                    raise LifecycleError(
+                        f"startup failed at critical service {name}: {exc}"
+                    ) from exc
+                # Optional failure is visible in the snapshot, but does not
+                # take down already-running critical or independent services.
+                continue
+
         return self.snapshot()
+
+    def _cleanup_failed_record(self, rec: ServiceRecord) -> None:
+        """Best-effort cleanup for an instance that failed during startup."""
+        if rec.instance is None:
+            return
+        cleanup_errors: list[str] = []
+        for method in ("stop", "shutdown"):
+            try:
+                self._call(rec.instance, method)
+            except Exception as exc:
+                cleanup_errors.append(f"{method}: {type(exc).__name__}: {exc}")
+        if cleanup_errors:
+            suffix = "; cleanup errors: " + "; ".join(cleanup_errors)
+            rec.error = (rec.error or "startup failed") + suffix
+
+    def _rollback_started(self, started: list[str]) -> None:
+        for started_name in reversed(started):
+            self._stop_record(self._records[started_name])
 
     def _stop_record(self, rec: ServiceRecord) -> None:
         if rec.instance is not None:
-            try:
-                self._call(rec.instance, "stop")
-            finally:
-                self._call(rec.instance, "shutdown")
+            cleanup_errors: list[str] = []
+            for method in ("stop", "shutdown"):
+                try:
+                    self._call(rec.instance, method)
+                except Exception as exc:
+                    cleanup_errors.append(f"{method}: {type(exc).__name__}: {exc}")
+            if cleanup_errors:
+                rec.error = "; ".join(cleanup_errors)
         rec.state = ServiceState.STOPPED
 
     def stop_all(self) -> dict[str, Any]:

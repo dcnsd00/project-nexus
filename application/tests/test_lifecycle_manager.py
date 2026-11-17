@@ -32,3 +32,82 @@ def test_dependency_cycle_rejected():
     m.register(ServiceSpec("a", lambda: Dummy([],"a"), ("b",)))
     m.register(ServiceSpec("b", lambda: Dummy([],"b"), ("a",)))
     with pytest.raises(LifecycleError): m.start_all()
+
+
+def test_optional_service_failure_does_not_stop_independent_services():
+    events = []
+    m = LifecycleManager()
+    m.register(ServiceSpec("core", lambda: Dummy(events, "core")))
+    m.register(ServiceSpec(
+        "optional_bad", lambda: Dummy(events, "optional_bad", False),
+        ("core",), critical=False
+    ))
+    m.register(ServiceSpec(
+        "optional_child", lambda: Dummy(events, "optional_child"),
+        ("optional_bad",), critical=False
+    ))
+    m.register(ServiceSpec(
+        "optional_independent", lambda: Dummy(events, "optional_independent"),
+        critical=False
+    ))
+
+    snap = m.start_all()
+    states = {row["name"]: row["state"] for row in snap["services"]}
+
+    assert snap["system_ready"] is True
+    assert states["core"] == "running"
+    assert states["optional_bad"] == "failed"
+    assert states["optional_child"] == "blocked"
+    assert states["optional_independent"] == "running"
+    assert "core:stop" not in events
+    assert "optional_child:start" not in events
+    assert "optional_bad:stop" in events
+    assert "optional_bad:shutdown" in events
+
+
+def test_optional_factory_exception_is_recorded_and_startup_continues():
+    events = []
+    m = LifecycleManager()
+    m.register(ServiceSpec("core", lambda: Dummy(events, "core")))
+
+    def broken_factory():
+        raise RuntimeError("optional adapter unavailable")
+
+    m.register(ServiceSpec("optional_broken", broken_factory, critical=False))
+    m.register(ServiceSpec(
+        "optional_independent", lambda: Dummy(events, "optional_independent"),
+        critical=False
+    ))
+
+    snap = m.start_all()
+    states = {row["name"]: row["state"] for row in snap["services"]}
+    errors = {row["name"]: row["error"] for row in snap["services"]}
+
+    assert snap["system_ready"] is True
+    assert states["core"] == "running"
+    assert states["optional_broken"] == "failed"
+    assert "optional adapter unavailable" in errors["optional_broken"]
+    assert states["optional_independent"] == "running"
+
+
+def test_critical_service_blocked_by_failed_optional_dependency_aborts_startup():
+    events = []
+    m = LifecycleManager()
+    m.register(ServiceSpec("core", lambda: Dummy(events, "core")))
+    m.register(ServiceSpec(
+        "optional_dependency", lambda: Dummy(events, "optional_dependency", False),
+        ("core",), critical=False
+    ))
+    m.register(ServiceSpec(
+        "critical_consumer", lambda: Dummy(events, "critical_consumer"),
+        ("optional_dependency",), critical=True
+    ))
+
+    with pytest.raises(LifecycleError, match="critical service critical_consumer blocked"):
+        m.start_all()
+
+    states = {row["name"]: row["state"] for row in m.snapshot()["services"]}
+    assert states["optional_dependency"] == "failed"
+    assert states["critical_consumer"] == "blocked"
+    assert states["core"] == "stopped"
+    assert "core:stop" in events
