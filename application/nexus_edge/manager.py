@@ -174,6 +174,10 @@ class EdgeManager:
             raise EdgeError("request timestamp outside allowed clock-skew window")
         if not isinstance(action, str) or not re.fullmatch(r"[a-z][a-z0-9_.-]{1,63}", action):
             raise EdgeError("invalid request action")
+        if not isinstance(payload, dict):
+            raise EdgeError("node request payload must be a JSON object")
+        if len(_canonical(payload)) > self.max_payload_bytes:
+            raise EdgeError("node request payload exceeds configured size limit")
         message = {"kind": "node_request", "action": action, "node_id": node_id,
                    "timestamp": timestamp, "sequence": sequence, "payload": payload}
         if not _verify(node.secret, message, signature):
