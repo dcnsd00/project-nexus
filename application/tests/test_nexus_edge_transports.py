@@ -80,6 +80,33 @@ def test_mqtt_uplink_requires_node_hmac_and_monotonic_sequence():
     with pytest.raises(ValueError,match="replayed|out-of-order"):
         authenticate_mqtt_uplink(manager,topic,body)
 
+
+def test_mqtt_uplink_respects_configured_topic_prefix():
+    from nexus_edge.transports import authenticate_mqtt_uplink
+    from nexus_edge.manager import EdgeManager, sign_message
+    from nexus_edge.replay_guard import MemoryReplayGuard
+    manager = EdgeManager(replay_guard=MemoryReplayGuard())
+    secret = b"c" * 32
+    node_id = "esp32-node-10"
+    manager.register_node(node_id, ["telemetry"], secret)
+    timestamp = int(time.time())
+    payload = {"temperature_c": 21.0}
+    message = {"kind": "node_request", "action": "mqtt.uplink",
+               "node_id": node_id, "timestamp": timestamp,
+               "sequence": 1, "payload": payload}
+    body = {"timestamp": timestamp, "sequence": 1, "payload": payload,
+            "signature": sign_message(secret, message)}
+    accepted = authenticate_mqtt_uplink(
+        manager, "custom/edge/nodes/esp32-node-10/up", body,
+        topic_prefix="custom/edge",
+    )
+    assert accepted["accepted"] is True
+    with pytest.raises(ValueError, match="topic"):
+        authenticate_mqtt_uplink(
+            manager, "nexus/v1/nodes/esp32-node-10/up", body,
+            topic_prefix="custom/edge",
+        )
+
 def test_mqtt_uplink_rejects_unexpected_topic():
     from nexus_edge.transports import authenticate_mqtt_uplink
     with pytest.raises(ValueError,match="topic"):
