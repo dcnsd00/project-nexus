@@ -150,6 +150,27 @@ class EdgeManager:
         return self.node_status(node_id)
 
     @_synchronized
+    def authenticate_request(
+        self, node_id: str, action: str, timestamp: float, sequence: int,
+        payload: Any, signature: str,
+    ) -> None:
+        """Authenticate and anti-replay-protect a node-originated control request."""
+        node = self._get_node(node_id)
+        now = self._clock()
+        if abs(now - float(timestamp)) > self.heartbeat_ttl_s:
+            raise EdgeError("request timestamp outside allowed clock-skew window")
+        if not isinstance(action, str) or not re.fullmatch(r"[a-z][a-z0-9_.-]{1,63}", action):
+            raise EdgeError("invalid request action")
+        message = {"kind": "node_request", "action": action, "node_id": node_id,
+                   "timestamp": timestamp, "sequence": sequence, "payload": payload}
+        if not _verify(node.secret, message, signature):
+            raise EdgeError("invalid node request signature")
+        try:
+            self._replay_guard.accept(node_id, sequence)
+        except ValueError as exc:
+            raise EdgeError(str(exc)) from exc
+
+    @_synchronized
     def submit_task(
         self, task_type: str, payload: dict[str, Any],
         required_capabilities: list[str] | tuple[str, ...], *,
