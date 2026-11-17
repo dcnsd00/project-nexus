@@ -4,6 +4,7 @@ from __future__ import annotations
 from typing import Any
 
 from .manager import EdgeManager
+from .replay_guard import ReplayGuard
 
 
 class EdgeService:
@@ -14,8 +15,11 @@ class EdgeService:
     only owns the local EDGE manager and exposes a truthful health snapshot.
     """
 
-    def __init__(self, manager: EdgeManager | None = None) -> None:
-        self.manager = manager or EdgeManager()
+    def __init__(self, manager: EdgeManager | None = None, *,
+                 replay_guard: ReplayGuard | None = None) -> None:
+        if manager is not None and replay_guard is not None:
+            raise ValueError("provide either manager or replay_guard, not both")
+        self.manager = manager or EdgeManager(replay_guard=replay_guard)
         self.initialized = False
         self.started = False
 
