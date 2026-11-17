@@ -20,8 +20,9 @@ load balancer). Do not expose plaintext HTTP to an untrusted network.
 - `POST /v1/edge/nodes/{node_id}/heartbeat`: signed node heartbeat.
 - `POST /v1/edge/nodes/{node_id}/claim`: signed, sequence-protected task claim.
 - `POST /v1/edge/nodes/{node_id}/tasks/{task_id}/start`: signed task start.
+- `POST /v1/edge/nodes/{node_id}/tasks/{task_id}/complete`: signed task completion plus separately verified result signature.
 
-Node request signatures cover action, node ID, timestamp, monotonic sequence
+Node request signatures cover action, node ID, integer Unix timestamp (seconds), monotonic sequence
 number, and payload. A durable replay guard rejects repeated or out-of-order
 sequences. The provisioning response returns a node secret once; operators
 must transfer it to the device through a separate authenticated channel.
@@ -37,3 +38,5 @@ must transfer it to the device through a separate authenticated channel.
   TLS certificate automation, backup/restore drills, audit-log retention,
   and multi-process claim coordination.
 - Hardware-in-the-loop validation is still required for ESP32-C5 and Android agents.
+
+Task completion requires both an authenticated request envelope and the existing task-result HMAC. This prevents an unauthenticated client from submitting a result and preserves the manager's result-integrity contract.
