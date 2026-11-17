@@ -14,7 +14,6 @@ MODULES: tuple[dict[str, Any], ...] = (
     {"id": "mining_supervisor", "name": "Hybrid Mining Supervisor", "paths": ("mining/hybrid_supervisor.py", "mining/hybrid_orchestrator.py"), "route_prefixes": ("/api/mining",), "critical": True},
     {"id": "crypto_engine", "name": "Cryptographic Engine", "paths": ("modules/crypto_engine/engine.py",), "route_prefixes": ("/api/crypto",), "critical": True},
     {"id": "rcsc", "name": "RCSC Research", "paths": ("research/rcsc/nexus_rcsc/nexus_rcsc/collector.py", "modules/rcsc_service.py"), "route_prefixes": ("/api/research/rcsc",), "critical": False},
-    {"id": "earnings_intelligence", "name": "Earnings Intelligence", "paths": ("modules/earnings_intelligence.py",), "route_prefixes": ("/api/earnings",), "critical": False},
     {"id": "integrations", "name": "Provider Integrations", "paths": ("modules/integration_registry.py",), "route_prefixes": ("/api/integrations",), "critical": False},
     {"id": "math_intelligence", "name": "Math Intelligence", "paths": ("modules/math_intelligence.py",), "route_prefixes": ("/api/math",), "critical": False},
     {"id": "research_hub", "name": "Research Hub", "paths": ("modules/research_hub.py",), "route_prefixes": ("/api/research",), "runtime_service": "research_hub", "critical": False},
@@ -53,8 +52,21 @@ def build_module_registry(root: str | Path, app: Any | None = None,
     base = Path(root)
     routes = _route_paths(app)
     active_runtime_services = set(runtime_services or ())
+    module_items = tuple(modules)
+
+    # Fail clearly rather than silently collapsing duplicate IDs in consumers
+    # that build dictionaries keyed by module ID.
+    seen_ids: set[str] = set()
+    for item in module_items:
+        module_id = item.get("id")
+        if not isinstance(module_id, str) or not module_id.strip():
+            raise ValueError("every module registry entry must have a non-empty string id")
+        if module_id in seen_ids:
+            raise ValueError(f"duplicate module registry id: {module_id}")
+        seen_ids.add(module_id)
+
     results: list[dict[str, Any]] = []
-    for item in modules:
+    for item in module_items:
         present_paths = [rel for rel in item["paths"] if (base / rel).is_file()]
         missing_paths = [rel for rel in item["paths"] if not (base / rel).is_file()]
         prefixes = tuple(item.get("route_prefixes", ()))

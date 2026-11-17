@@ -1,7 +1,9 @@
 from pathlib import Path
 from types import SimpleNamespace
 
-from modules.module_registry import build_module_registry
+import pytest
+
+from modules.module_registry import MODULES, build_module_registry
 
 
 def test_registry_distinguishes_missing_source_from_unregistered_module(tmp_path):
@@ -42,3 +44,25 @@ def test_registry_distinguishes_runtime_registration_from_operational_validation
     assert row["state"] == "runtime_registered_health_unverified"
     assert row["runtime_registered"] is True
     assert row["operational_verified"] is False
+
+
+
+def test_default_module_catalog_has_unique_ids_and_correct_earnings_route():
+    ids = [item["id"] for item in MODULES]
+    assert len(ids) == len(set(ids))
+
+    earnings = [item for item in MODULES if item["id"] == "earnings_intelligence"]
+    assert len(earnings) == 1
+    assert earnings[0]["route_prefixes"] == ("/api/intel",)
+
+
+def test_registry_rejects_duplicate_module_ids(tmp_path):
+    (tmp_path / "one.py").write_text("# one", encoding="utf-8")
+    modules = (
+        {"id": "duplicate", "name": "One", "paths": ("one.py",),
+         "route_prefixes": (), "critical": False},
+        {"id": "duplicate", "name": "Two", "paths": ("one.py",),
+         "route_prefixes": (), "critical": False},
+    )
+    with pytest.raises(ValueError, match="duplicate module registry id: duplicate"):
+        build_module_registry(tmp_path, modules=modules)
