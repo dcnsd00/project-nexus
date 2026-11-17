@@ -4,7 +4,7 @@ on:
   push:
     branches: [main, "feature/**", "integration/**"]
   pull_request:
-    branches: [main]
+    branches: [main, "integration/**"]
   workflow_dispatch:
 
 permissions:
@@ -14,8 +14,8 @@ jobs:
   source-detection:
     runs-on: ubuntu-latest
     outputs:
-      available: ${{ steps.detect.outputs.available }}
-      root: ${{ steps.detect.outputs.root }}
+      available: \${{ steps.detect.outputs.available }}
+      root: \${{ steps.detect.outputs.root }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -34,14 +34,14 @@ jobs:
           else
             echo "available=false" >> "$GITHUB_OUTPUT"
             echo "root=" >> "$GITHUB_OUTPUT"
-            echo "::notice::Application source has not been imported yet. Python test job will be skipped; documentation commits are not treated as application test failures."
+            echo "::notice::Application source has not been imported yet. Python test jobs will be skipped."
           fi
 
   python-tests:
     needs: source-detection
     if: needs.source-detection.outputs.available == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -52,7 +52,7 @@ jobs:
       - name: Install dependencies
         shell: bash
         run: |
-          ROOT="${{ needs.source-detection.outputs.root }}"
+          ROOT="\${{ needs.source-detection.outputs.root }}"
           python -m pip install --upgrade pip
           if [ -f "$ROOT/requirements-dev.txt" ]; then
             python -m pip install -r "$ROOT/requirements-dev.txt"
@@ -66,11 +66,55 @@ jobs:
       - name: Compile Python sources
         shell: bash
         run: |
-          ROOT="${{ needs.source-detection.outputs.root }}"
+          ROOT="\${{ needs.source-detection.outputs.root }}"
           python -m compileall -q "$ROOT"
-      - name: Run test suite
+      - name: Run full test suite
         shell: bash
         run: |
-          ROOT="${{ needs.source-detection.outputs.root }}"
+          ROOT="\${{ needs.source-detection.outputs.root }}"
           cd "$ROOT"
           python -m pytest -q --disable-warnings --maxfail=1
+
+  windows-tests:
+    needs: source-detection
+    if: needs.source-detection.outputs.available == 'true'
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install dependencies
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $root = "\${{ needs.source-detection.outputs.root }}"
+          python -m pip install --upgrade pip
+          if (Test-Path "$root/requirements-dev.txt") {
+            python -m pip install -r "$root/requirements-dev.txt"
+          } elseif (Test-Path "$root/requirements.txt") {
+            python -m pip install -r "$root/requirements.txt"
+            python -m pip install pytest
+          } else {
+            throw "No requirements file found in source root: $root"
+          }
+      - name: Compile Python sources
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $root = "\${{ needs.source-detection.outputs.root }}"
+          python -m compileall -q $root
+      - name: Run full test suite on Windows
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $root = "\${{ needs.source-detection.outputs.root }}"
+          Push-Location $root
+          try {
+            python -m pytest -q --disable-warnings --maxfail=1
+          } finally {
+            Pop-Location
+          }

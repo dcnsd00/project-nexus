@@ -9,3 +9,4 @@ cryptography>=43,<47
 
 psutil>=6.0,<8
 mnemonic>=0.21
+keyring>=25.7,<26

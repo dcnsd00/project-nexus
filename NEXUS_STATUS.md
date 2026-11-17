@@ -54,3 +54,13 @@ All runs below completed with conclusion SUCCESS:
 - TESTED: named GitHub Actions test job passed.
 - INTEGRATED: runtime integration test verifies the connection.
 - VALIDATED: confirmed on target Windows installation, physical hardware or live service.
+
+## EDGE persistence and protocol v1 increment
+- Feature branch: feature/edge-persistence-protocol-v1.
+- Adds protocol version 1, monotonic heartbeat/result sequence checks, and per-assignment random nonces to block stale or replayed task results.
+- Adds SQLite schema v1 for node metadata and task state; counters, leases and task state can be restored after host restart.
+- Node HMAC keys are excluded from SQLite. Persistent mode requires an injected key provider and fails closed if a persisted node key is unavailable.
+- Adds an OS keyring adapter; persistent runtime mode is opt-in through NEXUS_EDGE_DB_PATH. The in-memory key provider remains test/development-only.
+- Extends GitHub Actions to run the full test suite on windows-latest and enables pull-request CI against integration branches.
+- No network listener, MQTT/HTTPS transport, firmware, wallet access, or miner control is introduced by this increment.
+- Validation status at commit creation: awaiting Linux and Windows GitHub Actions; this is not physical hardware validation.

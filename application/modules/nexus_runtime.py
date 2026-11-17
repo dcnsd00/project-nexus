@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import importlib
 import importlib.util
+import os
 import sqlite3
 import shutil
 import sys
@@ -53,14 +54,29 @@ class ModuleAdapter:
 
 
 class EdgeServiceAdapter:
-    """Lifecycle adapter for the in-memory EDGE pilot; no network or device control."""
+    """Lifecycle adapter for EDGE; persistence is opt-in and keys use the OS keyring."""
 
     def __init__(self):
         self.service: Any = None
 
     def initialize(self) -> None:
-        module = importlib.import_module("nexus_edge.service")
-        self.service = module.EdgeService()
+        edge_service = importlib.import_module("nexus_edge.service")
+        db_path = os.environ.get("NEXUS_EDGE_DB_PATH")
+        if db_path:
+            persistence = importlib.import_module("nexus_edge.persistence")
+            manager_module = importlib.import_module("nexus_edge.manager")
+            store = persistence.SQLiteEdgeStore(db_path)
+            try:
+                key_provider = persistence.KeyringEdgeKeyProvider()
+                manager = manager_module.EdgeManager(
+                    store=store, key_provider=key_provider
+                )
+            except Exception:
+                store.close()
+                raise
+            self.service = edge_service.EdgeService(manager)
+        else:
+            self.service = edge_service.EdgeService()
 
     def start(self) -> None:
         if self.service is None:
@@ -81,8 +97,6 @@ class EdgeServiceAdapter:
         if self.service is not None:
             self.service.shutdown()
         self.service = None
-
-
 class WalletReadOnlyAdapter:
     """Load wallet route module and inspect its DB without creating or decrypting it."""
 
