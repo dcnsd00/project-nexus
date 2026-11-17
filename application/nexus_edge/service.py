@@ -10,9 +10,9 @@ from .replay_guard import ReplayGuard
 class EdgeService:
     """Optional NEXUS LifecycleManager service with no implicit network activity.
 
-    The existing NEXUS runtime can register this object through a factory.
-    Transport and persistence are injected in later increments; this adapter
-    only owns the local EDGE manager and exposes a truthful health snapshot.
+    The existing NEXUS runtime registers this object through a factory.
+    Replay protection and an optional encrypted SQLite state store are injected
+    by the runtime; transport remains disabled in this local control-plane stage.
     """
 
     def __init__(self, manager: EdgeManager | None = None, *,

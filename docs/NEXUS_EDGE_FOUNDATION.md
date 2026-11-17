@@ -1,6 +1,6 @@
 # NEXUS EDGE — foundation and integration contract
 
-Status: **EDGE in-memory control plane integrated as an optional NEXUS runtime service; durable anti-replay guard implemented; task persistence and transport remain pending.**
+Status: **EDGE control plane integrated as an optional NEXUS runtime service; encrypted SQLite persistence for nodes/tasks/leases is implemented and runtime-wired when NEXUS_EDGE_STORAGE_KEY is provisioned; durable anti-replay guard is active; transport and physical-device validation remain pending.**
 
 ## Repository baseline
 
@@ -27,7 +27,7 @@ The current Python package `nexus_edge/` is a transport-agnostic control-plane i
 - HMAC-authenticated results and SHA-256 result fingerprints;
 - bounded JSON payload/result sizes and a diagnostic snapshot.
 
-It deliberately has **no network listener, firmware binary, wallet API, private-key handling, mining control or arbitrary command execution**. Node registry and task queue remain in memory and are lost on restart. The replay guard can persist monotonic heartbeat sequence numbers in SQLite, and NEXUS Runtime injects it under the canonical `NEXUS_DATA_DIR/db/edge_replay.sqlite3` path. Node secrets are not stored by this database. Task persistence, key provisioning/rotation, transport and physical-device validation remain incomplete.
+It deliberately has **no network listener, firmware binary, wallet API, private-key handling, mining control or arbitrary command execution**. The SQLite state store persists node metadata, encrypted node secrets, task state, leases and results. NEXUS Runtime uses the canonical `NEXUS_DATA_DIR/db/edge_state.sqlite3` path for both the replay guard and state store. Full state persistence is enabled only when a stable Fernet key is provisioned through `NEXUS_EDGE_STORAGE_KEY`; without that key, anti-replay counters remain persistent but node/task state stays in memory. The runtime never generates or stores the encryption key. Key provisioning/rotation, transport and physical-device validation remain incomplete.
 
 ## Security contract
 
@@ -46,9 +46,9 @@ The NM-CYD-C5 board is an ESP32-C5-WROOM-1 development board with display/touch,
 
 1. Import and verify the exact NEXUS MASTER 0.10.25 source bundle in a Git-capable workspace.
 2. Copy this package under the application source tree as `application/nexus_edge/` (or `nexus_edge/` if the application uses repository-root layout).
-3. Add an optional `edge_manager` service to `modules/nexus_runtime.py`, dependent on the existing crypto engine and Lifecycle Manager; the runtime injects a SQLite replay guard under the canonical NEXUS data directory.
+3. Register the optional `edge_manager` service in `modules/nexus_runtime.py`, dependent on the existing crypto engine and central data paths; inject the SQLite replay guard and, when `NEXUS_EDGE_STORAGE_KEY` is configured, the encrypted SQLite state store.
 4. Expose read-only status through the existing Module Registry; do not duplicate the registry.
-5. Extend durable storage from replay counters to node metadata, task state, leases and restart recovery; do not persist HMAC secrets in plaintext.
+5. Verify encrypted persistence and restart recovery for node metadata, task state, leases and results; do not persist HMAC secrets in plaintext.
 6. Add ESP-IDF firmware for NM-CYD-C5 and test against a local mock broker before connecting physical nodes.
 7. Validate on Windows 11 and physical hardware. CI success alone is not hardware validation.
 

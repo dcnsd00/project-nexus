@@ -236,3 +236,47 @@ def test_mining_backend_adapters_are_registered_read_only():
     assert details["probe_starts_miners"] is False
     assert details["probe_contacts_pools"] is False
     assert manager.stop_all()["running"] == 0
+
+
+def test_edge_runtime_adapter_uses_encrypted_sqlite_store_when_key_is_configured(tmp_path, monkeypatch):
+    from cryptography.fernet import Fernet
+    from modules import data_paths
+    from modules.nexus_runtime import EdgeServiceAdapter
+
+    monkeypatch.setattr(data_paths, "DATA_DIR", tmp_path / "nexus-data")
+    monkeypatch.setenv("NEXUS_EDGE_STORAGE_KEY", Fernet.generate_key().decode("ascii"))
+
+    adapter = EdgeServiceAdapter()
+    adapter.initialize()
+    adapter.start()
+    health = adapter.health_check()
+
+    assert adapter.persistence_configured is True
+    assert health["ok"] is True
+    assert health["details"]["mode"] == "sqlite_persistent"
+    assert (tmp_path / "nexus-data" / "db" / "edge_state.sqlite3").is_file()
+
+    adapter.stop()
+    adapter.shutdown()
+
+
+def test_edge_runtime_adapter_keeps_manager_in_memory_without_storage_key(tmp_path, monkeypatch):
+    from modules import data_paths
+    from modules.nexus_runtime import EdgeServiceAdapter
+
+    monkeypatch.setattr(data_paths, "DATA_DIR", tmp_path / "nexus-data")
+    monkeypatch.delenv("NEXUS_EDGE_STORAGE_KEY", raising=False)
+
+    adapter = EdgeServiceAdapter()
+    adapter.initialize()
+    adapter.start()
+    health = adapter.health_check()
+
+    assert adapter.persistence_configured is False
+    assert health["ok"] is True
+    assert health["details"]["mode"] == "in_memory_pilot"
+    # The shared DB still holds the replay guard; this is not task persistence.
+    assert (tmp_path / "nexus-data" / "db" / "edge_state.sqlite3").is_file()
+
+    adapter.stop()
+    adapter.shutdown()
