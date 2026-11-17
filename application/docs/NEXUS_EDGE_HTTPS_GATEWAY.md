@@ -6,6 +6,17 @@ mounted into NEXUS MASTER and does not establish an internet-facing deployment.
 The gateway is intended to run behind a TLS terminator (reverse proxy or managed
 load balancer). Do not expose plaintext HTTP to an untrusted network.
 
+## Start the gateway
+
+From the `application` directory, after provisioning the required environment variables:
+
+```powershell
+python -m uvicorn nexus_edge.server:app --host 127.0.0.1 --port 8765
+```
+
+The server binds to loopback by default. Put a TLS reverse proxy in front of it
+for remote access; do not bind directly to a public interface during this pilot.
+
 ## Required environment
 - `NEXUS_EDGE_STORAGE_KEY`: stable Fernet URL-safe base64 key; provision via
   an OS secret store, never commit it or store it in the SQLite database.
