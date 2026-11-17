@@ -76,7 +76,9 @@ def test_mqtt_uplink_requires_node_hmac_and_monotonic_sequence():
     body={"timestamp":timestamp,"sequence":1,"payload":payload,
           "signature":sign_message(secret,message)}
     topic="nexus/v1/nodes/esp32-node-09/up"
-    assert authenticate_mqtt_uplink(manager,topic,body)["accepted"] is True
+    accepted = authenticate_mqtt_uplink(manager, topic, body)
+    assert accepted["accepted"] is True
+    assert accepted["payload"] == payload
     with pytest.raises(ValueError,match="replayed|out-of-order"):
         authenticate_mqtt_uplink(manager,topic,body)
 
@@ -101,6 +103,7 @@ def test_mqtt_uplink_respects_configured_topic_prefix():
         topic_prefix="custom/edge",
     )
     assert accepted["accepted"] is True
+    assert accepted["payload"] == payload
     with pytest.raises(ValueError, match="invalid NEXUS MQTT topic prefix"):
         authenticate_mqtt_uplink(manager, "custom/edge/nodes/esp32-node-10/up", body,
                                  topic_prefix="../invalid")
