@@ -10,7 +10,9 @@ import hashlib
 import hmac
 import json
 import re
+import threading
 import time
+from functools import wraps
 import uuid
 from dataclasses import dataclass, field
 from typing import Any, Callable
@@ -73,6 +75,15 @@ class _Task:
     error: str | None = None
 
 
+def _synchronized(method):
+    """Serialize manager operations within this process; SQLite handles DB transactions."""
+    @wraps(method)
+    def wrapped(self, *args, **kwargs):
+        with self._lock:
+            return method(self, *args, **kwargs)
+    return wrapped
+
+
 class EdgeManager:
     """In-memory scheduler, node registry, lease manager and result verifier."""
 
@@ -88,6 +99,7 @@ class EdgeManager:
     ) -> None:
         if heartbeat_ttl_s < 1 or lease_s < 1 or max_payload_bytes < 128:
             raise EdgeError("invalid EDGE manager limits")
+        self._lock = threading.RLock()
         self.heartbeat_ttl_s = heartbeat_ttl_s
         self.lease_s = lease_s
         self.max_payload_bytes = max_payload_bytes
@@ -100,6 +112,7 @@ class EdgeManager:
             self._restore(self._store.load_state())
             self.reap_expired()
 
+    @_synchronized
     def register_node(
         self, node_id: str, capabilities: list[str] | tuple[str, ...],
         secret: bytes, *, max_parallel: int = 1,
@@ -119,6 +132,7 @@ class EdgeManager:
         self._persist()
         return self.node_status(node_id)
 
+    @_synchronized
     def heartbeat(self, node_id: str, timestamp: float, sequence: int, signature: str) -> dict[str, Any]:
         node = self._get_node(node_id)
         now = self._clock()
@@ -135,6 +149,7 @@ class EdgeManager:
         self._persist()
         return self.node_status(node_id)
 
+    @_synchronized
     def submit_task(
         self, task_type: str, payload: dict[str, Any],
         required_capabilities: list[str] | tuple[str, ...], *,
@@ -160,6 +175,7 @@ class EdgeManager:
         self._persist()
         return self.task_status(identifier)
 
+    @_synchronized
     def claim_task(self, node_id: str) -> dict[str, Any] | None:
         node = self._get_node(node_id)
         now = self._clock()
@@ -184,6 +200,7 @@ class EdgeManager:
             self._persist()
         return None
 
+    @_synchronized
     def start_task(self, node_id: str, task_id: str) -> dict[str, Any]:
         task = self._get_task(task_id)
         if task.node_id != node_id or task.state != "ASSIGNED":
@@ -194,6 +211,7 @@ class EdgeManager:
         self._persist()
         return self.task_status(task_id)
 
+    @_synchronized
     def complete_task(
         self, node_id: str, task_id: str, result: Any, signature: str,
     ) -> dict[str, Any]:
@@ -218,6 +236,7 @@ class EdgeManager:
         self._persist()
         return self.task_status(task_id)
 
+    @_synchronized
     def reap_expired(self) -> dict[str, int]:
         """Expire overdue work and requeue work whose worker lease elapsed."""
         now = self._clock()
@@ -241,6 +260,7 @@ class EdgeManager:
             self._persist()
         return counts
 
+    @_synchronized
     def node_status(self, node_id: str) -> dict[str, Any]:
         node = self._get_node(node_id)
         now = self._clock()
@@ -253,6 +273,7 @@ class EdgeManager:
             "max_parallel": node.max_parallel,
         }
 
+    @_synchronized
     def task_status(self, task_id: str) -> dict[str, Any]:
         task = self._get_task(task_id)
         return {
@@ -264,6 +285,7 @@ class EdgeManager:
             "result_sha256": task.result_sha256, "error": task.error,
         }
 
+    @_synchronized
     def snapshot(self) -> dict[str, Any]:
         now = self._clock()
         states: dict[str, int] = {}

@@ -1,5 +1,6 @@
 import sqlite3
 import tempfile
+import threading
 import unittest
 from pathlib import Path
 
@@ -62,6 +63,39 @@ class SQLiteEdgeStoreTests(unittest.TestCase):
             sign_message(self.secret, message),
         )
         self.assertEqual(completed["state"], "SUCCEEDED")
+
+    def test_concurrent_claims_are_serialized_within_manager_process(self):
+        manager = self.manager()
+        manager.register_node("edge-c5-009", ["math.verify"], self.secret)
+        self.heartbeat(manager, 1)
+        task = manager.submit_task(
+            "math.verify", {"input": "single-claim"}, ["math.verify"]
+        )
+        barrier = threading.Barrier(3)
+        results = []
+        errors = []
+
+        def claim():
+            try:
+                barrier.wait()
+                results.append(manager.claim_task("edge-c5-009"))
+            except Exception as exc:
+                errors.append(exc)
+
+        workers = [threading.Thread(target=claim) for _ in range(2)]
+        for worker in workers:
+            worker.start()
+        barrier.wait()
+        for worker in workers:
+            worker.join(timeout=5)
+
+        self.assertFalse(any(worker.is_alive() for worker in workers))
+        self.assertEqual(errors, [])
+        claimed = [item for item in results if item is not None]
+        self.assertEqual(len(claimed), 1)
+        self.assertEqual(claimed[0]["task_id"], task["task_id"])
+        self.assertEqual(manager.node_status("edge-c5-009")["active_tasks"],
+                         [task["task_id"]])
 
     def test_expired_lease_is_requeued_during_restart_recovery(self):
         first = self.manager()
