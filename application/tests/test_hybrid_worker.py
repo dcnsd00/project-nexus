@@ -25,8 +25,12 @@ def test_worker_launches_owned_child_and_stops_it(tmp_path):
     stop.write_text('stop')
     thread.join(5)
     assert not thread.is_alive()
-    assert result == [-15] or result == [0]
-    assert json.loads(status.read_text())['state'] == 'stopped'
+    stopped = json.loads(status.read_text())
+    assert stopped['state'] == 'stopped'
+    # POSIX terminate() reports -SIGTERM; Windows TerminateProcess commonly
+    # reports 1. The worker preserves that native child code for diagnostics.
+    assert result == [stopped['child_exit_code']]
+    assert stopped['last_error'] is None
 
 
 def test_worker_reports_backend_unavailable_without_command(tmp_path):
