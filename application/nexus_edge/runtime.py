@@ -27,17 +27,26 @@ class EdgeTransportRuntime:
     def enabled(self) -> bool:
         return self._env.get("NEXUS_EDGE_MQTT_ENABLED", "false").strip().lower() == "true"
 
-    def start(self) -> None:
+    def start(self, manager: Any | None = None) -> None:
         if not self.enabled():
             return
         with self._lock:
             if self._bridge is not None:
                 return
-            if self._manager_factory is None:
-                from .gateway import create_edge_manager_from_env
-                manager_factory = create_edge_manager_from_env
-            else:
-                manager_factory = self._manager_factory
+            edge_manager = manager
+            if edge_manager is None:
+                if self._manager_factory is None:
+                    from .gateway import create_edge_manager_from_env
+                    manager_factory = create_edge_manager_from_env
+                else:
+                    manager_factory = self._manager_factory
+                edge_manager = manager_factory()
+            snapshot = edge_manager.snapshot()
+            if snapshot.get("mode") != "sqlite_persistent":
+                raise RuntimeError(
+                    "MQTTS requires the shared sqlite_persistent EDGE manager; "
+                    "configure NEXUS_EDGE_STORAGE_KEY"
+                )
             if self._bridge_factory is None:
                 from .transports import MQTTBridge, mqtt_config_from_env
                 bridge_factory = MQTTBridge
@@ -47,16 +56,17 @@ class EdgeTransportRuntime:
                 from .transports import mqtt_config_from_env
                 config = mqtt_config_from_env(dict(self._env))
             from .transports import authenticate_mqtt_uplink
-            manager = manager_factory()
 
             def on_message(topic: str, body: dict[str, Any]) -> None:
-                accepted = authenticate_mqtt_uplink(manager, topic, body, topic_prefix=config.topic_prefix)
+                accepted = authenticate_mqtt_uplink(
+                    edge_manager, topic, body, topic_prefix=config.topic_prefix
+                )
                 with self._lock:
                     self._received.append(accepted)
 
             bridge = bridge_factory(config, on_message)
             bridge.start()
-            self._manager = manager
+            self._manager = edge_manager
             self._bridge = bridge
             self._error = None
 
