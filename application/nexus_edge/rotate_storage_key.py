@@ -38,18 +38,20 @@ def main(argv: list[str] | None = None) -> int:
                 "SELECT name FROM sqlite_master WHERE type = 'table'"
             )
         }
-    required_tables = {
-        "edge_nodes", "edge_tasks", "edge_protocol_sequences",
-        "nexus_edge_schema", "edge_telemetry",
-    }
+    # Let SQLiteEdgeStore migrate older supported schemas after the current
+    # key has been supplied; only core pre-existing EDGE tables are required here.
+    required_tables = {"edge_nodes", "edge_tasks", "nexus_edge_schema"}
     if not required_tables.issubset(tables):
         parser.error("database does not contain the complete NEXUS EDGE schema")
 
     print("WARNING: Stop NEXUS MASTER and all standalone EDGE processes first.")
     print("Create and verify a database backup before continuing.")
-    old_key = getpass.getpass("Current NEXUS_EDGE_STORAGE_KEY: ").encode("ascii")
-    new_key = getpass.getpass("New NEXUS_EDGE_STORAGE_KEY: ").encode("ascii")
-    confirmation = getpass.getpass("Confirm new NEXUS_EDGE_STORAGE_KEY: ").encode("ascii")
+    try:
+        old_key = getpass.getpass("Current NEXUS_EDGE_STORAGE_KEY: ").encode("ascii")
+        new_key = getpass.getpass("New NEXUS_EDGE_STORAGE_KEY: ").encode("ascii")
+        confirmation = getpass.getpass("Confirm new NEXUS_EDGE_STORAGE_KEY: ").encode("ascii")
+    except UnicodeEncodeError:
+        parser.error("Fernet keys must be ASCII URL-safe base64 strings")
     if new_key != confirmation:
         parser.error("new key confirmation does not match")
     if old_key == new_key:
