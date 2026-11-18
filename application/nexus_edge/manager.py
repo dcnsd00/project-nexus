@@ -360,14 +360,17 @@ class EdgeManager:
 
     @_synchronized
     def list_tasks(self) -> list[dict[str, Any]]:
-        """Return task status without exposing task payloads or node secrets."""
-        return [
+        """Return operator-safe task status without payloads or raw results."""
+        rows = [
             self.task_status(task_id)
             for task_id in sorted(
                 self._tasks,
                 key=lambda item: (self._tasks[item].created_at, item),
             )
         ]
+        for row in rows:
+            row["result_available"] = row.pop("result") is not None
+        return rows
 
     @_synchronized
     def node_status(self, node_id: str) -> dict[str, Any]:
