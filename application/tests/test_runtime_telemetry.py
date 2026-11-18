@@ -40,6 +40,7 @@ def test_runtime_telemetry_reads_real_psutil_temperature_sensors(monkeypatch):
                 )
             ]
         },
+        raising=False,
     )
 
     result = RuntimeTelemetry()._temperatures()
@@ -77,7 +78,8 @@ def test_runtime_telemetry_never_invents_temperature_when_sensors_unavailable(mo
         "modules.runtime_telemetry.platform.system", lambda: "Linux"
     )
     monkeypatch.setattr(
-        "modules.runtime_telemetry.psutil.sensors_temperatures", lambda: {}
+        "modules.runtime_telemetry.psutil.sensors_temperatures", lambda: {},
+        raising=False,
     )
 
     result = RuntimeTelemetry()._temperatures()
