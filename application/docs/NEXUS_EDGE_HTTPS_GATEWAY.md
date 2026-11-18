@@ -38,6 +38,8 @@ manager state.
 
 ## Endpoints
 - `GET /v1/edge/health`: read-only service status.
+- `GET /v1/edge/nodes`: operator-authenticated node inventory (secrets excluded).
+- `GET /v1/edge/tasks`: operator-authenticated task inventory (payloads and raw results excluded).
 - `POST /v1/edge/nodes/provision`: operator-authenticated one-time node secret provisioning.
 - `POST /v1/edge/nodes/{node_id}/rotate-secret`: operator-authenticated one-time credential rotation.
 - `POST /v1/edge/nodes/{node_id}/revoke`: operator-authenticated node revocation and unfinished-task recovery.
