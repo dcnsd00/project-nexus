@@ -358,6 +358,7 @@ def coin_catalog(refresh: bool=False, q: str="", limit: int=100):
 # NEXUS live host telemetry: local measurements, bounded history, no synthetic values.
 from modules.runtime_telemetry import RuntimeTelemetry  # noqa: E402
 from modules.blockchain_node_telemetry import bitcoin_node_snapshot  # noqa: E402
+from modules.evm_node_telemetry import evm_node_snapshot  # noqa: E402
 _runtime_telemetry = RuntimeTelemetry()
 
 @app.get("/api/nexus/telemetry")
@@ -371,6 +372,12 @@ def nexus_runtime_telemetry(history: int = 120, sample: bool = True):
 def bitcoin_node_telemetry():
     """Read-only, loopback-only Bitcoin Core node telemetry."""
     return bitcoin_node_snapshot()
+
+
+@app.get("/api/blockchain/nodes/evm")
+def evm_node_telemetry():
+    """Read-only EVM JSON-RPC telemetry; endpoint must be explicitly configured."""
+    return evm_node_snapshot()
 
 
 @app.get("/api/nexus/dashboard", response_class=HTMLResponse)
@@ -1751,6 +1758,7 @@ def nexus_operator_snapshot():
     mining_diagnostics_report = capture(mining_diagnostics)
     readiness = capture(nexus_readiness)
     blockchain_node = capture(bitcoin_node_telemetry)
+    evm_node = capture(evm_node_telemetry)
     transports = capture(edge_transport_status)
     gateway = capture(edge_gateway_status)
 
@@ -1781,6 +1789,7 @@ def nexus_operator_snapshot():
         "mining_diagnostics": mining_diagnostics_report,
         "blockchain_readiness": readiness,
         "blockchain_node": blockchain_node,
+        "evm_node": evm_node,
         "edge_transports": transports,
         "edge_gateway": gateway,
     }

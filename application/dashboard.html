@@ -105,7 +105,7 @@ async function pollOperatorReport(){
   const d=await api('/api/nexus/operator');
   const s=d.sections||{}, host=s.host_telemetry?.data?.snapshot||{}, runtime=s.runtime?.data||{};
   const modules=s.modules?.data||{}, mining=s.mining?.data||{}, procs=s.mining_processes?.data||{};
-  const readiness=s.blockchain_readiness?.data||{}, node=s.blockchain_node?.data||{}, services=d.services||[];
+  const readiness=s.blockchain_readiness?.data||{}, node=s.blockchain_node?.data||{}, evm=s.evm_node?.data||{}, services=d.services||[];
   const fmt=(v)=>v===null||v===undefined?'indisponibil':(typeof v==='number'?v.toLocaleString('ro-RO',{maximumFractionDigits:2}):String(v));
   const lines=[
    'STARE GENERALA: '+d.overall_state,
@@ -130,6 +130,11 @@ async function pollOperatorReport(){
   if(node.peers) lines.push('PEERS: total '+fmt(node.peers.count)+' | inbound '+fmt(node.peers.inbound)+' | outbound '+fmt(node.peers.outbound));
   if(node.mempool) lines.push('MEMPOOL: '+fmt(node.mempool.transactions)+' tx | '+fmt(node.mempool.bytes)+' bytes | fee total '+fmt(node.mempool.total_fee_btc)+' BTC');
   if(node.error) lines.push('BITCOIN NODE NOTE: '+node.error);
+  lines.push('EVM JSON-RPC: '+(evm.rpc?.status||'not_reported')+' | host '+(evm.rpc?.endpoint_host||'N/D')+' | latency '+fmt(evm.rpc?.latency_ms)+' ms');
+  if(evm.network) lines.push('EVM NETWORK: '+fmt(evm.network.name)+' | chainId '+fmt(evm.network.chain_id)+' | block '+fmt(evm.latest_block?.number));
+  if(evm.sync) lines.push('EVM SYNC: '+fmt(evm.sync.status)+' | blocks behind '+fmt(evm.sync.blocks_behind));
+  if(evm.peers) lines.push('EVM PEERS: '+fmt(evm.peers.count)+' ('+fmt(evm.peers.status)+') | gas '+fmt(evm.gas_price_wei)+' wei');
+  if(evm.error) lines.push('EVM NODE NOTE: '+evm.error);
   lines.push('EDGE transports: '+JSON.stringify(s.edge_transports?.data||{})+' | Gateway: '+JSON.stringify(s.edge_gateway?.data||{}));
   lines.push('','SECURITY / EVIDENCE: read-only='+d.safety?.read_only+' | miner autostart='+d.safety?.starts_or_stops_miners+' | module operation verified='+fmt(modules.system_operational_verified));
   lines.push('Sectiuni indisponibile: '+(d.summary?.unavailable_sections||[]).join(', '));
