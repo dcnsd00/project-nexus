@@ -27,6 +27,10 @@ Generate a key once with
 Store the result in the protected service environment and reuse it across
 restarts; do not generate a new key on each launch.
 - `NEXUS_EDGE_PROVISIONING_TOKEN`: operator bearer token, minimum 32 characters.
+Generate a high-entropy token with
+`python -c "import secrets; print(secrets.token_urlsafe(48))"` and store it
+in the protected service environment. Rotate it by replacing the environment
+value and restarting the gateway; never put it in source control.
 - `NEXUS_EDGE_DATABASE`: optional SQLite path; defaults to the canonical
   NEXUS data-path service location shared by MASTER and standalone adapters.
 
