@@ -7,6 +7,8 @@ from __future__ import annotations
 import argparse
 import getpass
 import os
+import sqlite3
+from contextlib import closing
 from pathlib import Path
 
 from .config import edge_database_path
@@ -30,6 +32,18 @@ def main(argv: list[str] | None = None) -> int:
     )
     if not database.is_file():
         parser.error(f"EDGE database does not exist: {database}")
+    with closing(sqlite3.connect(str(database))) as connection:
+        tables = {
+            row[0] for row in connection.execute(
+                "SELECT name FROM sqlite_master WHERE type = 'table'"
+            )
+        }
+    required_tables = {
+        "edge_nodes", "edge_tasks", "edge_protocol_sequences",
+        "nexus_edge_schema",
+    }
+    if not required_tables.issubset(tables):
+        parser.error("database does not contain the complete NEXUS EDGE schema")
 
     print("WARNING: Stop NEXUS MASTER and all standalone EDGE processes first.")
     print("Create and verify a database backup before continuing.")
