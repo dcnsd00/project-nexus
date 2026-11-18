@@ -128,7 +128,9 @@ class MQTTBridge:
             if result not in (None, 0):
                 raise RuntimeError("MQTT client rejected the connection request")
             self._client = client
-            client.loop_start()
+            loop_result = client.loop_start()
+            if loop_result not in (None, 0):
+                raise RuntimeError("MQTT network loop failed to start")
             self.started = True
         except Exception:
             self.connected = False
@@ -153,13 +155,17 @@ class MQTTBridge:
         if not accepted:
             self.last_message_error_type = "BrokerConnectionRejected"
             return
-        result = client.subscribe(
-            f"{self.config.topic_prefix}/nodes/+/up", qos=1
-        )
-        result_code = result[0] if isinstance(result, tuple) else result
-        if result_code not in (None, 0):
+        try:
+            result = client.subscribe(
+                f"{self.config.topic_prefix}/nodes/+/up", qos=1
+            )
+            result_code = result[0] if isinstance(result, tuple) else result
+            if result_code not in (None, 0):
+                self.connected = False
+                self.last_message_error_type = "SubscriptionRejected"
+        except Exception as exc:
             self.connected = False
-            self.last_message_error_type = "SubscriptionRejected"
+            self.last_message_error_type = type(exc).__name__
 
     def _on_disconnect(self, client: Any, userdata: Any, *args: Any) -> None:
         self.connected = False
