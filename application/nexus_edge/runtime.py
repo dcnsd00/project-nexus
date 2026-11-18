@@ -56,12 +56,18 @@ class EdgeTransportRuntime:
                 bridge_factory = self._bridge_factory
                 from .transports import mqtt_config_from_env
                 config = mqtt_config_from_env(dict(self._env))
-            from .transports import authenticate_mqtt_uplink
+            from .manager import EdgePersistenceError
+            from .transports import RetryableTransportError, authenticate_mqtt_uplink
 
             def on_message(topic: str, body: dict[str, Any]) -> None:
-                accepted = authenticate_mqtt_uplink(
-                    edge_manager, topic, body, topic_prefix=config.topic_prefix
-                )
+                try:
+                    accepted = authenticate_mqtt_uplink(
+                        edge_manager, topic, body, topic_prefix=config.topic_prefix
+                    )
+                except EdgePersistenceError as exc:
+                    raise RetryableTransportError(
+                        "telemetry persistence failed; broker retry required"
+                    ) from exc
                 event = accepted["event"]
                 with self._lock:
                     self._received.append({
