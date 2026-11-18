@@ -6,7 +6,9 @@ generated or written into this database.
 """
 from __future__ import annotations
 
+import hashlib
 import json
+import math
 import sqlite3
 from contextlib import closing
 from pathlib import Path
@@ -181,6 +183,8 @@ class SQLiteEdgeStore:
             raise ValueError("node_id must be a non-empty string")
         if not isinstance(transport, str) or not transport.strip():
             raise ValueError("transport must be a non-empty string")
+        if isinstance(received_at, bool) or not isinstance(received_at, (int, float)) or not math.isfinite(float(received_at)):
+            raise ValueError("received_at must be a finite number")
         payload_json = self._json(payload)
         digest = hashlib.sha256(payload_json.encode("utf-8")).hexdigest()
         with closing(self._connect()) as connection:
