@@ -405,6 +405,7 @@ class EdgeManager:
         if existing is not None:
             if existing["transport"] != transport or existing["payload_sha256"] != digest:
                 raise EdgeError("protocol sequence already recorded with different telemetry")
+            existing.pop("payload", None)
             return {**existing, "duplicate": True}
 
         try:
