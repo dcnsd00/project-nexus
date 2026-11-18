@@ -84,6 +84,12 @@ class EdgePersistenceInvariantTests(unittest.TestCase):
         self.assertEqual(restored["state"], "SUCCEEDED")
         self.assertEqual(restored["result"], result)
         self.assertEqual(restored["result_sha256"], completed["result_sha256"])
+        node_rows = restarted.list_nodes()
+        task_rows = restarted.list_tasks()
+        self.assertNotIn(self.secret.decode("ascii"), str(node_rows))
+        self.assertNotIn("payload", task_rows[0])
+        self.assertNotIn("result", task_rows[0])
+        self.assertTrue(task_rows[0]["result_available"])
 
     def test_rotated_node_secret_and_sequence_survive_restart(self):
         first = self.manager()
