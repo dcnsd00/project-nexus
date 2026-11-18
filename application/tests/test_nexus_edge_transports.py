@@ -1,8 +1,20 @@
 import json
 import time
 import pytest
+from cryptography.fernet import Fernet
 from nexus_edge.transports import MQTTBridge, MQTTConfig, NetworkPath, TransportKind, transport_matrix
 from nexus_edge.topology import DeploymentMode, DeploymentTopology
+from nexus_edge.manager import EdgeManager, sign_message
+from nexus_edge.replay_guard import SQLiteReplayGuard
+from nexus_edge.sqlite_store import SQLiteEdgeStore
+
+
+def _durable_manager(tmp_path):
+    database = tmp_path / "edge.sqlite3"
+    return EdgeManager(
+        replay_guard=SQLiteReplayGuard(database),
+        store=SQLiteEdgeStore(database, encryption_key=Fernet.generate_key()),
+    )
 
 class FakeResult:
     rc = 0
@@ -25,7 +37,10 @@ class FakeClient:
         self.calls.append(("connect",args))
         if self.on_connect:
             self.on_connect(self, None, {}, 0, None)
-    def loop_start(self): self.calls.append(("loop_start",))
+    def loop_start(self):
+        self.calls.append(("loop_start",))
+        if self.on_subscribe:
+            self.on_subscribe(self, None, 7, [0], None)
     def subscribe(self,*args,**kwargs):
         self.calls.append(("subscribe",args,kwargs))
         return (0, 7)
@@ -209,12 +224,10 @@ def test_primary_standby_requires_shared_backend_and_fails_closed_until_implemen
     with pytest.raises(ValueError,match="primary-standby deployment is not implemented"):
         declared.validate()
 
-def test_mqtt_uplink_requires_node_hmac_and_monotonic_sequence():
+def test_mqtt_uplink_requires_node_hmac_and_monotonic_sequence(tmp_path):
     from nexus_edge.transports import authenticate_mqtt_uplink
-    from nexus_edge.manager import EdgeManager, sign_message
-    from nexus_edge.replay_guard import MemoryReplayGuard
-    manager=EdgeManager(replay_guard=MemoryReplayGuard())
-    secret=b"n"*32
+    manager = _durable_manager(tmp_path)
+    secret = b"n"*32
     manager.register_node("esp32-node-09",["telemetry"],secret)
     timestamp=int(time.time())
     payload={"temperature_c":23.5}
@@ -226,15 +239,15 @@ def test_mqtt_uplink_requires_node_hmac_and_monotonic_sequence():
     accepted = authenticate_mqtt_uplink(manager, topic, body)
     assert accepted["accepted"] is True
     assert accepted["payload"] == payload
-    with pytest.raises(ValueError,match="replayed|out-of-order"):
-        authenticate_mqtt_uplink(manager,topic,body)
+    assert accepted["event"]["duplicate"] is False
+    duplicate = authenticate_mqtt_uplink(manager, topic, body)
+    assert duplicate["event"]["duplicate"] is True
+    assert manager.snapshot()["telemetry_total"] == 1
 
 
-def test_mqtt_uplink_respects_configured_topic_prefix():
+def test_mqtt_uplink_respects_configured_topic_prefix(tmp_path):
     from nexus_edge.transports import authenticate_mqtt_uplink
-    from nexus_edge.manager import EdgeManager, sign_message
-    from nexus_edge.replay_guard import MemoryReplayGuard
-    manager = EdgeManager(replay_guard=MemoryReplayGuard())
+    manager = _durable_manager(tmp_path)
     secret = b"c" * 32
     node_id = "esp32-node-10"
     manager.register_node(node_id, ["telemetry"], secret)
