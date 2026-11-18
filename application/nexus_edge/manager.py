@@ -401,7 +401,12 @@ class EdgeManager:
             raise EdgeError("telemetry ingestion requires a SQLite replay guard sharing the EDGE database")
 
         digest = hashlib.sha256(_canonical(payload)).hexdigest()
-        existing = self._store.get_telemetry_event(node_id, sequence)
+        try:
+            existing = self._store.get_telemetry_event(node_id, sequence)
+        except Exception as exc:
+            raise EdgePersistenceError(
+                "telemetry lookup failed; message may be retried"
+            ) from exc
         if existing is not None:
             if existing["transport"] != transport or existing["payload_sha256"] != digest:
                 raise EdgeError("protocol sequence already recorded with different telemetry")
