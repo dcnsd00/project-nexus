@@ -33,8 +33,11 @@ class DeploymentTopology:
                 raise ValueError("active-active requires shared state and distributed atomic task claims")
         if self.mode == DeploymentMode.PRIMARY_STANDBY and self.server_count != 2:
             raise ValueError("initial primary-standby topology is exactly two servers")
-        if self.mode == DeploymentMode.PRIMARY_STANDBY and self.state_backend.lower() in {"sqlite", "local_sqlite"}:
-            raise ValueError("two-server failover requires replicated/shared state; local SQLite is not sufficient")
+        if self.mode == DeploymentMode.PRIMARY_STANDBY:
+            if self.state_backend.lower() in {"sqlite", "local_sqlite"}:
+                raise ValueError("two-server failover requires replicated/shared state; local SQLite is not sufficient")
+            if not self.shared_state:
+                raise ValueError("primary-standby requires a configured shared or replicated state backend")
 
 
 def topology_from_env(env: dict[str, str]) -> DeploymentTopology:
