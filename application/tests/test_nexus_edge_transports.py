@@ -242,7 +242,32 @@ def test_mqtt_uplink_requires_node_hmac_and_monotonic_sequence(tmp_path):
     assert accepted["event"]["duplicate"] is False
     duplicate = authenticate_mqtt_uplink(manager, topic, body)
     assert duplicate["event"]["duplicate"] is True
-    assert manager.snapshot()["telemetry_total"] == 1
+
+    invalid_signature = dict(body, signature="0" * 64)
+    with pytest.raises(ValueError, match="invalid node request signature"):
+        authenticate_mqtt_uplink(manager, topic, invalid_signature)
+
+    future_payload = {"temperature_c": 24.0}
+    future_message = dict(message, sequence=3, payload=future_payload)
+    future_body = {
+        "timestamp": timestamp,
+        "sequence": 3,
+        "payload": future_payload,
+        "signature": sign_message(secret, future_message),
+    }
+    assert authenticate_mqtt_uplink(manager, topic, future_body)["event"]["sequence"] == 3
+
+    late_payload = {"temperature_c": 22.0}
+    late_message = dict(message, sequence=2, payload=late_payload)
+    late_body = {
+        "timestamp": timestamp,
+        "sequence": 2,
+        "payload": late_payload,
+        "signature": sign_message(secret, late_message),
+    }
+    with pytest.raises(ValueError, match="replayed or out-of-order"):
+        authenticate_mqtt_uplink(manager, topic, late_body)
+    assert manager.snapshot()["telemetry_total"] == 2
 
 
 def test_mqtt_uplink_respects_configured_topic_prefix(tmp_path):
