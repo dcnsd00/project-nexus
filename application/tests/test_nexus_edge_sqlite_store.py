@@ -47,7 +47,8 @@ class SQLiteEdgeStoreTests(unittest.TestCase):
         first.register_node("edge-c5-009", ["math.verify"], self.secret)
         self.heartbeat(first, 1)
         task = first.submit_task("math.verify", {"input": "abc"}, ["math.verify"])
-        first.claim_task("edge-c5-009")
+        claim = first.claim_task("edge-c5-009")
+        assignment_nonce = claim["assignment_nonce"]
         first.start_task("edge-c5-009", task["task_id"])
 
         restarted = self.manager()
@@ -57,9 +58,10 @@ class SQLiteEdgeStoreTests(unittest.TestCase):
         self.heartbeat(restarted, 2)
         result = {"verified": True}
         message = {"kind": "task_result", "node_id": "edge-c5-009",
-                   "task_id": task["task_id"], "result": result}
+                   "task_id": task["task_id"],
+                   "assignment_nonce": assignment_nonce, "result": result}
         completed = restarted.complete_task(
-            "edge-c5-009", task["task_id"], result,
+            "edge-c5-009", task["task_id"], result, assignment_nonce,
             sign_message(self.secret, message),
         )
         self.assertEqual(completed["state"], "SUCCEEDED")
