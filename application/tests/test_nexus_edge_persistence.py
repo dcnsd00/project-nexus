@@ -211,6 +211,23 @@ class EdgePersistenceInvariantTests(unittest.TestCase):
         self.assertEqual(history[0]["payload"], payload)
         self.assertEqual(restarted.snapshot()["telemetry_total"], 1)
 
+    def test_telemetry_ledger_prunes_oldest_events_at_configured_bound(self):
+        store = SQLiteEdgeStore(self.database, encryption_key=self.key)
+        store.MAX_TELEMETRY_EVENTS = 3
+        store.TELEMETRY_PRUNE_INTERVAL = 1
+        for sequence in range(1, 6):
+            store.accept_and_append_telemetry(
+                node_id=self.node_id,
+                sequence=sequence,
+                received_at=self.clock() + sequence,
+                transport="https",
+                payload={"sample": sequence},
+            )
+        history = store.list_telemetry(limit=10)
+        self.assertEqual([row["sequence"] for row in history], [5, 4, 3])
+        self.assertEqual(store.telemetry_count(), 3)
+        self.assertIsNone(store.get_telemetry_event(self.node_id, 1))
+
     def test_failed_telemetry_commit_does_not_consume_sequence_and_can_retry(self):
         manager = self.manager()
         self.register_online_node(manager)
