@@ -20,7 +20,7 @@ from cryptography.fernet import Fernet, InvalidToken
 class SQLiteEdgeStore:
     """Atomic SQLite persistence for EDGE nodes, tasks, leases and results."""
 
-    SCHEMA_VERSION = 3
+    SCHEMA_VERSION = 4
     MAX_TELEMETRY_EVENTS = 10_000
     TELEMETRY_PRUNE_INTERVAL = 100
 
@@ -75,6 +75,7 @@ class SQLiteEdgeStore:
                         state TEXT NOT NULL,
                         node_id TEXT,
                         lease_until REAL,
+                        assignment_nonce TEXT,
                         result_json TEXT,
                         result_sha256 TEXT,
                         error TEXT
@@ -100,6 +101,15 @@ class SQLiteEdgeStore:
                     CREATE INDEX IF NOT EXISTS idx_edge_telemetry_node_received
                         ON edge_telemetry(node_id, received_at DESC);
                 """)
+                task_columns = {
+                    row[1] for row in connection.execute(
+                        "PRAGMA table_info(edge_tasks)"
+                    )
+                }
+                if "assignment_nonce" not in task_columns:
+                    connection.execute(
+                        "ALTER TABLE edge_tasks ADD COLUMN assignment_nonce TEXT"
+                    )
                 telemetry_columns = {
                     row[1] for row in connection.execute(
                         "PRAGMA table_info(edge_telemetry)"
@@ -149,7 +159,8 @@ class SQLiteEdgeStore:
                 task_rows = connection.execute("""
                     SELECT task_id, task_type, payload_json,
                            required_capabilities_json, created_at, deadline, state,
-                           node_id, lease_until, result_json, result_sha256, error
+                           node_id, lease_until, assignment_nonce, result_json,
+                           result_sha256, error
                     FROM edge_tasks ORDER BY created_at, task_id
                 """).fetchall()
 
@@ -174,7 +185,7 @@ class SQLiteEdgeStore:
         for row in task_rows:
             (
                 task_id, task_type, payload, required, created, deadline, state,
-                node_id, lease_until, result, digest, error,
+                node_id, lease_until, assignment_nonce, result, digest, error,
             ) = row
             tasks.append({
                 "task_id": task_id,
@@ -186,6 +197,7 @@ class SQLiteEdgeStore:
                 "state": state,
                 "node_id": node_id,
                 "lease_until": lease_until,
+                "assignment_nonce": assignment_nonce,
                 "result": json.loads(result) if result is not None else None,
                 "result_sha256": digest,
                 "error": error,
@@ -393,8 +405,9 @@ class SQLiteEdgeStore:
                     INSERT INTO edge_tasks(
                         task_id, task_type, payload_json,
                         required_capabilities_json, created_at, deadline, state,
-                        node_id, lease_until, result_json, result_sha256, error
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        node_id, lease_until, assignment_nonce, result_json,
+                        result_sha256, error
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, [(
                     task["task_id"],
                     task["task_type"],
@@ -405,6 +418,7 @@ class SQLiteEdgeStore:
                     task["state"],
                     task["node_id"],
                     task["lease_until"],
+                    task.get("assignment_nonce"),
                     self._json(task["result"]) if task["result"] is not None else None,
                     task["result_sha256"],
                     task["error"],
