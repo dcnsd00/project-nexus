@@ -111,3 +111,28 @@ def test_critical_service_blocked_by_failed_optional_dependency_aborts_startup()
     assert states["critical_consumer"] == "blocked"
     assert states["core"] == "stopped"
     assert "core:stop" in events
+
+
+def test_lifecycle_snapshot_reports_measured_startup_and_uptime():
+    import os
+
+    events = []
+    manager = LifecycleManager()
+    manager.register(ServiceSpec("measured", lambda: Dummy(events, "measured")))
+
+    started = manager.start_all()
+    row = started["services"][0]
+    assert row["state"] == "running"
+    assert row["started_at_utc"]
+    assert row["startup_duration_seconds"] is not None
+    assert row["startup_duration_seconds"] >= 0
+    assert row["uptime_seconds"] is not None
+    assert row["uptime_seconds"] >= 0
+    assert row["shared_process_pid"] == os.getpid()
+    assert row["individual_process_pid"] is None
+
+    stopped = manager.stop_all()["services"][0]
+    assert stopped["state"] == "stopped"
+    assert stopped["stopped_at_utc"]
+    assert stopped["uptime_seconds"] is not None
+    assert stopped["uptime_seconds"] >= 0

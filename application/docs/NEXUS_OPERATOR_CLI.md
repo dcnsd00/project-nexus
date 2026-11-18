@@ -50,3 +50,12 @@ diagnosticele, readiness blockchain și EDGE. Dashboard-ul afișează raportul �
 Telemetria GPU depinde de `nvidia-smi`; datele minerului, pool-ului și ale
 blockchain-ului rămân distincte și sunt marcate indisponibile dacă nu există
 o sursă live verificată. Raportul nu pornește procese și nu modifică wallet-uri.
+
+
+## Lifecycle telemetry
+
+Fiecare serviciu din runtime raportează timpul UTC de pornire/oprire,
+durata de startup și uptime-ul măsurat cu un ceas monotonic. PID-ul raportat
+este PID-ul comun al procesului MASTER; PID separat per serviciu și CPU/RAM
+per serviciu rămân explicit neimplementate deoarece serviciile nu rulează încă
+în procese izolate.

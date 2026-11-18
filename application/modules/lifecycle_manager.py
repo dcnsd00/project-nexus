@@ -7,7 +7,10 @@ start, health_check, stop and shutdown methods. It fails closed, starts in
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from enum import Enum
+import os
+import time
 from typing import Any, Callable, Iterable
 
 
@@ -36,6 +39,11 @@ class ServiceRecord:
     state: ServiceState = ServiceState.REGISTERED
     error: str | None = None
     health: Any = None
+    started_at_utc: str | None = None
+    stopped_at_utc: str | None = None
+    started_monotonic: float | None = None
+    last_uptime_seconds: float | None = None
+    startup_duration_seconds: float | None = None
 
 
 class LifecycleError(RuntimeError):
@@ -108,6 +116,7 @@ class LifecycleManager:
                     )
                 continue
 
+            attempt_started = time.monotonic()
             try:
                 rec.instance = rec.spec.factory()
                 self._call(rec.instance, "initialize")
@@ -127,8 +136,14 @@ class LifecycleManager:
                     )
                 rec.state = ServiceState.RUNNING
                 rec.error = None
+                rec.started_at_utc = datetime.now(timezone.utc).isoformat()
+                rec.stopped_at_utc = None
+                rec.started_monotonic = time.monotonic()
+                rec.last_uptime_seconds = None
+                rec.startup_duration_seconds = round(rec.started_monotonic - attempt_started, 6)
                 started.append(name)
             except Exception as exc:
+                rec.startup_duration_seconds = round(time.monotonic() - attempt_started, 6)
                 rec.state = ServiceState.FAILED
                 rec.error = f"{type(exc).__name__}: {exc}"
                 self._cleanup_failed_record(rec)
@@ -162,6 +177,10 @@ class LifecycleManager:
             self._stop_record(self._records[started_name])
 
     def _stop_record(self, rec: ServiceRecord) -> None:
+        if rec.started_monotonic is not None:
+            rec.last_uptime_seconds = round(max(0.0, time.monotonic() - rec.started_monotonic), 6)
+            rec.stopped_at_utc = datetime.now(timezone.utc).isoformat()
+            rec.started_monotonic = None
         if rec.instance is not None:
             cleanup_errors: list[str] = []
             for method in ("stop", "shutdown"):
@@ -196,10 +215,28 @@ class LifecycleManager:
     def snapshot(self) -> dict[str, Any]:
         services = []
         for name, rec in self._records.items():
-            services.append({"name": name, "state": rec.state.value,
-                             "dependencies": list(rec.spec.dependencies),
-                             "critical": rec.spec.critical, "health": rec.health,
-                             "error": rec.error})
+            active = rec.started_monotonic is not None and rec.state in (
+                ServiceState.RUNNING, ServiceState.DEGRADED
+            )
+            uptime = (
+                round(max(0.0, time.monotonic() - rec.started_monotonic), 6)
+                if active else rec.last_uptime_seconds
+            )
+            services.append({
+                "name": name,
+                "state": rec.state.value,
+                "dependencies": list(rec.spec.dependencies),
+                "critical": rec.spec.critical,
+                "health": rec.health,
+                "error": rec.error,
+                "started_at_utc": rec.started_at_utc,
+                "stopped_at_utc": rec.stopped_at_utc,
+                "startup_duration_seconds": rec.startup_duration_seconds,
+                "uptime_seconds": uptime,
+                "execution_model": "in_process",
+                "shared_process_pid": os.getpid() if active else None,
+                "individual_process_pid": None,
+            })
         critical = [r for r in self._records.values() if r.spec.critical]
         all_critical_running = bool(critical) and all(r.state == ServiceState.RUNNING for r in critical)
         return {"services": services, "total": len(services),

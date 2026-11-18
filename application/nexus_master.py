@@ -1758,6 +1758,7 @@ def nexus_operator_snapshot():
         "shared_master_pid": shared_pid,
         "service_pid": None,
         "per_service_resource_usage": "not_instrumented",
+        "lifecycle_timing": "measured_by_lifecycle_manager",
     } for row in service_rows]
 
     sections = {
