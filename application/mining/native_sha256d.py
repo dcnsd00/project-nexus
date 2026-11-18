@@ -34,6 +34,7 @@ def _library_filename() -> str:
 
 
 def _compile_native() -> Path | None:
+    global _LOAD_ERROR
     source = Path(__file__).resolve().parent / "native" / "miner.c"
     if not source.is_file():
         return None
@@ -77,7 +78,6 @@ def _compile_native() -> Path | None:
     try:
         completed = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
     except (OSError, subprocess.TimeoutExpired) as exc:
-        global _LOAD_ERROR
         _LOAD_ERROR = f"native compile unavailable: {exc}"
         return None
     if completed.returncode != 0:
