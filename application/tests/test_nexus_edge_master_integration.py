@@ -195,6 +195,7 @@ def test_master_end_to_end_shared_manager_https_and_mqtts_telemetry(monkeypatch,
         assert https_response.status_code == 200
 
         history = manager.telemetry(limit=10)
+        assert manager.node_status(node_id)["online"] is True
         assert [event["transport"] for event in history] == ["https", "mqtts"]
         assert [event["sequence"] for event in history] == [2, 1]
         assert client.get("/api/edge/telemetry").json()["events"][0].get("payload") is None
