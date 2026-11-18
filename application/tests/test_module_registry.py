@@ -68,6 +68,7 @@ def test_edge_registry_includes_security_persistence_and_transport_sources():
         "nexus_edge/transports.py",
         "nexus_edge/topology.py",
         "nexus_edge/config.py",
+        "nexus_edge/rotate_storage_key.py",
     }
     assert required <= set(edge["paths"])
     assert edge["runtime_service"] == "edge_manager"
