@@ -12,6 +12,7 @@ import json
 import os
 from pathlib import Path
 import platform
+import statistics
 import sys
 import time
 from typing import Any
@@ -145,6 +146,9 @@ def _profile(
 
     finished = time.perf_counter()
     after = telemetry.sample()
+    if _thermal_limit_reached(after):
+        thermal_stop = True
+        result_state = "stopped_thermal_threshold"
     elapsed = max(0.000001, finished - started)
     return {
         "state": result_state,
@@ -160,7 +164,7 @@ def _profile(
         "throughput_mh_per_second": round(total_hashes / elapsed / 1_000_000, 6),
         "native_reported_rates_mh_s": native_rates,
         "native_rate_median_mh_s": (
-            sorted(native_rates)[len(native_rates) // 2] if native_rates else None
+            statistics.median(native_rates) if native_rates else None
         ),
         "thermal_stop": thermal_stop,
         "telemetry_before": {
