@@ -67,6 +67,9 @@ jobs:
             echo "::error::No requirements file found in source root: $ROOT"
             exit 1
           fi
+          if [ -f "$ROOT/requirements-edge.txt" ]; then
+            python -m pip install -r "$ROOT/requirements-edge.txt"
+          fi
       - name: Compile Python sources
         shell: bash
         run: |
