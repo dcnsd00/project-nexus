@@ -156,6 +156,26 @@ class EdgePersistenceTests(unittest.TestCase):
                 store=wrong_store,
             )
 
+    def test_manager_reconciles_memory_after_persistence_failure(self):
+        store = SQLiteEdgeStore(self.database, encryption_key=self.key)
+        manager = EdgeManager(
+            clock=self.clock,
+            replay_guard=SQLiteReplayGuard(self.database),
+            store=store,
+        )
+
+        def fail_save(**kwargs):
+            raise OSError("simulated disk write failure")
+
+        store.save_state = fail_save
+        with self.assertRaisesRegex(OSError, "simulated disk write failure"):
+            manager.register_node(
+                self.node_id, ["telemetry"], self.secret
+            )
+
+        self.assertEqual(manager.snapshot()["nodes_total"], 0)
+        self.assertEqual(store.load_state()["nodes"], [])
+
     def test_failed_snapshot_write_rolls_back_previous_state(self):
         store = SQLiteEdgeStore(self.database, encryption_key=self.key)
         original_node = {
