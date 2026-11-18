@@ -52,3 +52,26 @@ def test_master_rejects_active_active_topology_with_local_sqlite(monkeypatch, tm
     with raises(ValueError, match="active-active requires a shared transactional database"):
         with TestClient(nexus_master.app):
             pass
+
+def test_master_still_stops_core_services_when_optional_edge_shutdown_fails(monkeypatch, tmp_path):
+    from modules import data_paths
+
+    monkeypatch.setattr(data_paths, "DATA_DIR", tmp_path / "nexus-data")
+    monkeypatch.delenv("NEXUS_EDGE_DATABASE", raising=False)
+    monkeypatch.delenv("NEXUS_EDGE_STORAGE_KEY", raising=False)
+
+    def fail_gateway_stop(*args, **kwargs):
+        raise OSError("gateway shutdown failure")
+
+    def fail_mqtt_stop(*args, **kwargs):
+        raise OSError("MQTT shutdown failure")
+
+    monkeypatch.setattr(nexus_master._edge_gateway_runtime, "stop", fail_gateway_stop)
+    monkeypatch.setattr(nexus_master._edge_transport, "stop", fail_mqtt_stop)
+
+    with TestClient(nexus_master.app):
+        runtime = nexus_master.app.state.nexus_runtime
+        assert runtime.snapshot()["running"] > 0
+
+    assert runtime.snapshot()["running"] == 0
+    assert nexus_master.app.state.nexus_runtime is None
