@@ -62,10 +62,10 @@ class EdgeServiceAdapter:
 
     def initialize(self) -> None:
         module = importlib.import_module("nexus_edge.service")
-        from modules.data_paths import data_path
+        from nexus_edge.config import edge_database_path
         from nexus_edge.replay_guard import SQLiteReplayGuard
 
-        database = data_path("db", "edge_state.sqlite3", create_parent=True)
+        database = edge_database_path(os.environ)
         replay_store = SQLiteReplayGuard(database)
         storage_key = os.environ.get("NEXUS_EDGE_STORAGE_KEY")
         edge_store = None
