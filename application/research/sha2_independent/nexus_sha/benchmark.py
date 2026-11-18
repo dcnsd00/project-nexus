@@ -96,32 +96,36 @@ def run(n_nonces=20000, seed=42, out_json=None):
                           "all_variants_identical": True,
                           "verified_against": "hashlib (implementare independenta)"}
     # benchmark
+    durations = {}
     for name, fn in (("naive", bench_naive), ("midstate", bench_midstate)):
-        t0 = time.time()
+        t0 = time.perf_counter()
         fn(header, nonces)
-        dt = time.time() - t0
-        res[name] = {"time_s": round(dt, 3),
+        dt = max(time.perf_counter() - t0, 1e-9)
+        durations[name] = dt
+        # Preserve sub-millisecond measurements; three decimal places can
+        # round a valid short benchmark to zero and create division by zero.
+        res[name] = {"time_s": round(dt, 9),
                      "hashes_per_s": round(n_nonces / dt, 1)}
-    t0 = time.time()
+    t0 = time.perf_counter()
     bench_hashlib(header, nonces)
-    dt = time.time() - t0
-    res["hashlib_reference"] = {"time_s": round(dt, 3),
+    dt = max(time.perf_counter() - t0, 1e-9)
+    res["hashlib_reference"] = {"time_s": round(dt, 9),
                                 "hashes_per_s": round(n_nonces / dt, 1),
                                 "note": "C, doar pentru context"}
     res["speedup_midstate_vs_naive"] = round(
-        res["naive"]["time_s"] / res["midstate"]["time_s"], 3)
+        durations["naive"] / durations["midstate"], 3)
     # early-exit: masuram costul compararii
     m = MidstateMiner(header)
-    t0 = time.time()
+    t0 = time.perf_counter()
     full = [m.hash_header(n) for n in nonces[:2000]]
-    t_full = time.time() - t0
-    t0 = time.time()
+    t_full = max(time.perf_counter() - t0, 1e-9)
+    t0 = time.perf_counter()
     for n in nonces[:2000]:
         _ = m.first_output_word(n)
-    t_first = time.time() - t0
+    t_first = max(time.perf_counter() - t0, 1e-9)
     res["early_exit_check"] = {
-        "time_full_hash_s": round(t_full, 4),
-        "time_hash_plus_first_word_compare_s": round(t_first, 4),
+        "time_full_hash_s": round(t_full, 9),
+        "time_hash_plus_first_word_compare_s": round(t_first, 9),
         "overhead_ratio": round(t_first / t_full, 4),
         "conclusion": "hash-ul complet se calculeaza oricum; castigul "
                       "early-exit este doar compararea (neglijabil). Nu exista "
