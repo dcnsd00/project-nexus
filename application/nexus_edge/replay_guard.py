@@ -21,6 +21,9 @@ class ReplayGuard(Protocol):
     def accept(self, node_id: str, sequence: int) -> None:
         """Atomically accept a strictly increasing sequence for a node."""
 
+    def last_accepted_sequence(self, node_id: str) -> int:
+        """Return the highest accepted sequence, or zero when none exists."""
+
 
 class MemoryReplayGuard:
     """Process-local guard for tests and explicitly ephemeral deployments."""
@@ -36,6 +39,12 @@ class MemoryReplayGuard:
             if sequence <= previous:
                 raise ReplayError("replayed or out-of-order protocol sequence")
             self._last[node_id] = sequence
+
+    def last_accepted_sequence(self, node_id: str) -> int:
+        if not isinstance(node_id, str) or not node_id.strip():
+            raise ReplayError("node_id must be a non-empty string")
+        with self._lock:
+            return self._last.get(node_id, 0)
 
 
 class SQLiteReplayGuard:
@@ -97,6 +106,16 @@ class SQLiteReplayGuard:
                 if connection.in_transaction:
                     connection.execute("ROLLBACK")
                 raise
+
+    def last_accepted_sequence(self, node_id: str) -> int:
+        if not isinstance(node_id, str) or not node_id.strip():
+            raise ReplayError("node_id must be a non-empty string")
+        with closing(self._connect()) as connection:
+            row = connection.execute(
+                "SELECT last_sequence FROM edge_protocol_sequences WHERE node_id = ?",
+                (node_id,),
+            ).fetchone()
+        return int(row[0]) if row else 0
 
 
 def _validate(node_id: str, sequence: int) -> None:
