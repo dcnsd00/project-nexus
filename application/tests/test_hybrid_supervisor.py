@@ -16,7 +16,7 @@ def test_cpu_gpu_are_separate_and_independently_stoppable(tmp_path):
     while time.time() < deadline and any(x['state'] != 'running' for x in sup.status()['engines'].values()):
         time.sleep(.05)
     status = sup.status()['engines']
-    assert status['cpu']['state'] == status['gpu']['state'] == 'running'
+    assert status['cpu']['state'] == status['gpu']['state'] == 'running', status
     cpu_pid = status['cpu']['pid']
     assert cpu_pid != status['gpu']['pid']
     sup.stop('gpu')
