@@ -357,6 +357,7 @@ def coin_catalog(refresh: bool=False, q: str="", limit: int=100):
 
 # NEXUS live host telemetry: local measurements, bounded history, no synthetic values.
 from modules.runtime_telemetry import RuntimeTelemetry  # noqa: E402
+from modules.blockchain_node_telemetry import bitcoin_node_snapshot  # noqa: E402
 _runtime_telemetry = RuntimeTelemetry()
 
 @app.get("/api/nexus/telemetry")
@@ -365,6 +366,12 @@ def nexus_runtime_telemetry(history: int = 120, sample: bool = True):
         return _runtime_telemetry.snapshot_with_history(history, sample=sample)
     except Exception as exc:
         raise HTTPException(status_code=503, detail=f"Telemetry unavailable: {type(exc).__name__}")
+
+@app.get("/api/blockchain/nodes/bitcoin")
+def bitcoin_node_telemetry():
+    """Read-only, loopback-only Bitcoin Core node telemetry."""
+    return bitcoin_node_snapshot()
+
 
 @app.get("/api/nexus/dashboard", response_class=HTMLResponse)
 def nexus_dashboard():
@@ -1743,6 +1750,7 @@ def nexus_operator_snapshot():
     mining_processes_report = capture(mining_processes)
     mining_diagnostics_report = capture(mining_diagnostics)
     readiness = capture(nexus_readiness)
+    blockchain_node = capture(bitcoin_node_telemetry)
     transports = capture(edge_transport_status)
     gateway = capture(edge_gateway_status)
 
@@ -1772,6 +1780,7 @@ def nexus_operator_snapshot():
         "mining_processes": mining_processes_report,
         "mining_diagnostics": mining_diagnostics_report,
         "blockchain_readiness": readiness,
+        "blockchain_node": blockchain_node,
         "edge_transports": transports,
         "edge_gateway": gateway,
     }
@@ -1805,7 +1814,7 @@ def nexus_operator_snapshot():
         "evidence_policy": {
             "host_cpu_ram_disk_network_gpu": "measured_local_when_available",
             "mining_processes": "detected_from_local_process_table; miner_api_metrics_are_separate",
-            "blockchain": "tool_readiness_only_unless_node_connection_is_explicitly_reported",
+            "blockchain": "node_metrics_require_successful_loopback_bitcoin_core_rpc; tool_presence_is_not_connectivity",
             "provider_connectivity": "not_inferred_from_source_or_configuration",
             "external_hardware": "not_verified_without_agent_or_hardware_telemetry",
             "missing_values": "reported_as_unavailable_or_null; never estimated",
