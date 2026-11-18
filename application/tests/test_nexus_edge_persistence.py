@@ -212,7 +212,9 @@ class EdgePersistenceInvariantTests(unittest.TestCase):
         self.assertEqual(restarted.snapshot()["telemetry_total"], 1)
 
     def test_telemetry_ledger_prunes_oldest_events_at_configured_bound(self):
-        store = SQLiteEdgeStore(self.database, encryption_key=self.key)
+        manager = self.manager()
+        manager.register_node(self.node_id, ["telemetry"], self.secret)
+        store = manager._store
         store.MAX_TELEMETRY_EVENTS = 3
         store.TELEMETRY_PRUNE_INTERVAL = 1
         for sequence in range(1, 6):
