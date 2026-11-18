@@ -243,9 +243,19 @@ def authenticate_mqtt_uplink(manager: Any, topic: str, body: dict[str, Any], *,
     if set(body) != required or not isinstance(body["payload"], dict):
         raise ValueError("invalid MQTT uplink envelope")
     node_id = match.group(1)
-    manager.authenticate_request(
-        node_id, "mqtt.uplink", body["timestamp"], body["sequence"],
-        body["payload"], body["signature"],
+    event = manager.authenticate_and_record_telemetry(
+        node_id,
+        "mqtt.uplink",
+        body["timestamp"],
+        body["sequence"],
+        body["payload"],
+        body["signature"],
+        transport="mqtts",
     )
-    return {"accepted": True, "node_id": node_id, "transport": "mqtts",
-            "payload": body["payload"]}
+    return {
+        "accepted": True,
+        "node_id": node_id,
+        "transport": "mqtts",
+        "payload": body["payload"],
+        "event": event,
+    }
