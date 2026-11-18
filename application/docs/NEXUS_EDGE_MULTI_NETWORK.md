@@ -26,13 +26,15 @@ The broker connection itself must authenticate with a username/password pair
 or a client certificate/key pair. TLS certificate verification is not
 disabled. Anonymous broker sessions are rejected by configuration validation.
 
-**Current ingress boundary:** authenticated HTTPS/MQTTS uplinks are validated
-and accepted, but the MQTTS runtime currently retains accepted uplinks only in
-a bounded in-memory diagnostics queue. It is not yet a durable telemetry
-ingestion pipeline and does not automatically feed Mining, Earnings
-Intelligence, Research Hub, or device inventory. LoRaWAN Network Server
-integration, IoT vendor adapters, payload decoders, downlink device protocol,
-and physical-node validation remain separate implementation gates.
+**Current ingress boundary:** authenticated HTTPS, MQTTS, LoRaWAN-bridge,
+and IoT webhook uplinks are validated and persisted in the SQLite
+`edge_telemetry` ledger with event IDs and canonical payload digests. The
+MQTTS runtime keeps only event metadata in its bounded in-memory diagnostics
+queue. Telemetry history is available through the operator API and dashboard.
+It is not yet automatically routed into Mining, Earnings Intelligence,
+Research Hub, or device inventory. Provider-specific LoRaWAN Network Server
+integration, IoT vendor adapters, payload decoders, device-side downlink
+protocol, and physical-node validation remain separate implementation gates.
 
 ## LoRaWAN
 LoRaWAN devices do not connect directly to the HTTPS gateway. The intended
@@ -40,18 +42,20 @@ path is:
 
 `LoRaWAN sensor/node -> LoRaWAN gateway -> LoRaWAN Network Server -> authenticated HTTPS uplink adapter -> NEXUS EDGE`.
 
-A supported deployment will need a LoRaWAN radio module, regional frequency-plan
-compliance, a Network Server integration (for example a validated ChirpStack
-or The Things Stack adapter), payload decoder, device/application keys, and
-hardware-in-the-loop tests. Raw LoRa P2P is a separate radio mode and must not
-be described as LoRaWAN.
+The generic authenticated HTTPS webhook ingress exists, but a supported
+deployment still needs a LoRaWAN radio module, regional frequency-plan
+compliance, a provider-specific Network Server adapter (for example a
+validated ChirpStack or The Things Stack integration), payload decoder,
+device/application keys, and hardware-in-the-loop tests. Raw LoRa P2P is a
+separate radio mode and must not be described as LoRaWAN.
 
 ## MQTT / IoT
 The optional `MQTTBridge` uses MQTTS (TLS, certificate verification enabled),
-QoS 1, bounded JSON messages and explicit start/stop. It is not started by
-NEXUS runtime automatically. Install `paho-mqtt>=2,<3` in the gateway
-environment to enable the production client. Node messages must still be
-authenticated and anti-replay checked by EDGE before actions are accepted.
+QoS 1, bounded JSON messages, authenticated broker credentials, and explicit
+start/stop. It starts only when the operator opts in. Install
+`paho-mqtt>=2,<3` in the gateway environment to enable the production client.
+Node messages are HMAC-authenticated and anti-replay checked before telemetry
+is committed to the durable ledger.
 
 ## Multi-server target
 The first two-server target is primary/standby, not active-active:
@@ -85,6 +89,8 @@ an operational cluster.
 ## Security and rollout gates
 No WAN listener, MQTT broker, LoRaWAN Network Server or hardware is assumed
 present. Network adapters are opt-in. Before remote exposure require TLS,
-rate limits, strict firewall rules, secret rotation, audit logs, backup/restore
-tests, monitoring, and a recovery drill. Hardware node pairing and physical
-radio tests are separate validation gates.
+rate limits, strict firewall rules, protected operator/storage secrets,
+audit logs, backup/restore tests, monitoring, and a recovery drill. The code
+supports node credential rotation/revocation and offline storage-key rotation;
+the operator must still perform and verify those procedures. Hardware node
+pairing and physical radio tests are separate validation gates.
