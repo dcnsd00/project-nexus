@@ -64,25 +64,31 @@ class EdgePersistenceInvariantTests(unittest.TestCase):
         task = first.submit_task(
             "math.verify", {"input": "NEXUS"}, ["math.verify"]
         )
-        first.claim_task(self.node_id)
+        claim = first.claim_task(self.node_id)
+        assignment_nonce = claim["assignment_nonce"]
         first.start_task(self.node_id, task["task_id"])
+
+        # The worker's lease token must remain valid across a MASTER restart.
+        restarted = self.manager()
+        self.assertEqual(restarted.snapshot()["mode"], "sqlite_persistent")
+        self.assertEqual(restarted.task_status(task["task_id"])["state"], "RUNNING")
         result = {"verified": True, "digest": "abc123"}
         signed_result = {
             "kind": "task_result",
             "node_id": self.node_id,
             "task_id": task["task_id"],
+            "assignment_nonce": assignment_nonce,
             "result": result,
         }
-        completed = first.complete_task(
+        completed = restarted.complete_task(
             self.node_id,
             task["task_id"],
             result,
+            assignment_nonce,
             sign_message(self.secret, signed_result),
         )
 
-        restarted = self.manager()
-        self.assertEqual(restarted.snapshot()["mode"], "sqlite_persistent")
-        restored = restarted.task_status(task["task_id"])
+        restored = self.manager().task_status(task["task_id"])
         self.assertEqual(restored["state"], "SUCCEEDED")
         self.assertEqual(restored["result"], result)
         self.assertEqual(restored["result_sha256"], completed["result_sha256"])
@@ -122,7 +128,7 @@ class EdgePersistenceInvariantTests(unittest.TestCase):
                 sign_message(self.secret, old_message),
             )
 
-    def test_store_migrates_existing_schema_version_one_to_three(self):
+    def test_store_migrates_existing_schema_version_one_to_four(self):
         store = SQLiteEdgeStore(self.database, encryption_key=self.key)
         with sqlite3.connect(self.database) as connection:
             connection.execute(
@@ -141,10 +147,10 @@ class EdgePersistenceInvariantTests(unittest.TestCase):
                     "SELECT name FROM sqlite_master WHERE type = 'table'"
                 )
             }
-        self.assertEqual(version, 3)
+        self.assertEqual(version, 4)
         self.assertIn("edge_telemetry", tables)
 
-    def test_store_migrates_schema_version_two_telemetry_sequence_column(self):
+    def test_store_migrates_schema_version_two_to_four(self):
         SQLiteEdgeStore(self.database, encryption_key=self.key)
         with sqlite3.connect(self.database) as connection:
             connection.execute("DROP TABLE edge_telemetry")
@@ -173,8 +179,38 @@ class EdgePersistenceInvariantTests(unittest.TestCase):
                     "PRAGMA table_info(edge_telemetry)"
                 )
             }
-        self.assertEqual(version, 3)
+        self.assertEqual(version, 4)
         self.assertIn("sequence", columns)
+
+    def test_v3_running_task_without_lease_token_is_requeued_after_migration(self):
+        first = self.manager()
+        self.register_online_node(first)
+        task = first.submit_task(
+            "math.verify", {"input": "legacy-v3"}, ["math.verify"]
+        )
+        first.claim_task(self.node_id)
+        first.start_task(self.node_id, task["task_id"])
+
+        # Simulate a database created by schema v3, before lease tokens existed.
+        with sqlite3.connect(self.database) as connection:
+            connection.execute("ALTER TABLE edge_tasks DROP COLUMN assignment_nonce")
+            connection.execute(
+                "UPDATE nexus_edge_schema SET version = 3 WHERE component = 'edge_store'"
+            )
+
+        restarted = self.manager()
+        recovered = restarted.task_status(task["task_id"])
+        self.assertEqual(recovered["state"], "QUEUED")
+        self.assertIsNone(recovered["node_id"])
+        self.assertIsNone(recovered["lease_until"])
+        with sqlite3.connect(self.database) as connection:
+            version = connection.execute(
+                "SELECT version FROM nexus_edge_schema WHERE component = 'edge_store'"
+            ).fetchone()[0]
+        self.assertEqual(version, 4)
+
+        fresh_claim = restarted.claim_task(self.node_id)
+        self.assertTrue(fresh_claim["assignment_nonce"])
 
     def test_authenticated_telemetry_is_persisted_and_survives_restart(self):
         first = self.manager()
