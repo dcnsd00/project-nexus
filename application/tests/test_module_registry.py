@@ -56,6 +56,23 @@ def test_default_module_catalog_has_unique_ids_and_correct_earnings_route():
     assert earnings[0]["route_prefixes"] == ("/api/intel",)
 
 
+def test_edge_registry_includes_security_persistence_and_transport_sources():
+    edge = next(item for item in MODULES if item["id"] == "edge_manager")
+    required = {
+        "nexus_edge/manager.py",
+        "nexus_edge/replay_guard.py",
+        "nexus_edge/sqlite_store.py",
+        "nexus_edge/gateway.py",
+        "nexus_edge/gateway_runtime.py",
+        "nexus_edge/runtime.py",
+        "nexus_edge/transports.py",
+        "nexus_edge/topology.py",
+        "nexus_edge/config.py",
+    }
+    assert required <= set(edge["paths"])
+    assert edge["runtime_service"] == "edge_manager"
+
+
 def test_registry_rejects_duplicate_module_ids(tmp_path):
     (tmp_path / "one.py").write_text("# one", encoding="utf-8")
     modules = (
