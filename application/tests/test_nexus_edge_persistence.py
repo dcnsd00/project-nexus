@@ -139,8 +139,40 @@ class EdgePersistenceInvariantTests(unittest.TestCase):
                     "SELECT name FROM sqlite_master WHERE type = 'table'"
                 )
             }
-        self.assertEqual(version, 2)
+        self.assertEqual(version, 3)
         self.assertIn("edge_telemetry", tables)
+
+    def test_store_migrates_schema_version_two_telemetry_sequence_column(self):
+        SQLiteEdgeStore(self.database, encryption_key=self.key)
+        with sqlite3.connect(self.database) as connection:
+            connection.execute("DROP TABLE edge_telemetry")
+            connection.execute("""
+                CREATE TABLE edge_telemetry (
+                    event_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    node_id TEXT NOT NULL,
+                    received_at REAL NOT NULL,
+                    transport TEXT NOT NULL,
+                    payload_json TEXT NOT NULL,
+                    payload_sha256 TEXT NOT NULL
+                )
+            """)
+            connection.execute(
+                "UPDATE nexus_edge_schema SET version = 2 WHERE component = 'edge_store'"
+            )
+
+        migrated = SQLiteEdgeStore(self.database, encryption_key=self.key)
+        self.assertEqual(migrated.telemetry_count(), 0)
+        with sqlite3.connect(self.database) as connection:
+            version = connection.execute(
+                "SELECT version FROM nexus_edge_schema WHERE component = 'edge_store'"
+            ).fetchone()[0]
+            columns = {
+                row[1] for row in connection.execute(
+                    "PRAGMA table_info(edge_telemetry)"
+                )
+            }
+        self.assertEqual(version, 3)
+        self.assertIn("sequence", columns)
 
     def test_authenticated_telemetry_is_persisted_and_survives_restart(self):
         first = self.manager()
