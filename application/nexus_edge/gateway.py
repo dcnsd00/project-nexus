@@ -115,8 +115,23 @@ def create_edge_app(manager: EdgeManager | None = None, *,
             raise HTTPException(status_code=409, detail=str(exc)) from exc
         # Returned once. The operator must deliver it to the physical node over
         # a separately authenticated provisioning channel.
-        return {"node": node, "node_secret_b64url": base64.urlsafe_b64encode(secret).decode("ascii"),
-                "secret_delivery": "one_time_response_operator_must_provision_securely"}
+        return {
+            "node": node,
+            "node_secret_b64url": base64.urlsafe_b64encode(secret).decode("ascii"),
+            "minimum_next_sequence": edge.next_node_sequence(body.node_id),
+            "secret_delivery": "one_time_response_operator_must_provision_securely",
+        }
+
+    @router.post("/nodes/{node_id}/revoke")
+    def revoke_node(
+        node_id: str,
+        authorization: str | None = Header(default=None),
+    ):
+        require_operator(authorization)
+        try:
+            return edge.revoke_node(node_id)
+        except EdgeError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
 
     @router.post("/nodes/{node_id}/rotate-secret")
     def rotate_node_secret(
