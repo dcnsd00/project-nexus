@@ -89,22 +89,63 @@ class EdgeManagerTests(unittest.TestCase):
         task = self.manager.submit_task("math.verify", {"input": "abc"}, ["math.verify"])
         claimed = self.manager.claim_task("edge-c5-001")
         self.assertEqual(claimed["task_id"], task["task_id"])
+        assignment_nonce = claimed["assignment_nonce"]
+        self.assertTrue(assignment_nonce)
         self.manager.start_task("edge-c5-001", task["task_id"])
         result = {"digest": "ba7816bf"}
         msg = {"kind": "task_result", "node_id": "edge-c5-001",
-               "task_id": task["task_id"], "result": result}
+               "task_id": task["task_id"], "assignment_nonce": assignment_nonce,
+               "result": result}
         completed = self.manager.complete_task(
-            "edge-c5-001", task["task_id"], result, sign_message(self.secret, msg)
+            "edge-c5-001", task["task_id"], result, assignment_nonce,
+            sign_message(self.secret, msg)
         )
         self.assertEqual(completed["state"], "SUCCEEDED")
         self.assertEqual(len(completed["result_sha256"]), 64)
 
     def test_rejects_forged_result(self):
         task = self.manager.submit_task("math.verify", {"input": "x"}, ["math.verify"])
-        self.manager.claim_task("edge-c5-001")
+        claim = self.manager.claim_task("edge-c5-001")
         self.manager.start_task("edge-c5-001", task["task_id"])
         with self.assertRaises(EdgeError):
-            self.manager.complete_task("edge-c5-001", task["task_id"], {"ok": True}, "bad")
+            self.manager.complete_task(
+                "edge-c5-001", task["task_id"], {"ok": True},
+                claim["assignment_nonce"], "bad",
+            )
+
+    def test_stale_result_is_rejected_after_lease_reassignment(self):
+        task = self.manager.submit_task(
+            "math.verify", {"input": "stale-result"}, ["math.verify"]
+        )
+        first_claim = self.manager.claim_task("edge-c5-001")
+        first_nonce = first_claim["assignment_nonce"]
+        self.manager.start_task("edge-c5-001", task["task_id"])
+
+        self.clock.advance(11)
+        self.assertEqual(self.manager.reap_expired(), {"expired": 0, "requeued": 1})
+        second_claim = self.manager.claim_task("edge-c5-001")
+        second_nonce = second_claim["assignment_nonce"]
+        self.assertNotEqual(first_nonce, second_nonce)
+        self.manager.start_task("edge-c5-001", task["task_id"])
+
+        result = {"verified": True}
+        stale_message = {
+            "kind": "task_result", "node_id": "edge-c5-001",
+            "task_id": task["task_id"], "assignment_nonce": first_nonce,
+            "result": result,
+        }
+        with self.assertRaisesRegex(EdgeError, "assignment nonce mismatch"):
+            self.manager.complete_task(
+                "edge-c5-001", task["task_id"], result, first_nonce,
+                sign_message(self.secret, stale_message),
+            )
+
+        current_message = dict(stale_message, assignment_nonce=second_nonce)
+        completed = self.manager.complete_task(
+            "edge-c5-001", task["task_id"], result, second_nonce,
+            sign_message(self.secret, current_message),
+        )
+        self.assertEqual(completed["state"], "SUCCEEDED")
 
     def test_task_is_not_assigned_without_capability(self):
         self.manager.register_node("edge-data-002", ["telemetry"], b"x" * 32)
