@@ -294,6 +294,8 @@ def authenticate_mqtt_uplink(manager: Any, topic: str, body: dict[str, Any], *,
     """Validate a configured MQTTS topic/envelope and consume its node sequence exactly once."""
     if not isinstance(topic_prefix, str) or not re.fullmatch(r"[A-Za-z0-9/_-]{1,96}", topic_prefix):
         raise ValueError("invalid NEXUS MQTT topic prefix")
+    if not isinstance(topic, str) or not isinstance(body, dict):
+        raise ValueError("invalid MQTT topic or envelope")
     pattern = re.escape(topic_prefix) + r"/nodes/([A-Za-z0-9][A-Za-z0-9._:-]{2,63})/up"
     match = re.fullmatch(pattern, topic)
     if not match:
