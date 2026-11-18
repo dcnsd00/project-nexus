@@ -41,6 +41,8 @@ MQTTS runtime keeps only event metadata in its bounded in-memory diagnostics
 queue. Telemetry history is available through the operator API and dashboard.
 The SQLite ledger retains the newest 10,000 events by default and prunes
 older rows in bounded batches; anti-replay sequence state is retained separately.
+An authenticated uplink also refreshes the node's durable `last_seen` value,
+so the shared task scheduler can recognize active telemetry-producing nodes.
 It is not yet automatically routed into Mining, Earnings Intelligence,
 Research Hub, or device inventory. Provider-specific LoRaWAN Network Server
 integration, IoT vendor adapters, payload decoders, device-side downlink
