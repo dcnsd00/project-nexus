@@ -21,6 +21,11 @@ for remote access; do not bind directly to a public interface during this pilot.
 ## Required environment
 - `NEXUS_EDGE_STORAGE_KEY`: stable Fernet URL-safe base64 key; provision via
   an OS secret store, never commit it or store it in the SQLite database.
+
+Generate a key once with
+`python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"`.
+Store the result in the protected service environment and reuse it across
+restarts; do not generate a new key on each launch.
 - `NEXUS_EDGE_PROVISIONING_TOKEN`: operator bearer token, minimum 32 characters.
 - `NEXUS_EDGE_DATABASE`: optional SQLite path; defaults to the canonical
   NEXUS data-path service location shared by MASTER and standalone adapters.
@@ -58,9 +63,14 @@ create independent in-memory schedulers pointed at the same database.
 - The gateway never executes arbitrary shell commands or Python supplied in a task.
 - Wallet access, private-key export, miner start/stop, and public-chain writes are
   not exposed by this gateway.
-- Node credentials can be rotated through the operator-authenticated endpoint.
-  Rotation of the database encryption key `NEXUS_EDGE_STORAGE_KEY` is not yet
-  implemented and requires a separately audited offline re-encryption migration.
+- Node credentials can be rotated through the operator-authenticated
+  `/nodes/{node_id}/rotate-secret` endpoint. The sequence counter is preserved.
+- Rotate the at-rest encryption key only while all EDGE processes are stopped:
+  back up the SQLite database, run
+  `python -m nexus_edge.rotate_storage_key`, enter the current and new keys at
+  the hidden prompts, then update `NEXUS_EDGE_STORAGE_KEY` before restarting.
+  The utility re-encrypts all stored node secrets in one SQLite transaction;
+  it never writes either key into the database.
 - SQLite is a single-host durable store, not a distributed multi-writer database.
 - Before public deployment add rate limiting, request-size limits at the proxy,
   TLS certificate automation, backup/restore drills, audit-log retention,
