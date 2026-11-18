@@ -162,6 +162,31 @@ class EdgeManager:
         return self._replay_guard.last_accepted_sequence(node_id) + 1
 
     @_synchronized
+    def revoke_node(self, node_id: str) -> dict[str, Any]:
+        """Revoke a node and safely requeue its unfinished work.
+
+        The replay-guard sequence is deliberately retained so re-provisioning
+        the same node ID cannot reset its anti-replay counter.
+        """
+        self._get_node(node_id)
+        now = self._clock()
+        counts = {"requeued_tasks": 0, "expired_tasks": 0}
+        for task in self._tasks.values():
+            if task.node_id != node_id or task.state not in {"ASSIGNED", "RUNNING"}:
+                continue
+            if task.deadline <= now:
+                task.state = "EXPIRED"
+                counts["expired_tasks"] += 1
+            else:
+                task.state = "QUEUED"
+                counts["requeued_tasks"] += 1
+            task.node_id = None
+            task.lease_until = None
+        del self._nodes[node_id]
+        self._persist()
+        return {"node_id": node_id, "revoked": True, **counts}
+
+    @_synchronized
     def heartbeat(self, node_id: str, timestamp: float, sequence: int, signature: str) -> dict[str, Any]:
         node = self._get_node(node_id)
         now = self._clock()
