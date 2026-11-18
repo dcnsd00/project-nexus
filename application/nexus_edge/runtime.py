@@ -1,7 +1,8 @@
 """Opt-in EDGE transport lifecycle for the NEXUS MASTER process.
 
 MQTTS is never started unless NEXUS_EDGE_MQTT_ENABLED=true. Uplinks are
-HMAC/replay validated and retained only in a bounded in-memory diagnostics queue.
+HMAC/replay validated and persisted to the EDGE telemetry ledger; a bounded
+in-memory queue retains only event metadata for diagnostics.
 """
 from __future__ import annotations
 
