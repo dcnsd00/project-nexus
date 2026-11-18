@@ -67,6 +67,24 @@ def test_gateway_provisions_node_and_requires_operator_token(tmp_path):
     assert ok.json()["minimum_next_sequence"] == 1
     assert ok.json()["secret_delivery"].startswith("one_time_response")
 
+    assert client.get("/v1/edge/nodes").status_code == 401
+    inventory = client.get(
+        "/v1/edge/nodes",
+        headers={"Authorization": "Bearer " + "p" * 40},
+    )
+    assert inventory.status_code == 200
+    assert inventory.json()["nodes"][0]["node_id"] == "esp32-node-01"
+    assert "secret" not in inventory.json()["nodes"][0]
+
+    manager.submit_task("math.verify", {"private_input": "not-returned"}, ["telemetry"])
+    tasks = client.get(
+        "/v1/edge/tasks",
+        headers={"Authorization": "Bearer " + "p" * 40},
+    )
+    assert tasks.status_code == 200
+    assert "payload" not in tasks.json()["tasks"][0]
+    assert "result" not in tasks.json()["tasks"][0]
+
 
 def test_gateway_rejects_replayed_or_invalid_node_requests(tmp_path):
     manager = _manager(tmp_path)
