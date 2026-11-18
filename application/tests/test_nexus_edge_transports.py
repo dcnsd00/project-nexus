@@ -108,6 +108,12 @@ def test_mqtt_bridge_rejects_invalid_tls_client_cert_pair():
         MQTTConfig(host="broker.example",client_id="nexus-test",
                    client_cert="client.crt").validate()
 
+def test_single_server_rejects_unimplemented_database_backends():
+    unsupported = DeploymentTopology(DeploymentMode.SINGLE, 1, "postgresql")
+    with pytest.raises(ValueError, match="only the local SQLite"):
+        unsupported.validate()
+
+
 def test_active_active_rejects_local_sqlite_and_unimplemented_distributed_mode():
     local=DeploymentTopology(DeploymentMode.ACTIVE_ACTIVE,2,"sqlite",True,True)
     with pytest.raises(ValueError,match="not local SQLite"):
