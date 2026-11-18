@@ -97,7 +97,8 @@ class EdgePersistenceInvariantTests(unittest.TestCase):
         first = self.manager()
         self.register_online_node(first)
         new_secret = b"nexus-edge-rotated-node-secret-32-bytes"
-        first.rotate_node_secret(self.node_id, new_secret)
+        rotated = first.rotate_node_secret(self.node_id, new_secret)
+        self.assertFalse(rotated["online"])
         self.assertEqual(first.next_node_sequence(self.node_id), 2)
 
         restarted = self.manager()
