@@ -30,7 +30,7 @@ class EdgeGatewayRuntime:
     def enabled(self) -> bool:
         return self._env.get("NEXUS_EDGE_GATEWAY_ENABLED", "false").strip().lower() == "true"
 
-    def start(self, host_app: Any) -> None:
+    def start(self, host_app: Any, manager: Any | None = None) -> None:
         if not self.enabled():
             return
         if self._mounted_app is not None:
@@ -38,17 +38,25 @@ class EdgeGatewayRuntime:
         token = self._env.get("NEXUS_EDGE_PROVISIONING_TOKEN")
         if not token or len(token) < 32:
             raise RuntimeError("NEXUS_EDGE_PROVISIONING_TOKEN is missing or too short")
-        if self._manager_factory is not None:
-            manager = self._manager_factory()
-        else:
-            from .gateway import create_edge_manager_from_env
-            manager = create_edge_manager_from_env(dict(self._env))
+        edge_manager = manager
+        if edge_manager is None:
+            if self._manager_factory is not None:
+                edge_manager = self._manager_factory()
+            else:
+                from .gateway import create_edge_manager_from_env
+                edge_manager = create_edge_manager_from_env(dict(self._env))
+        snapshot = edge_manager.snapshot()
+        if snapshot.get("mode") != "sqlite_persistent":
+            raise RuntimeError(
+                "online EDGE gateway requires the shared sqlite_persistent manager; "
+                "configure NEXUS_EDGE_STORAGE_KEY"
+            )
         if self._app_factory is None:
             from .gateway import create_edge_app
             app_factory = create_edge_app
         else:
             app_factory = self._app_factory
-        gateway_app = app_factory(manager=manager, provisioning_token=token,
+        gateway_app = app_factory(manager=edge_manager, provisioning_token=token,
                                   env=dict(self._env))
         host_app.mount(self._mount_path, gateway_app, name="nexus-edge-gateway")
         self._host_app = host_app
