@@ -108,20 +108,24 @@ def test_mqtt_bridge_rejects_invalid_tls_client_cert_pair():
         MQTTConfig(host="broker.example",client_id="nexus-test",
                    client_cert="client.crt").validate()
 
-def test_active_active_rejects_local_sqlite():
-    topology=DeploymentTopology(DeploymentMode.ACTIVE_ACTIVE,2,"sqlite",True,True)
+def test_active_active_rejects_local_sqlite_and_unimplemented_distributed_mode():
+    local=DeploymentTopology(DeploymentMode.ACTIVE_ACTIVE,2,"sqlite",True,True)
     with pytest.raises(ValueError,match="not local SQLite"):
-        topology.validate()
+        local.validate()
+    declared=DeploymentTopology(DeploymentMode.ACTIVE_ACTIVE,2,"postgresql",True,True)
+    with pytest.raises(ValueError,match="active-active deployment is not implemented"):
+        declared.validate()
 
-def test_two_server_primary_standby_requires_shared_or_replicated_backend():
-    topology=DeploymentTopology(DeploymentMode.PRIMARY_STANDBY,2,"postgresql",True,False)
-    topology.validate()
-    bad=DeploymentTopology(DeploymentMode.PRIMARY_STANDBY,2,"sqlite")
+def test_primary_standby_requires_shared_backend_and_fails_closed_until_implemented():
+    local=DeploymentTopology(DeploymentMode.PRIMARY_STANDBY,2,"sqlite",True,False)
     with pytest.raises(ValueError,match="replicated/shared"):
-        bad.validate()
+        local.validate()
     unshared=DeploymentTopology(DeploymentMode.PRIMARY_STANDBY,2,"postgresql",False,False)
     with pytest.raises(ValueError,match="shared or replicated state"):
         unshared.validate()
+    declared=DeploymentTopology(DeploymentMode.PRIMARY_STANDBY,2,"postgresql",True,False)
+    with pytest.raises(ValueError,match="primary-standby deployment is not implemented"):
+        declared.validate()
 
 def test_mqtt_uplink_requires_node_hmac_and_monotonic_sequence():
     from nexus_edge.transports import authenticate_mqtt_uplink
