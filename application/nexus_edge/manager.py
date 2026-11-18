@@ -421,17 +421,26 @@ class EdgeManager:
         if existing is not None:
             if existing["transport"] != transport or existing["payload_sha256"] != digest:
                 raise EdgeError("protocol sequence already recorded with different telemetry")
+            try:
+                self._store.touch_node(node_id, now)
+            except Exception as exc:
+                raise EdgePersistenceError(
+                    "node liveness update failed; message may be retried"
+                ) from exc
+            node.last_seen = now
             existing.pop("payload", None)
             return {**existing, "duplicate": True}
 
         try:
-            return self._store.accept_and_append_telemetry(
+            event = self._store.accept_and_append_telemetry(
                 node_id=node_id,
                 sequence=sequence,
                 received_at=now,
                 transport=transport,
                 payload=payload,
             )
+            node.last_seen = now
+            return event
         except ValueError as exc:
             raise EdgeError(str(exc)) from exc
         except Exception as exc:
