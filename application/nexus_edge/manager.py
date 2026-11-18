@@ -11,6 +11,7 @@ import hmac
 import json
 import math
 import re
+import secrets
 import threading
 import time
 from functools import wraps
@@ -85,6 +86,7 @@ class _Task:
     state: str = "QUEUED"
     node_id: str | None = None
     lease_until: float | None = None
+    assignment_nonce: str | None = None
     result: Any = None
     result_sha256: str | None = None
     error: str | None = None
@@ -189,6 +191,7 @@ class EdgeManager:
                 counts["requeued_tasks"] += 1
             task.node_id = None
             task.lease_until = None
+            task.assignment_nonce = None
         del self._nodes[node_id]
         self._persist()
         return {"node_id": node_id, "revoked": True, **counts}
@@ -293,9 +296,14 @@ class EdgeManager:
             task.state = "ASSIGNED"
             task.node_id = node_id
             task.lease_until = min(task.deadline, now + self.lease_s)
+            task.assignment_nonce = secrets.token_urlsafe(32)
             node.active_tasks.add(task.task_id)
             self._persist()
-            return self.task_status(task.task_id)
+            claim = self.task_status(task.task_id)
+            # This lease-scoped capability is returned only to the claiming node;
+            # operator task listings and general status responses never expose it.
+            claim["assignment_nonce"] = task.assignment_nonce
+            return claim
         if expired_changed:
             self._persist()
         return None
@@ -313,7 +321,8 @@ class EdgeManager:
 
     @_synchronized
     def complete_task(
-        self, node_id: str, task_id: str, result: Any, signature: str,
+        self, node_id: str, task_id: str, result: Any,
+        assignment_nonce: str, signature: str,
     ) -> dict[str, Any]:
         node = self._get_node(node_id)
         task = self._get_task(task_id)
@@ -322,16 +331,22 @@ class EdgeManager:
         now = self._clock()
         if task.lease_until is None or task.lease_until <= now or task.deadline <= now:
             raise EdgeError("task lease or deadline expired")
+        if not isinstance(assignment_nonce, str) or not hmac.compare_digest(
+            task.assignment_nonce or "", assignment_nonce
+        ):
+            raise EdgeError("assignment nonce mismatch; stale worker result rejected")
         if len(_canonical(result)) > self.max_payload_bytes:
             raise EdgeError("task result exceeds configured size limit")
         message = {"kind": "task_result", "node_id": node_id,
-                   "task_id": task_id, "result": result}
+                   "task_id": task_id, "assignment_nonce": assignment_nonce,
+                   "result": result}
         if not _verify(node.secret, message, signature):
             raise EdgeError("invalid task result signature")
         task.result = result
         task.result_sha256 = hashlib.sha256(_canonical(result)).hexdigest()
         task.state = "SUCCEEDED"
         task.lease_until = None
+        task.assignment_nonce = None
         node.active_tasks.discard(task_id)
         self._persist()
         return self.task_status(task_id)
@@ -348,6 +363,7 @@ class EdgeManager:
                 task.state = "EXPIRED"
                 task.node_id = None
                 task.lease_until = None
+                task.assignment_nonce = None
                 counts["expired"] += 1
             elif task.state in {"ASSIGNED", "RUNNING"} and task.lease_until is not None and task.lease_until <= now:
                 if task.node_id in self._nodes:
@@ -355,6 +371,7 @@ class EdgeManager:
                 task.state = "QUEUED"
                 task.node_id = None
                 task.lease_until = None
+                task.assignment_nonce = None
                 counts["requeued"] += 1
         if counts["expired"] or counts["requeued"]:
             self._persist()
@@ -547,6 +564,7 @@ class EdgeManager:
                     "state": task.state,
                     "node_id": task.node_id,
                     "lease_until": task.lease_until,
+                    "assignment_nonce": task.assignment_nonce,
                     "result": task.result,
                     "result_sha256": task.result_sha256,
                     "error": task.error,
@@ -581,7 +599,9 @@ class EdgeManager:
                 required_capabilities=frozenset(item["required_capabilities"]),
                 created_at=float(item["created_at"]), deadline=float(item["deadline"]),
                 state=item["state"], node_id=item.get("node_id"),
-                lease_until=item.get("lease_until"), result=item.get("result"),
+                lease_until=item.get("lease_until"),
+                assignment_nonce=item.get("assignment_nonce"),
+                result=item.get("result"),
                 result_sha256=item.get("result_sha256"), error=item.get("error"),
             )
             self._tasks[task.task_id] = task
