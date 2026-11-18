@@ -156,6 +156,9 @@ class EdgeManager:
         if hmac.compare_digest(node.secret, new_secret):
             raise EdgeError("new node secret must differ from the current secret")
         node.secret = new_secret
+        # Require a fresh heartbeat authenticated with the replacement key
+        # before this node can receive additional work.
+        node.last_seen = None
         self._persist()
         return self.node_status(node_id)
 
