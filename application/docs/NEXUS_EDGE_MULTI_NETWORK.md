@@ -6,6 +6,30 @@ The network path changes; the application protocol and node identity do not.
 Remote access must terminate TLS with valid certificate verification. Do not
 expose the development Uvicorn listener directly to the public internet.
 
+## Host integration and evidence boundary
+
+The NEXUS MASTER lifespan injects one LifecycleManager-owned EDGE manager
+instance into both the HTTPS gateway and the optional MQTTS runtime. The
+network adapters must not create separate managers against the same SQLite
+file: their independent in-memory snapshots could overwrite one another.
+Online gateway/MQTTS startup therefore requires the shared manager to report
+`sqlite_persistent`, which in turn requires a stable
+`NEXUS_EDGE_STORAGE_KEY`.
+
+MQTTS startup state and broker connectivity are reported separately. An
+initialized client is not reported as connected until the broker accepts the
+connection and the uplink subscription succeeds. Malformed or unauthenticated
+uplinks are rejected in the network callback and counted without logging their
+payloads.
+
+**Current ingress boundary:** authenticated HTTPS/MQTTS uplinks are validated
+and accepted, but the MQTTS runtime currently retains accepted uplinks only in
+a bounded in-memory diagnostics queue. It is not yet a durable telemetry
+ingestion pipeline and does not automatically feed Mining, Earnings
+Intelligence, Research Hub, or device inventory. LoRaWAN Network Server
+integration, IoT vendor adapters, payload decoders, downlink device protocol,
+and physical-node validation remain separate implementation gates.
+
 ## LoRaWAN
 LoRaWAN devices do not connect directly to the HTTPS gateway. The intended
 path is:
