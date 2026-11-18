@@ -3,7 +3,10 @@ from fastapi.testclient import TestClient
 import nexus_master
 
 
-def test_master_injects_one_lifecycle_owned_manager_into_both_network_adapters(monkeypatch):
+def test_master_injects_one_lifecycle_owned_manager_into_both_network_adapters(monkeypatch, tmp_path):
+    from modules import data_paths
+
+    monkeypatch.setattr(data_paths, "DATA_DIR", tmp_path / "nexus-data")
     observed = {}
 
     monkeypatch.setattr(nexus_master._edge_transport, "enabled", lambda: True)
