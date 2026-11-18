@@ -244,6 +244,7 @@ def test_edge_runtime_adapter_uses_encrypted_sqlite_store_when_key_is_configured
     from modules.nexus_runtime import EdgeServiceAdapter
 
     monkeypatch.setattr(data_paths, "DATA_DIR", tmp_path / "nexus-data")
+    monkeypatch.delenv("NEXUS_EDGE_DATABASE", raising=False)
     monkeypatch.setenv("NEXUS_EDGE_STORAGE_KEY", Fernet.generate_key().decode("ascii"))
 
     adapter = EdgeServiceAdapter()
@@ -265,6 +266,7 @@ def test_edge_runtime_adapter_keeps_manager_in_memory_without_storage_key(tmp_pa
     from modules.nexus_runtime import EdgeServiceAdapter
 
     monkeypatch.setattr(data_paths, "DATA_DIR", tmp_path / "nexus-data")
+    monkeypatch.delenv("NEXUS_EDGE_DATABASE", raising=False)
     monkeypatch.delenv("NEXUS_EDGE_STORAGE_KEY", raising=False)
 
     adapter = EdgeServiceAdapter()
