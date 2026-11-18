@@ -38,6 +38,11 @@ number, and payload. A durable replay guard rejects repeated or out-of-order
 sequences. The provisioning response returns a node secret once; operators
 must transfer it to the device through a separate authenticated channel.
 
+The HTTPS gateway and optional MQTTS runtime are mounted from NEXUS
+MASTER using the same LifecycleManager-owned `EdgeManager` instance. Both
+require that manager to report `sqlite_persistent`; the online adapters do not
+create independent in-memory schedulers pointed at the same database.
+
 ## Security boundaries
 - The gateway never executes arbitrary shell commands or Python supplied in a task.
 - Wallet access, private-key export, miner start/stop, and public-chain writes are
