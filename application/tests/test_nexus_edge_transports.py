@@ -47,6 +47,7 @@ def test_mqtt_bridge_uses_tls_and_subscribes_to_node_uplink():
     assert any(call[0]=="subscribe" for call in client.calls)
     bridge._handle_message(client,None,FakeMessage())
     assert received[0][1] == {"sequence":1}
+    assert ("ack", 1, 1) in client.calls
     bridge.publish_downlink("esp32-node-01",{"task":"telemetry"})
     assert any(call[0]=="publish" for call in client.calls)
     bridge.stop()
