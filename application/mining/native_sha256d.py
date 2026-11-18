@@ -37,13 +37,23 @@ def _compile_native() -> Path | None:
     source = Path(__file__).resolve().parent / "native" / "miner.c"
     if not source.is_file():
         return None
-    compiler = shutil.which("gcc") or shutil.which("clang")
-    msvc = None
-    if not compiler and platform.system().lower() == "windows":
-        # Visual Studio's cl.exe is supported for the scalar/midstate native
-        # backend. AVX2/AVX-512 remain disabled in this translation unit until
-        # dedicated ISA-specific MSVC objects are independently validated.
-        msvc = shutil.which("cl.exe") or shutil.which("cl")
+    system = platform.system().lower()
+    requested_compiler = os.environ.get("NEXUS_NATIVE_COMPILER", "auto").strip().lower()
+    msvc = shutil.which("cl.exe") or shutil.which("cl") if system == "windows" else None
+    if requested_compiler == "msvc":
+        if not msvc:
+            _LOAD_ERROR = "NEXUS_NATIVE_COMPILER=msvc requested, but cl.exe is not available."
+            return None
+        compiler = None
+    elif requested_compiler in {"gcc", "clang"}:
+        compiler = shutil.which(requested_compiler)
+        if not compiler:
+            _LOAD_ERROR = f"NEXUS_NATIVE_COMPILER={requested_compiler} requested, but compiler is unavailable."
+            return None
+    else:
+        compiler = shutil.which("gcc") or shutil.which("clang")
+        if not compiler:
+            compiler = None
     if not compiler and not msvc:
         return None
     build_dir = Path(os.environ.get("NEXUS_NATIVE_BUILD_DIR", str(Path(__file__).resolve().parent / "native" / "build")))
