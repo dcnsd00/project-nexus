@@ -11,7 +11,7 @@ import os
 import secrets
 from typing import Any
 
-from fastapi import APIRouter, FastAPI, Header, HTTPException
+from fastapi import APIRouter, FastAPI, Header, HTTPException, Query
 from pydantic import BaseModel, Field
 
 from .manager import EdgeError, EdgeManager, sign_message
@@ -113,6 +113,17 @@ def create_edge_app(manager: EdgeManager | None = None, *,
     def list_tasks(authorization: str | None = Header(default=None)):
         require_operator(authorization)
         return {"tasks": edge.list_tasks()}
+
+    @router.get("/telemetry")
+    def list_telemetry(
+        limit: int = Query(default=100, ge=1, le=1000, strict=True),
+        authorization: str | None = Header(default=None),
+    ):
+        require_operator(authorization)
+        try:
+            return {"events": edge.telemetry(limit=limit)}
+        except EdgeError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     @router.post("/nodes/provision")
     def provision(body: ProvisionRequest, authorization: str | None = Header(default=None)):
