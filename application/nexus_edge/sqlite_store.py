@@ -229,6 +229,12 @@ class SQLiteEdgeStore:
                         last_sequence = excluded.last_sequence,
                         updated_at = CURRENT_TIMESTAMP
                 """, (node_id, sequence))
+                node_update = connection.execute(
+                    "UPDATE edge_nodes SET last_seen = ? WHERE node_id = ?",
+                    (float(received_at), node_id),
+                )
+                if node_update.rowcount != 1:
+                    raise ValueError("unknown node in EDGE state store")
                 cursor = connection.execute("""
                     INSERT INTO edge_telemetry(
                         node_id, sequence, received_at, transport,
@@ -280,6 +286,20 @@ class SQLiteEdgeStore:
             "payload": json.loads(row[5]),
             "payload_sha256": row[6],
         }
+
+    def touch_node(self, node_id: str, received_at: float) -> None:
+        if not isinstance(node_id, str) or not node_id.strip():
+            raise ValueError("node_id must be a non-empty string")
+        if isinstance(received_at, bool) or not isinstance(received_at, (int, float)) or not math.isfinite(float(received_at)):
+            raise ValueError("received_at must be a finite number")
+        with closing(self._connect()) as connection:
+            cursor = connection.execute(
+                "UPDATE edge_nodes SET last_seen = ? WHERE node_id = ?",
+                (float(received_at), node_id),
+            )
+            if cursor.rowcount != 1:
+                raise ValueError("unknown node in EDGE state store")
+            connection.commit()
 
     def list_telemetry(self, *, limit: int = 100) -> list[dict[str, Any]]:
         if not isinstance(limit, int) or isinstance(limit, bool) or not 1 <= limit <= 1000:
