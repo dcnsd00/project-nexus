@@ -183,29 +183,33 @@ class RuntimeTelemetry:
             except Exception as exc:
                 errors.append(f"LibreHardwareMonitor WMI: {type(exc).__name__}")
 
-        try:
-            raw = psutil.sensors_temperatures()
-            sensors = []
-            for group, readings in (raw or {}).items():
-                for reading in readings:
-                    current = _rounded(getattr(reading, "current", None), 1)
-                    high = _rounded(getattr(reading, "high", None), 1)
-                    critical = _rounded(getattr(reading, "critical", None), 1)
-                    if current is None:
-                        continue
-                    sensors.append({
-                        "name": str(getattr(reading, "label", "") or group),
-                        "sensor_group": str(group),
-                        "temperature_c": current,
-                        "high_c": high,
-                        "critical_c": critical,
-                        "thermal_state": self._thermal_state(current, high, critical),
-                    })
-            if sensors:
-                return {"available": True, "source": "psutil", "sensors": sensors,
-                        "reason": None}
-        except Exception as exc:
-            errors.append(f"psutil: {type(exc).__name__}")
+        sensor_reader = getattr(psutil, "sensors_temperatures", None)
+        if sensor_reader is None:
+            errors.append("psutil: sensors_temperatures API unavailable on this platform")
+        else:
+            try:
+                raw = sensor_reader()
+                sensors = []
+                for group, readings in (raw or {}).items():
+                    for reading in readings:
+                        current = _rounded(getattr(reading, "current", None), 1)
+                        high = _rounded(getattr(reading, "high", None), 1)
+                        critical = _rounded(getattr(reading, "critical", None), 1)
+                        if current is None:
+                            continue
+                        sensors.append({
+                            "name": str(getattr(reading, "label", "") or group),
+                            "sensor_group": str(group),
+                            "temperature_c": current,
+                            "high_c": high,
+                            "critical_c": critical,
+                            "thermal_state": self._thermal_state(current, high, critical),
+                        })
+                if sensors:
+                    return {"available": True, "source": "psutil", "sensors": sensors,
+                            "reason": None}
+            except Exception as exc:
+                errors.append(f"psutil: {type(exc).__name__}")
 
         reason = (
             "No temperature provider available; on Windows run LibreHardwareMonitor "
