@@ -36,6 +36,9 @@ def test_master_injects_one_lifecycle_owned_manager_into_both_network_adapters(m
         assert topology["mode"] == "single"
         assert topology["configuration_validated"] is True
         assert topology["operational_failover_verified"] is False
+        assert client.get("/api/edge/nodes").json()["state"] == "available"
+        assert client.get("/api/edge/tasks").json()["tasks"] == []
+        assert client.get("/api/edge/telemetry").json()["events"] == []
 
 
 def test_master_rejects_active_active_topology_with_local_sqlite(monkeypatch, tmp_path):
