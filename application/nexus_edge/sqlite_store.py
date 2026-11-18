@@ -81,6 +81,11 @@ class SQLiteEdgeStore:
                         ON edge_tasks(state, deadline);
                     CREATE INDEX IF NOT EXISTS idx_edge_tasks_node_lease
                         ON edge_tasks(node_id, lease_until);
+                    CREATE TABLE IF NOT EXISTS edge_protocol_sequences (
+                        node_id TEXT PRIMARY KEY,
+                        last_sequence INTEGER NOT NULL CHECK(last_sequence >= 0),
+                        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+                    );
                     CREATE TABLE IF NOT EXISTS edge_telemetry (
                         event_id INTEGER PRIMARY KEY AUTOINCREMENT,
                         node_id TEXT NOT NULL,
@@ -185,16 +190,16 @@ class SQLiteEdgeStore:
             })
         return {"nodes": nodes, "tasks": tasks}
 
-    def append_telemetry(
+    def accept_and_append_telemetry(
         self,
         *,
         node_id: str,
+        sequence: int,
         received_at: float,
         transport: str,
-        sequence: int,
         payload: dict[str, Any],
     ) -> dict[str, Any]:
-        """Persist one authenticated telemetry event and its canonical digest."""
+        """Atomically advance anti-replay state and persist one telemetry event."""
         if not isinstance(node_id, str) or not node_id.strip():
             raise ValueError("node_id must be a non-empty string")
         if not isinstance(transport, str) or not transport.strip():
@@ -208,6 +213,20 @@ class SQLiteEdgeStore:
         with closing(self._connect()) as connection:
             connection.execute("BEGIN IMMEDIATE")
             try:
+                row = connection.execute(
+                    "SELECT last_sequence FROM edge_protocol_sequences WHERE node_id = ?",
+                    (node_id,),
+                ).fetchone()
+                previous = int(row[0]) if row else 0
+                if sequence <= previous:
+                    raise ValueError("replayed or out-of-order protocol sequence")
+                connection.execute("""
+                    INSERT INTO edge_protocol_sequences(node_id, last_sequence)
+                    VALUES (?, ?)
+                    ON CONFLICT(node_id) DO UPDATE SET
+                        last_sequence = excluded.last_sequence,
+                        updated_at = CURRENT_TIMESTAMP
+                """, (node_id, sequence))
                 cursor = connection.execute("""
                     INSERT INTO edge_telemetry(
                         node_id, sequence, received_at, transport,
@@ -229,6 +248,7 @@ class SQLiteEdgeStore:
             "received_at": float(received_at),
             "transport": transport,
             "payload_sha256": digest,
+            "duplicate": False,
         }
 
     def get_telemetry_event(self, node_id: str, sequence: int) -> dict[str, Any] | None:
