@@ -1,9 +1,11 @@
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
+from cryptography.fernet import Fernet
 
 from nexus_edge.gateway_runtime import EdgeGatewayRuntime
 from nexus_edge.manager import EdgeManager
-from nexus_edge.replay_guard import MemoryReplayGuard
+from nexus_edge.replay_guard import MemoryReplayGuard, SQLiteReplayGuard
+from nexus_edge.sqlite_store import SQLiteEdgeStore
 
 
 def _gateway_factory(**kwargs):
@@ -20,26 +22,54 @@ def test_gateway_runtime_is_disabled_by_default():
                    for route in host.router.routes)
 
 
-def test_gateway_runtime_mounts_inside_master_only_with_opt_in():
+def test_gateway_runtime_mounts_inside_master_only_with_opt_in(tmp_path):
     env = {
         "NEXUS_EDGE_GATEWAY_ENABLED": "true",
         "NEXUS_EDGE_PROVISIONING_TOKEN": "p" * 40,
     }
+    database = tmp_path / "edge.sqlite3"
+    manager = EdgeManager(
+        store=SQLiteEdgeStore(database, encryption_key=Fernet.generate_key()),
+        replay_guard=SQLiteReplayGuard(database),
+    )
     host = FastAPI()
     runtime = EdgeGatewayRuntime(
         env=env,
-        manager_factory=lambda: EdgeManager(replay_guard=MemoryReplayGuard()),
+        manager_factory=lambda: (_ for _ in ()).throw(
+            AssertionError("must reuse the LifecycleManager-owned instance")
+        ),
         app_factory=_gateway_factory,
     )
-    runtime.start(host)
+    runtime.start(host, manager)
     assert runtime.status()["gateway"] == "active"
     assert runtime.status()["mounted_at"] == "/edge"
+    assert runtime._mounted_app.state.edge_manager is manager
     with TestClient(host) as client:
         health = client.get("/edge/v1/edge/health")
         assert health.status_code == 200
         assert health.json()["wallet_access_enabled"] is False
         assert health.json()["miner_autostart_enabled"] is False
     runtime.stop(host)
+    assert runtime.status()["gateway"] == "enabled_not_started"
+    assert not any(getattr(route, "name", None) == "nexus-edge-gateway"
+                   for route in host.router.routes)
+
+
+def test_gateway_runtime_rejects_ephemeral_manager(tmp_path):
+    env = {
+        "NEXUS_EDGE_GATEWAY_ENABLED": "true",
+        "NEXUS_EDGE_PROVISIONING_TOKEN": "p" * 40,
+    }
+    host = FastAPI()
+    runtime = EdgeGatewayRuntime(env=env, app_factory=_gateway_factory)
+    ephemeral = EdgeManager(replay_guard=MemoryReplayGuard())
+
+    try:
+        runtime.start(host, ephemeral)
+    except RuntimeError as exc:
+        assert "sqlite_persistent" in str(exc)
+    else:
+        raise AssertionError("online gateway must reject in-memory EDGE state")
     assert runtime.status()["gateway"] == "enabled_not_started"
     assert not any(getattr(route, "name", None) == "nexus-edge-gateway"
                    for route in host.router.routes)
