@@ -2,10 +2,20 @@
 import sqlite3
 import tempfile
 import unittest
+from contextlib import contextmanager, closing
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 from cryptography.fernet import Fernet
+
+
+@contextmanager
+def _sqlite_connection(database):
+    """Commit/rollback and close the SQLite handle (required for Windows cleanup)."""
+    with closing(sqlite3.connect(database)) as connection:
+        with connection:
+            yield connection
+
 
 from nexus_edge import (
     EdgeError,
@@ -130,7 +140,7 @@ class EdgePersistenceInvariantTests(unittest.TestCase):
 
     def test_store_migrates_existing_schema_version_one_to_four(self):
         store = SQLiteEdgeStore(self.database, encryption_key=self.key)
-        with sqlite3.connect(self.database) as connection:
+        with _sqlite_connection(self.database) as connection:
             connection.execute(
                 "UPDATE nexus_edge_schema SET version = 1 WHERE component = 'edge_store'"
             )
@@ -138,7 +148,7 @@ class EdgePersistenceInvariantTests(unittest.TestCase):
 
         migrated = SQLiteEdgeStore(self.database, encryption_key=self.key)
         self.assertEqual(migrated.telemetry_count(), 0)
-        with sqlite3.connect(self.database) as connection:
+        with _sqlite_connection(self.database) as connection:
             version = connection.execute(
                 "SELECT version FROM nexus_edge_schema WHERE component = 'edge_store'"
             ).fetchone()[0]
@@ -152,7 +162,7 @@ class EdgePersistenceInvariantTests(unittest.TestCase):
 
     def test_store_migrates_schema_version_two_to_four(self):
         SQLiteEdgeStore(self.database, encryption_key=self.key)
-        with sqlite3.connect(self.database) as connection:
+        with _sqlite_connection(self.database) as connection:
             connection.execute("DROP TABLE edge_telemetry")
             connection.execute("""
                 CREATE TABLE edge_telemetry (
@@ -170,7 +180,7 @@ class EdgePersistenceInvariantTests(unittest.TestCase):
 
         migrated = SQLiteEdgeStore(self.database, encryption_key=self.key)
         self.assertEqual(migrated.telemetry_count(), 0)
-        with sqlite3.connect(self.database) as connection:
+        with _sqlite_connection(self.database) as connection:
             version = connection.execute(
                 "SELECT version FROM nexus_edge_schema WHERE component = 'edge_store'"
             ).fetchone()[0]
@@ -192,7 +202,7 @@ class EdgePersistenceInvariantTests(unittest.TestCase):
         first.start_task(self.node_id, task["task_id"])
 
         # Simulate a database created by schema v3, before lease tokens existed.
-        with sqlite3.connect(self.database) as connection:
+        with _sqlite_connection(self.database) as connection:
             connection.execute("ALTER TABLE edge_tasks DROP COLUMN assignment_nonce")
             connection.execute(
                 "UPDATE nexus_edge_schema SET version = 3 WHERE component = 'edge_store'"
@@ -203,7 +213,7 @@ class EdgePersistenceInvariantTests(unittest.TestCase):
         self.assertEqual(recovered["state"], "QUEUED")
         self.assertIsNone(recovered["node_id"])
         self.assertIsNone(recovered["lease_until"])
-        with sqlite3.connect(self.database) as connection:
+        with _sqlite_connection(self.database) as connection:
             version = connection.execute(
                 "SELECT version FROM nexus_edge_schema WHERE component = 'edge_store'"
             ).fetchone()[0]
