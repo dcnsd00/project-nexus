@@ -174,14 +174,26 @@ def create_edge_app(manager: EdgeManager | None = None, *,
 
     @router.post("/nodes/{node_id}/uplink/{network}")
     def uplink(node_id: str, network: str, body: NodeEnvelope):
-        if network not in {"lorawan", "iot"}:
+        if network not in {"https", "lorawan", "iot"}:
             raise HTTPException(status_code=404, detail="unsupported uplink network")
+        authenticate(node_id, f"{network}.uplink", body)
         try:
-            authenticate(node_id, f"{network}.uplink", body)
-        except HTTPException:
-            raise
-        return {"accepted": True, "node_id": node_id, "network": network,
-                "payload": body.payload, "note": "application payload authenticated; decoder/NS adapter is deployment-specific"}
+            event = edge.record_telemetry(
+                node_id, body.payload, transport=network
+            )
+        except EdgeError as exc:
+            raise HTTPException(status_code=503, detail=str(exc)) from exc
+        return {
+            "accepted": True,
+            "node_id": node_id,
+            "network": network,
+            "event": event,
+            "note": (
+                "authenticated payload durably recorded"
+                if network == "https"
+                else "authenticated payload durably recorded; decoder/NS adapter remains deployment-specific"
+            ),
+        }
 
     @router.post("/nodes/{node_id}/heartbeat")
     def heartbeat(node_id: str, body: NodeEnvelope):
