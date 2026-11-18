@@ -68,6 +68,11 @@ require that manager to report `sqlite_persistent`; the online adapters do not
 create independent in-memory schedulers pointed at the same database.
 
 ## Security boundaries
+
+Only node authentication secrets are encrypted at rest with Fernet. Task
+payloads, task results, and telemetry payloads are stored as canonical JSON,
+not encrypted by the current store. Protect the database with restrictive
+filesystem ACLs, host disk encryption, and controlled backups.
 - The gateway never executes arbitrary shell commands or Python supplied in a task.
 - Wallet access, private-key export, miner start/stop, and public-chain writes are
   not exposed by this gateway.
