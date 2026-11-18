@@ -101,3 +101,57 @@ jobs:
           (cd "$WALLET/v05" && PYTHONPATH="$ROOT:$WALLET:$WALLET/v05" python -m pytest -q test_v05_unit.py)
           RESEARCH="$ROOT/research/sha2_independent"
           (cd "$RESEARCH" && PYTHONPATH="$ROOT:$RESEARCH" python research_main.py test --out-dir "$RUNNER_TEMP/nexus-sha2-results")
+
+  windows-compatibility:
+    needs: source-detection
+    if: needs.source-detection.outputs.available == 'true'
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Set up Node.js for dashboard validation
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - name: Install dependencies
+        shell: pwsh
+        run: |
+          $Root = "${{ needs.source-detection.outputs.root }}"
+          python -m pip install --upgrade pip
+          if (Test-Path (Join-Path $Root "requirements-dev.txt")) {
+            python -m pip install -r (Join-Path $Root "requirements-dev.txt")
+          } else {
+            python -m pip install -r (Join-Path $Root "requirements.txt")
+            python -m pip install pytest
+          }
+          if (Test-Path (Join-Path $Root "requirements-edge.txt")) {
+            python -m pip install -r (Join-Path $Root "requirements-edge.txt")
+          }
+      - name: Compile Python sources
+        shell: pwsh
+        run: |
+          $Root = "${{ needs.source-detection.outputs.root }}"
+          python -m compileall -q $Root
+          if ($LASTEXITCODE -ne 0) { throw "Python compilation failed." }
+      - name: Validate dashboard and wallet JavaScript
+        shell: pwsh
+        run: |
+          $Root = "${{ needs.source-detection.outputs.root }}"
+          python (Join-Path $Root "tools_check_dashboard_js.py") $Root
+          if ($LASTEXITCODE -ne 0) { throw "Dashboard JavaScript validation failed." }
+      - name: Run primary application test suite on Windows
+        shell: pwsh
+        run: |
+          $Root = "${{ needs.source-detection.outputs.root }}"
+          Push-Location $Root
+          try {
+            python -m pytest -q --disable-warnings --maxfail=1
+            if ($LASTEXITCODE -ne 0) { throw "NEXUS Windows test suite failed." }
+          } finally {
+            Pop-Location
+          }
