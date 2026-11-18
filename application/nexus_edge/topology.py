@@ -27,6 +27,8 @@ class DeploymentTopology:
         if self.mode == DeploymentMode.SINGLE:
             if self.server_count != 1:
                 raise ValueError("single mode requires exactly one server")
+            if self.state_backend.lower() not in {"sqlite", "local_sqlite"}:
+                raise ValueError("single-server EDGE currently implements only the local SQLite state backend")
             return
         if self.server_count < 2:
             raise ValueError("multi-server mode requires at least two servers")
