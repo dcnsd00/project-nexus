@@ -17,7 +17,10 @@ class FakeClient:
     def username_pw_set(self,*args): self.calls.append(("auth",args))
     def tls_set(self,**kwargs): self.calls.append(("tls",kwargs))
     def tls_insecure_set(self,value): self.calls.append(("tls_insecure",value))
-    def connect(self,*args): self.calls.append(("connect",args))
+    def connect(self,*args):
+        self.calls.append(("connect",args))
+        if self.on_connect:
+            self.on_connect(self, None, {}, 0, None)
     def loop_start(self): self.calls.append(("loop_start",))
     def subscribe(self,*args,**kwargs): self.calls.append(("subscribe",args,kwargs))
     def publish(self,*args,**kwargs): self.calls.append(("publish",args,kwargs)); return FakeResult()
@@ -44,6 +47,40 @@ def test_mqtt_bridge_uses_tls_and_subscribes_to_node_uplink():
     assert any(call[0]=="publish" for call in client.calls)
     bridge.stop()
     assert bridge.started is False
+
+def test_mqtt_bridge_contains_callback_errors_and_records_rejection():
+    bridge = MQTTBridge(
+        MQTTConfig(host="broker.example", client_id="nexus-test"),
+        lambda topic, body: (_ for _ in ()).throw(ValueError("bad signature")),
+        client_factory=lambda **kwargs: FakeClient(),
+    )
+    bridge.start()
+    bridge._handle_message(bridge._client, None, FakeMessage())
+    assert bridge.connected is True
+    assert bridge.rejected_messages == 1
+    assert bridge.last_message_error_type == "ValueError"
+    bridge.stop()
+
+
+def test_mqtt_bridge_cleans_up_when_connection_start_fails():
+    class BrokenClient(FakeClient):
+        def connect(self, *args):
+            self.calls.append(("connect", args))
+            raise OSError("broker unavailable")
+
+    client = BrokenClient()
+    bridge = MQTTBridge(
+        MQTTConfig(host="broker.example", client_id="nexus-test"),
+        lambda topic, body: None,
+        client_factory=lambda **kwargs: client,
+    )
+    with pytest.raises(OSError, match="broker unavailable"):
+        bridge.start()
+    assert bridge.started is False
+    assert bridge.connected is False
+    assert ("disconnect",) in client.calls
+    assert ("loop_stop",) in client.calls
+
 
 def test_mqtt_bridge_rejects_invalid_tls_client_cert_pair():
     with pytest.raises(ValueError,match="supplied together"):
