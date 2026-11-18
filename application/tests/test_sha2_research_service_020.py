@@ -38,6 +38,24 @@ def test_exact_benchmark_has_hashlib_guard():
     assert result["nonce_serialization"] == "Bitcoin uint32 little-endian"
     assert result["scope"].startswith("Python CPU research benchmark")
 
+def test_exact_benchmark_preserves_sub_millisecond_timing(monkeypatch):
+    from research.sha2_independent.nexus_sha import benchmark
+
+    timestamps = iter([
+        0.0, 0.00001, 0.00002, 0.00003, 0.00004,
+        0.00005, 0.00006, 0.00007, 0.00008, 0.00009,
+    ])
+    monkeypatch.setattr(benchmark.time, "perf_counter", lambda: next(timestamps))
+    result = benchmark.run(n_nonces=100, seed=1234)
+
+    assert result["naive"]["time_s"] > 0
+    assert result["midstate"]["time_s"] > 0
+    assert result["hashlib_reference"]["time_s"] > 0
+    assert result["speedup_midstate_vs_naive"] > 0
+    assert result["early_exit_check"]["overhead_ratio"] > 0
+
+
+
 
 def test_avalanche_comparison_returns_both_algorithms():
     result = service.run_avalanche(seed=7, samples=2)["result"]
