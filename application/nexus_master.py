@@ -142,6 +142,17 @@ def edge_tasks_status():
     return {"state": "available", "tasks": manager.list_tasks()}
 
 
+@app.get("/api/edge/telemetry")
+def edge_telemetry_status(limit: int = 100):
+    manager = _edge_manager_for_status()
+    if manager is None:
+        return {"state": "not_started", "events": []}
+    try:
+        return {"state": "available", "events": manager.telemetry(limit=limit)}
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=type(exc).__name__) from exc
+
+
 @app.get("/api/edge/topology")
 def edge_topology_status():
     topology = getattr(app.state, "nexus_topology", None)
@@ -1846,6 +1857,7 @@ def nexus_operator_snapshot():
     topology = capture(edge_topology_status)
     edge_nodes = capture(edge_nodes_status)
     edge_tasks = capture(edge_tasks_status)
+    edge_telemetry = capture(edge_telemetry_status)
 
     runtime_data = runtime.get("data") or {}
     telemetry_data = telemetry.get("data") or {}
@@ -1880,6 +1892,7 @@ def nexus_operator_snapshot():
         "edge_topology": topology,
         "edge_nodes": edge_nodes,
         "edge_tasks": edge_tasks,
+        "edge_telemetry": edge_telemetry,
     }
     unavailable_sections = [name for name, item in sections.items()
                             if item.get("status") != "available"]
