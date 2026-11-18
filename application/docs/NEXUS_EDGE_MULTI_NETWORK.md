@@ -68,12 +68,15 @@ NEXUS MASTER validates `NEXUS_DEPLOYMENT_MODE`, `NEXUS_SERVER_COUNT`,
 reported by `GET /api/edge/topology`, the `nexus_cli.py edge` command, and the
 unified operator snapshot.
 
-Only single-server mode is currently supported by the runtime. Primary/standby
-and active-active declarations fail closed, even when their prerequisite
-settings are present, because the shared database adapter, distributed atomic
-claims, leader/fencing, replication, and failover orchestration are not
-implemented. The topology endpoint reports `operational_failover_verified=false`;
-a declaration is never represented as an operational cluster.
+Only single-server mode with the local SQLite state backend is currently
+supported by the runtime. PostgreSQL or other unimplemented state backends are
+rejected rather than silently reported while SQLite is still in use.
+Primary/standby and active-active declarations fail closed, even when their
+prerequisite settings are present, because the shared database adapter,
+distributed atomic claims, leader/fencing, replication, and failover
+orchestration are not implemented. The topology endpoint reports
+`operational_failover_verified=false`; a declaration is never represented as
+an operational cluster.
 
 ## Security and rollout gates
 No WAN listener, MQTT broker, LoRaWAN Network Server or hardware is assumed
