@@ -1,63 +1,98 @@
 # NEXUS EDGE — foundation and integration contract
 
-Status: **EDGE control plane integrated as an optional NEXUS runtime service; encrypted SQLite persistence for nodes/tasks/leases is implemented and runtime-wired when NEXUS_EDGE_STORAGE_KEY is provisioned; durable anti-replay guard is active; transport and physical-device validation remain pending.**
+Status: **Host-side EDGE control plane is integrated into NEXUS MASTER as an optional service.** The current branch includes durable SQLite state, encrypted node credentials, persistent anti-replay, an opt-in HTTPS gateway, an opt-in MQTTS adapter, authenticated/idempotent telemetry ingestion, bounded telemetry history, node provision/rotate/revoke operations, and read-only operator inventory. This is a **single-host pilot**, not a public or multi-server production deployment.
 
-## Repository baseline
+## Repository and runtime ownership
 
-The current `main` branch contains repository governance, source-import documentation and CI scaffolding. The NEXUS MASTER 0.10.25 application bundle is separately available in the project Library and is not yet committed to this repository. The latest local bundle includes the Lifecycle Manager, Module Registry, Runtime composition root, Wallet read-only adapter and Mining Supervisor read-only adapter.
+- Repository: `dcnsd00/project-nexus`
+- Active branch: `feature/edge-replay-protection-sqlite-v1`
+- NEXUS CORE / `LifecycleManager` owns service startup, dependencies, health and shutdown.
+- The existing `edge_manager` service owns one shared `EdgeManager` instance.
+- HTTPS and MQTTS adapters receive that same instance; they do not create parallel managers when started by NEXUS MASTER.
+- `NEXUS_EDGE_DATABASE` overrides the database path. Otherwise the canonical NEXUS data-path service resolves it.
+- The replay guard and state store must use the same SQLite database. The runtime reports `sqlite_persistent` only when both are durable and share the same path.
 
-The EDGE package is intentionally isolated so it can be merged into the application source after the verified source import. It does not replace or duplicate those runtime components.
+## Implemented host-side capabilities
 
-## Target architecture
+### Control plane and task lifecycle
 
-- **NEXUS CORE / LifecycleManager** owns application startup and service dependencies.
-- **NEXUS EDGE Manager** owns node registry, capability matching, task leases, task state and result integrity.
-- **EDGE Agent** on each ESP32/ESP32-C5 performs only explicitly assigned, bounded tasks.
-- **Transport adapter** (future MQTT or HTTPS) carries versioned messages; transport is not coupled to scheduling logic.
-- **Device adapters** expose telemetry from NerdMiner, sensors and other devices without granting wallet access or starting miners.
+- Node registration with safe unique IDs, declared capabilities, per-node HMAC secrets and bounded parallelism.
+- Signed heartbeats with finite timestamps, clock-skew limits and strictly increasing per-node sequences.
+- Capability-based FIFO task assignment.
+- Task states: `QUEUED → ASSIGNED → RUNNING → SUCCEEDED`, with deadline expiry and lease requeue.
+- Signed task results and SHA-256 result fingerprints.
+- Node credential rotation invalidates the old secret and requires a fresh heartbeat.
+- Node revocation requeues unfinished tasks (or expires overdue tasks).
+- Re-provisioning a revoked node ID preserves its anti-replay counter; the operator receives the minimum next sequence.
+- Payload and result size limits; no arbitrary command execution.
 
-## First implementation boundary
+### Persistence and security
 
-The current Python package `nexus_edge/` is a transport-agnostic control-plane implementation. It provides:
-- node registration with unique IDs, declared capabilities and per-node HMAC secret;
-- signed heartbeat verification and online/offline status;
-- capability-based FIFO task assignment;
-- task state transitions: QUEUED → ASSIGNED → RUNNING → SUCCEEDED;
-- task deadlines and worker leases, with requeue after lease expiry;
-- HMAC-authenticated results and SHA-256 result fingerprints;
-- bounded JSON payload/result sizes and a diagnostic snapshot.
+- `SQLiteReplayGuard` persists the highest accepted sequence per node.
+- `SQLiteEdgeStore` persists nodes, tasks, leases, results and telemetry. Schema migrations are versioned through v3.
+- Node HMAC secrets are encrypted at rest with a stable operator-provisioned Fernet key.
+- Storage-key rotation is implemented as an offline, atomic re-encryption utility:
+  `python -m nexus_edge.rotate_storage_key`.
+- The utility requires the NEXUS processes to be stopped and a verified database backup before rotation.
+- Only node authentication secrets are encrypted by the current store. Task payloads, task results and telemetry payloads are stored as canonical JSON; protect the database with restrictive filesystem ACLs, host disk encryption and controlled backups.
+- Telemetry history retains the newest 10,000 events by default. Anti-replay sequence state is retained separately from telemetry pruning.
 
-It deliberately has **no network listener, firmware binary, wallet API, private-key handling, mining control or arbitrary command execution**. The SQLite state store persists node metadata, encrypted node secrets, task state, leases and results. NEXUS Runtime uses the canonical `NEXUS_DATA_DIR/db/edge_state.sqlite3` path for both the replay guard and state store. Full state persistence is enabled only when a stable Fernet key is provisioned through `NEXUS_EDGE_STORAGE_KEY`; without that key, anti-replay counters remain persistent but node/task state stays in memory. The runtime never generates or stores the encryption key. Key provisioning/rotation, transport and physical-device validation remain incomplete.
+### Transport and telemetry
 
-## Security contract
+- HTTPS gateway is opt-in through `NEXUS_EDGE_GATEWAY_ENABLED=true`; inside NEXUS MASTER it is mounted under `/edge`.
+- MQTTS is opt-in through `NEXUS_EDGE_MQTT_ENABLED=true`; TLS certificate verification and broker authentication are required.
+- MQTT QoS acknowledgements are manual. The broker message is acknowledged only after the telemetry event and replay sequence commit atomically. Redelivery is idempotent by node, sequence, transport and canonical payload digest.
+- HTTPS, MQTTS, generic LoRaWAN-bridge webhook and IoT webhook telemetry ingress are authenticated and persisted.
+- Authenticated telemetry refreshes durable node `last_seen`, allowing the shared scheduler to recognize active nodes.
+- Operator APIs expose node/task inventory without secrets or raw results. Raw telemetry history is behind the operator-authenticated EDGE gateway. NEXUS MASTER's unauthenticated status endpoint exposes telemetry metadata only.
+- The CLI and dashboard expose runtime, transport, topology, node, task and telemetry status.
 
-1. Provision a unique random secret per node (minimum 32 bytes); never embed a fleet-wide shared secret in firmware.
-2. Use TLS for transport. HMAC provides message authenticity, not confidentiality.
-3. Heartbeats include a strictly increasing per-node sequence number and a bounded clock-skew timestamp. The replay guard rejects duplicate or out-of-order sequences and can persist the accepted sequence in SQLite. Key provisioning and rotation are still pending.
-4. Never send wallet seeds, private keys, signing requests or unrestricted shell commands to EDGE nodes.
+## Required environment configuration
+
+- `NEXUS_EDGE_STORAGE_KEY`: stable Fernet URL-safe base64 key. Generate once, store in a protected service environment and reuse across restarts. Never commit it or store it in SQLite.
+- `NEXUS_EDGE_PROVISIONING_TOKEN`: high-entropy operator bearer token, minimum 32 characters. Rotate by replacing the protected environment value and restarting the gateway.
+- `NEXUS_EDGE_DATABASE`: optional SQLite path; otherwise the canonical NEXUS data path is used.
+- `NEXUS_EDGE_GATEWAY_ENABLED=true`: enables the HTTPS gateway.
+- `NEXUS_EDGE_MQTT_ENABLED=true`: enables MQTTS. Configure `NEXUS_EDGE_MQTT_HOST` and either username/password or client certificate/key credentials. Install `paho-mqtt>=2,<3`.
+- Both network adapters remain disabled unless explicitly enabled. Missing storage encryption or weak/missing operator credentials fail the optional network service closed; they do not authorize an in-memory online gateway.
+
+## Security and deployment boundaries
+
+1. Use a unique random secret per node; never embed a fleet-wide shared secret in firmware.
+2. HMAC provides authenticity, not confidentiality. HTTPS must sit behind a TLS terminator or managed load balancer; do not expose plaintext HTTP.
+3. Keep operator and storage secrets out of source control, logs, dashboard responses and SQLite.
+4. Do not send wallet seeds, private keys, signing requests or unrestricted shell commands to EDGE nodes.
 5. Node capabilities are allow-listed. Task payloads are typed data, not executable code.
 6. CORE remains authoritative for approvals, persistent records, financial operations and miner start/stop actions.
+7. Local SQLite is a single-host durable store, not a distributed multi-writer database. Active-active/multi-server task claims are rejected by topology validation.
+8. Before remote exposure, configure reverse-proxy rate limits, strict firewall rules, database ACLs, backups/restore drills, monitoring and an incident-recovery procedure.
 
-## ESP32-C5 first target
+## Explicit external validation gates
 
-The NM-CYD-C5 board is an ESP32-C5-WROOM-1 development board with display/touch, Wi-Fi 6 and peripheral connectors as advertised by the seller. Exact RAM/PSRAM, display driver and board revision must be confirmed against the received hardware and vendor schematic before firmware pin mapping. The first firmware milestone is Wi-Fi provisioning, authenticated heartbeat, status display and task receipt; no mining is planned on this board.
+These are not represented as completed merely because host endpoints exist:
 
-## Integration plan
+- **ESP32 firmware:** no production firmware binary is included yet. The first target remains the NM-CYD-C5 board; confirm the received board revision, RAM/PSRAM, display controller and vendor schematic before pin mapping. First firmware milestone: Wi-Fi provisioning, secure key provisioning, authenticated heartbeat, status display, telemetry and bounded task receipt.
+- **LoRaWAN provider integration:** the generic signed webhook ingress exists, but provider-specific ChirpStack / The Things Stack adapters, network-server credentials, regional radio plan and payload decoders are not configured.
+- **IoT vendor adapters:** the generic signed webhook ingress exists; vendor-specific authentication and payload decoders remain deployment-specific.
+- **Physical validation:** pairing, reconnect behavior, power-loss recovery, radio range, device-side sequence persistence and downlink behavior require hardware-in-the-loop tests.
+- **Public deployment hardening:** TLS termination, rate limiting, firewall rules, backup/restore and monitoring must be verified in the target environment.
+- **CI evidence:** source and tests have been updated on the active branch, but a green GitHub Actions result has not been confirmed in this review. Do not report the suite as PASS until the run is visible and successful.
 
-1. Import and verify the exact NEXUS MASTER 0.10.25 source bundle in a Git-capable workspace.
-2. Copy this package under the application source tree as `application/nexus_edge/` (or `nexus_edge/` if the application uses repository-root layout).
-3. Register the optional `edge_manager` service in `modules/nexus_runtime.py`, dependent on the existing crypto engine and central data paths; inject the SQLite replay guard and, when `NEXUS_EDGE_STORAGE_KEY` is configured, the encrypted SQLite state store.
-4. Expose read-only status through the existing Module Registry; do not duplicate the registry.
-5. Verify encrypted persistence and restart recovery for node metadata, task state, leases and results; do not persist HMAC secrets in plaintext.
-6. Add ESP-IDF firmware for NM-CYD-C5 and test against a local mock broker before connecting physical nodes.
-7. Validate on Windows 11 and physical hardware. CI success alone is not hardware validation.
-
-## Test
+## Verification suite
 
 Run from the application directory:
 
 ```bash
-python -m pytest tests/test_nexus_edge_manager.py tests/test_nexus_edge_replay_guard.py tests/test_nexus_edge_service.py -q
+python -m pytest \
+  tests/test_nexus_edge_manager.py \
+  tests/test_nexus_edge_persistence.py \
+  tests/test_nexus_edge_gateway.py \
+  tests/test_nexus_edge_gateway_runtime.py \
+  tests/test_nexus_edge_master_integration.py \
+  tests/test_nexus_edge_runtime.py \
+  tests/test_nexus_edge_sqlite_store.py \
+  tests/test_nexus_edge_transports.py \
+  tests/test_nexus_edge_service.py -q
 ```
 
-The manager tests validate scheduling and HMAC behavior; replay-guard tests validate sequence monotonicity and SQLite restart persistence. These tests do not validate MQTT/HTTPS, Windows deployment or physical ESP32 devices.
+The suite covers control-plane scheduling, persistence and migrations, key rotation, node lifecycle, authenticated telemetry, idempotent MQTT redelivery, manual QoS acknowledgements, gateway behavior and shared-manager integration. CI and physical hardware validation remain separate evidence requirements.
