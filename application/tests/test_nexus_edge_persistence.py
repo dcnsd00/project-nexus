@@ -7,6 +7,7 @@ from pathlib import Path
 from cryptography.fernet import Fernet
 
 from nexus_edge import (
+    EdgeError,
     EdgeManager,
     ReplayError,
     SQLiteEdgeStore,
@@ -83,6 +84,34 @@ class EdgePersistenceInvariantTests(unittest.TestCase):
         self.assertEqual(restored["state"], "SUCCEEDED")
         self.assertEqual(restored["result"], result)
         self.assertEqual(restored["result_sha256"], completed["result_sha256"])
+
+    def test_rotated_node_secret_and_sequence_survive_restart(self):
+        first = self.manager()
+        self.register_online_node(first)
+        new_secret = b"nexus-edge-rotated-node-secret-32-bytes"
+        first.rotate_node_secret(self.node_id, new_secret)
+        self.assertEqual(first.next_node_sequence(self.node_id), 2)
+
+        restarted = self.manager()
+        self.assertEqual(restarted.next_node_sequence(self.node_id), 2)
+        timestamp = self.clock()
+        new_message = {
+            "kind": "heartbeat",
+            "node_id": self.node_id,
+            "timestamp": timestamp,
+            "sequence": 2,
+        }
+        restarted.heartbeat(
+            self.node_id, timestamp, 2,
+            sign_message(new_secret, new_message),
+        )
+
+        old_message = dict(new_message, sequence=3)
+        with self.assertRaisesRegex(EdgeError, "invalid heartbeat signature"):
+            restarted.heartbeat(
+                self.node_id, timestamp, 3,
+                sign_message(self.secret, old_message),
+            )
 
     def test_concurrent_replay_acceptance_is_atomic(self):
         guard = SQLiteReplayGuard(self.database)
