@@ -82,6 +82,27 @@ def test_mqtt_bridge_cleans_up_when_connection_start_fails():
     assert ("loop_stop",) in client.calls
 
 
+def test_mqtt_bridge_does_not_report_broker_rejection_as_connected():
+    class RejectedClient(FakeClient):
+        def connect(self, *args):
+            self.calls.append(("connect", args))
+            self.on_connect(self, None, {}, 5, None)
+
+    client = RejectedClient()
+    bridge = MQTTBridge(
+        MQTTConfig(host="broker.example", client_id="nexus-test"),
+        lambda topic, body: None,
+        client_factory=lambda **kwargs: client,
+    )
+    bridge.start()
+    assert bridge.started is True
+    assert bridge.connected is False
+    assert bridge.last_message_error_type == "BrokerConnectionRejected"
+    with pytest.raises(RuntimeError, match="not connected"):
+        bridge.publish_downlink("esp32-node-01", {"notice": "test"})
+    bridge.stop()
+
+
 def test_mqtt_bridge_rejects_invalid_tls_client_cert_pair():
     with pytest.raises(ValueError,match="supplied together"):
         MQTTConfig(host="broker.example",client_id="nexus-test",
