@@ -61,3 +61,34 @@ def test_gateway_reports_transport_matrix_without_claiming_external_connectivity
     assert body["mqtts"]=="adapter_available_opt_in_not_started"
     assert body["lorawan_webhook"].endswith("network_server_not_configured")
     assert body["lan_wan_mobile_data"].startswith("same_https_api")
+
+def test_gateway_rejects_boolean_or_fractional_protocol_integers():
+    manager = EdgeManager(replay_guard=MemoryReplayGuard())
+    client = TestClient(create_edge_app(manager, provisioning_token="p" * 40))
+    secret = b"z" * 32
+    node_id = "esp32-node-04"
+    manager.register_node(node_id, ["telemetry"], secret)
+
+    invalid_timestamp = _envelope(secret, node_id, "heartbeat", 1)
+    invalid_timestamp["timestamp"] = True
+    assert client.post(
+        f"/v1/edge/nodes/{node_id}/heartbeat", json=invalid_timestamp
+    ).status_code == 422
+
+    invalid_sequence = _envelope(secret, node_id, "heartbeat", 2)
+    invalid_sequence["sequence"] = True
+    assert client.post(
+        f"/v1/edge/nodes/{node_id}/heartbeat", json=invalid_sequence
+    ).status_code == 422
+
+    invalid_ttl = client.post(
+        "/v1/edge/tasks",
+        headers={"Authorization": "Bearer " + "p" * 40},
+        json={
+            "task_type": "math.verify",
+            "payload": {},
+            "required_capabilities": ["math.verify"],
+            "ttl_s": True,
+        },
+    )
+    assert invalid_ttl.status_code == 422
