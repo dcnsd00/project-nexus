@@ -26,6 +26,7 @@ MODULES: tuple[dict[str, Any], ...] = (
         "nexus_edge/gateway.py", "nexus_edge/gateway_runtime.py",
         "nexus_edge/runtime.py", "nexus_edge/transports.py",
         "nexus_edge/topology.py", "nexus_edge/config.py",
+        "nexus_edge/rotate_storage_key.py",
     ), "route_prefixes": (), "runtime_service": "edge_manager", "critical": False},
     {"id": "depin_fieldstation", "name": "DePIN Fieldstation", "paths": ("adapters/fieldstation/crypto_fieldstation/app.py",), "route_prefixes": (), "runtime_service": "depin_fieldstation", "critical": False},
 )
