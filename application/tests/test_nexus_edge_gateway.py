@@ -64,6 +64,7 @@ def test_gateway_provisions_node_and_requires_operator_token(tmp_path):
     assert ok.status_code == 200
     secret = base64.urlsafe_b64decode(ok.json()["node_secret_b64url"])
     assert len(secret) == 32
+    assert ok.json()["minimum_next_sequence"] == 1
     assert ok.json()["secret_delivery"].startswith("one_time_response")
 
 
@@ -173,4 +174,52 @@ def test_gateway_rotates_node_secret_once_and_preserves_sequence(tmp_path):
     stale = _envelope(old_secret, node_id, "heartbeat", 3)
     assert client.post(
         f"/v1/edge/nodes/{node_id}/heartbeat", json=stale
+    ).status_code == 401
+
+def test_gateway_revokes_node_requeues_work_and_preserves_sequence_on_reprovision(tmp_path):
+    manager = _manager(tmp_path)
+    client = TestClient(create_edge_app(manager, provisioning_token="p" * 40))
+    node_id = "esp32-node-06"
+    old_secret = b"r" * 32
+    manager.register_node(node_id, ["telemetry"], old_secret)
+
+    heartbeat = _envelope(old_secret, node_id, "heartbeat", 1)
+    assert client.post(
+        f"/v1/edge/nodes/{node_id}/heartbeat", json=heartbeat
+    ).status_code == 200
+
+    task = manager.submit_task(
+        "telemetry.collect", {"sensor": "temperature"}, ["telemetry"]
+    )
+    manager.claim_task(node_id)
+    manager.start_task(node_id, task["task_id"])
+
+    denied = client.post(f"/v1/edge/nodes/{node_id}/revoke")
+    assert denied.status_code == 401
+    revoked = client.post(
+        f"/v1/edge/nodes/{node_id}/revoke",
+        headers={"Authorization": "Bearer " + "p" * 40},
+    )
+    assert revoked.status_code == 200
+    assert revoked.json()["requeued_tasks"] == 1
+    assert manager.task_status(task["task_id"])["state"] == "QUEUED"
+
+    provisioned = client.post(
+        "/v1/edge/nodes/provision",
+        headers={"Authorization": "Bearer " + "p" * 40},
+        json={"node_id": node_id, "capabilities": ["telemetry"]},
+    )
+    assert provisioned.status_code == 200
+    body = provisioned.json()
+    new_secret = base64.urlsafe_b64decode(body["node_secret_b64url"])
+    assert body["minimum_next_sequence"] == 2
+
+    new_heartbeat = _envelope(new_secret, node_id, "heartbeat", 2)
+    assert client.post(
+        f"/v1/edge/nodes/{node_id}/heartbeat", json=new_heartbeat
+    ).status_code == 200
+
+    old_heartbeat = _envelope(old_secret, node_id, "heartbeat", 3)
+    assert client.post(
+        f"/v1/edge/nodes/{node_id}/heartbeat", json=old_heartbeat
     ).status_code == 401
