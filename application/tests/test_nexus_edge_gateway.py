@@ -123,7 +123,8 @@ def test_gateway_reports_transport_matrix_without_claiming_external_connectivity
     body = response.json()
     assert body["https_gateway"] == "active_in_this_process"
     assert body["mqtts"] == "adapter_available_opt_in_not_started"
-    assert body["lorawan_webhook"].endswith("network_server_not_configured")
+    assert body["https_uplink"] == "authenticated_persisted_telemetry_ingress"
+    assert body["lorawan_webhook"].endswith("provider_adapter_not_configured")
     assert body["lan_wan_mobile_data"].startswith("same_https_api")
 
 
