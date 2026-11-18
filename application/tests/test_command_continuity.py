@@ -125,6 +125,27 @@ def test_master_starts_and_reports_the_local_runtime_graph():
         assert edge["operational_verified"] is False
 
 
+def test_operator_snapshot_reuses_latest_telemetry_sample(monkeypatch):
+    import nexus_master
+
+    original_sample = nexus_master._runtime_telemetry.sample
+    calls = []
+
+    def counted_sample():
+        calls.append(True)
+        return original_sample()
+
+    monkeypatch.setattr(nexus_master._runtime_telemetry, "sample", counted_sample)
+    with TestClient(app) as client:
+        first = client.get("/api/nexus/telemetry")
+        assert first.status_code == 200
+        assert len(calls) == 1
+        report = client.get("/api/nexus/operator")
+        assert report.status_code == 200
+        assert len(calls) == 1
+        assert report.json()["sections"]["host_telemetry"]["data"]["snapshot"]["timestamp_utc"] == first.json()["snapshot"]["timestamp_utc"]
+
+
 def test_unified_operator_snapshot_is_read_only_and_reports_evidence_boundaries():
     with TestClient(app) as client:
         response = client.get("/api/nexus/operator")

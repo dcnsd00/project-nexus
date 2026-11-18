@@ -184,8 +184,19 @@ class RuntimeTelemetry:
         with self._lock:
             return list(self._history)[-bounded:]
 
-    def snapshot_with_history(self, limit: int = 120) -> dict[str, Any]:
-        current = self.sample()
+    def snapshot_with_history(self, limit: int = 120, *, sample: bool = True) -> dict[str, Any]:
+        """Return telemetry and history; optionally reuse the latest measured sample.
+
+        The dashboard owns the sampling cadence. Aggregated read-only reports can
+        reuse that sample so they do not trigger duplicate process/GPU probes.
+        """
+        if sample:
+            current = self.sample()
+        else:
+            with self._lock:
+                current = self._history[-1] if self._history else None
+            if current is None:
+                current = self.sample()
         return {"snapshot": current, "history": self.history(limit),
                 "history_capacity": self._history.maxlen,
-                "sampling_contract": "one sample per API call; dashboard polls every 2.5 seconds"}
+                "sampling_contract": "dashboard samples every 2.5 seconds; aggregate reports reuse latest sample"}

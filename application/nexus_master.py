@@ -360,9 +360,9 @@ from modules.runtime_telemetry import RuntimeTelemetry  # noqa: E402
 _runtime_telemetry = RuntimeTelemetry()
 
 @app.get("/api/nexus/telemetry")
-def nexus_runtime_telemetry(history: int = 120):
+def nexus_runtime_telemetry(history: int = 120, sample: bool = True):
     try:
-        return _runtime_telemetry.snapshot_with_history(history)
+        return _runtime_telemetry.snapshot_with_history(history, sample=sample)
     except Exception as exc:
         raise HTTPException(status_code=503, detail=f"Telemetry unavailable: {type(exc).__name__}")
 
@@ -1736,7 +1736,9 @@ def nexus_operator_snapshot():
     runtime = capture(nexus_runtime_status)
     modules = capture(nexus_module_registry)
     module_health = capture(nexus_module_registry_health)
-    telemetry = capture(lambda: nexus_runtime_telemetry(history=30))
+    # Dashboard polling is the sampling owner; aggregate reports reuse the
+    # latest measured snapshot to avoid duplicate process/GPU probes.
+    telemetry = capture(lambda: nexus_runtime_telemetry(history=30, sample=False))
     mining = capture(mining_status)
     mining_processes_report = capture(mining_processes)
     mining_diagnostics_report = capture(mining_diagnostics)
