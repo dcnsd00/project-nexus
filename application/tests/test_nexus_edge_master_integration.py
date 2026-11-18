@@ -38,7 +38,13 @@ def test_master_injects_one_lifecycle_owned_manager_into_both_network_adapters(m
         assert topology["operational_failover_verified"] is False
         assert client.get("/api/edge/nodes").json()["state"] == "available"
         assert client.get("/api/edge/tasks").json()["tasks"] == []
-        assert client.get("/api/edge/telemetry").json()["events"] == []
+        expected.telemetry = lambda limit=100: [{
+            "event_id": 1, "node_id": "edge-c5-001", "sequence": 1,
+            "transport": "https", "payload": {"sensitive": "not-in-master-status"},
+        }]
+        telemetry_status = client.get("/api/edge/telemetry").json()
+        assert telemetry_status["events"][0]["event_id"] == 1
+        assert "payload" not in telemetry_status["events"][0]
 
 
 def test_master_rejects_active_active_topology_with_local_sqlite(monkeypatch, tmp_path):
