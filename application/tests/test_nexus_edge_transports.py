@@ -26,7 +26,9 @@ class FakeClient:
         if self.on_connect:
             self.on_connect(self, None, {}, 0, None)
     def loop_start(self): self.calls.append(("loop_start",))
-    def subscribe(self,*args,**kwargs): self.calls.append(("subscribe",args,kwargs))
+    def subscribe(self,*args,**kwargs):
+        self.calls.append(("subscribe",args,kwargs))
+        return (0, 7)
     def publish(self,*args,**kwargs): self.calls.append(("publish",args,kwargs)); return FakeResult()
     def disconnect(self): self.calls.append(("disconnect",))
     def loop_stop(self): self.calls.append(("loop_stop",))
@@ -64,6 +66,28 @@ def test_mqtt_bridge_contains_callback_errors_and_records_rejection():
     assert bridge.connected is True
     assert bridge.rejected_messages == 1
     assert bridge.last_message_error_type == "ValueError"
+    bridge.stop()
+
+
+def test_mqtt_bridge_requires_successful_suback_before_reporting_connected():
+    class RejectedSubscriptionClient(FakeClient):
+        def loop_start(self):
+            self.calls.append(("loop_start",))
+            self.on_subscribe(self, None, 7, [128], None)
+
+    client = RejectedSubscriptionClient()
+    bridge = MQTTBridge(
+        MQTTConfig(
+            host="broker.example", client_id="nexus-test",
+            username="nexus", password="test-password",
+        ),
+        lambda topic, body: None,
+        client_factory=lambda **kwargs: client,
+    )
+    bridge.start()
+    assert bridge.started is True
+    assert bridge.connected is False
+    assert bridge.last_message_error_type == "SubscriptionRejected"
     bridge.stop()
 
 
