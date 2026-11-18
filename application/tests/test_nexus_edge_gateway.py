@@ -138,3 +138,39 @@ def test_gateway_rejects_boolean_or_fractional_protocol_integers(tmp_path):
         },
     )
     assert invalid_ttl.status_code == 422
+
+def test_gateway_rotates_node_secret_once_and_preserves_sequence(tmp_path):
+    manager = _manager(tmp_path)
+    client = TestClient(create_edge_app(manager, provisioning_token="p" * 40))
+    node_id = "esp32-node-05"
+    old_secret = b"o" * 32
+    manager.register_node(node_id, ["telemetry"], old_secret)
+
+    first = _envelope(old_secret, node_id, "heartbeat", 1)
+    assert client.post(
+        f"/v1/edge/nodes/{node_id}/heartbeat", json=first
+    ).status_code == 200
+
+    denied = client.post(f"/v1/edge/nodes/{node_id}/rotate-secret")
+    assert denied.status_code == 401
+
+    rotated = client.post(
+        f"/v1/edge/nodes/{node_id}/rotate-secret",
+        headers={"Authorization": "Bearer " + "p" * 40},
+    )
+    assert rotated.status_code == 200
+    body = rotated.json()
+    new_secret = base64.urlsafe_b64decode(body["node_secret_b64url"])
+    assert len(new_secret) == 32
+    assert body["minimum_next_sequence"] == 2
+    assert body["sequence_counter_reset"] is False
+
+    second = _envelope(new_secret, node_id, "heartbeat", 2)
+    assert client.post(
+        f"/v1/edge/nodes/{node_id}/heartbeat", json=second
+    ).status_code == 200
+
+    stale = _envelope(old_secret, node_id, "heartbeat", 3)
+    assert client.post(
+        f"/v1/edge/nodes/{node_id}/heartbeat", json=stale
+    ).status_code == 401
