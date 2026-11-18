@@ -171,8 +171,8 @@ class MQTTBridge:
             self.last_message_error_type = type(exc).__name__
 
     def publish_downlink(self, node_id: str, payload: dict[str, Any]) -> None:
-        if not self.started or self._client is None:
-            raise RuntimeError("MQTTS bridge is not started")
+        if not self.started or self._client is None or not self.connected:
+            raise RuntimeError("MQTTS bridge is not connected")
         if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._:-]{2,63}", node_id):
             raise ValueError("invalid node_id")
         encoded = json.dumps(payload, sort_keys=True, separators=(",", ":"),
@@ -186,12 +186,14 @@ class MQTTBridge:
             raise RuntimeError("MQTT broker rejected downlink publish")
 
     def stop(self) -> None:
-        if self._client is not None:
-            self._client.disconnect()
-            self._client.loop_stop()
-        self._client = None
+        client, self._client = self._client, None
         self.started = False
         self.connected = False
+        if client is not None:
+            try:
+                client.disconnect()
+            finally:
+                client.loop_stop()
 
 
 def mqtt_config_from_env(env: dict[str, str] | None = None) -> MQTTConfig:
