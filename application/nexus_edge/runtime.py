@@ -61,8 +61,17 @@ class EdgeTransportRuntime:
                 accepted = authenticate_mqtt_uplink(
                     edge_manager, topic, body, topic_prefix=config.topic_prefix
                 )
+                event = edge_manager.record_telemetry(
+                    accepted["node_id"], accepted["payload"], transport="mqtts"
+                )
                 with self._lock:
-                    self._received.append(accepted)
+                    self._received.append({
+                        "accepted": True,
+                        "node_id": event["node_id"],
+                        "event_id": event["event_id"],
+                        "transport": event["transport"],
+                        "payload_sha256": event["payload_sha256"],
+                    })
 
             bridge = bridge_factory(config, on_message)
             bridge.start()
