@@ -104,6 +104,16 @@ def create_edge_app(manager: EdgeManager | None = None, *,
                 "network_io_enabled": True, "wallet_access_enabled": False,
                 "miner_autostart_enabled": False, "snapshot": snapshot}
 
+    @router.get("/nodes")
+    def list_nodes(authorization: str | None = Header(default=None)):
+        require_operator(authorization)
+        return {"nodes": edge.list_nodes()}
+
+    @router.get("/tasks")
+    def list_tasks(authorization: str | None = Header(default=None)):
+        require_operator(authorization)
+        return {"tasks": edge.list_tasks()}
+
     @router.post("/nodes/provision")
     def provision(body: ProvisionRequest, authorization: str | None = Header(default=None)):
         require_operator(authorization)
