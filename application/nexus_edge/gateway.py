@@ -46,7 +46,8 @@ def create_edge_manager_from_env(env: dict[str, str] | None = None) -> EdgeManag
     key = values.get("NEXUS_EDGE_STORAGE_KEY")
     if not key:
         raise RuntimeError("NEXUS_EDGE_STORAGE_KEY is required for online EDGE gateway")
-    database = values.get("NEXUS_EDGE_DATABASE", "./data/db/edge_state.sqlite3")
+    from .config import edge_database_path
+    database = edge_database_path(values)
     try:
         key_bytes = key.encode("ascii")
     except UnicodeEncodeError as exc:
