@@ -38,7 +38,13 @@ def _compile_native() -> Path | None:
     if not source.is_file():
         return None
     compiler = shutil.which("gcc") or shutil.which("clang")
-    if not compiler:
+    msvc = None
+    if not compiler and platform.system().lower() == "windows":
+        # Visual Studio's cl.exe is supported for the scalar/midstate native
+        # backend. AVX2/AVX-512 remain disabled in this translation unit until
+        # dedicated ISA-specific MSVC objects are independently validated.
+        msvc = shutil.which("cl.exe") or shutil.which("cl")
+    if not compiler and not msvc:
         return None
     build_dir = Path(os.environ.get("NEXUS_NATIVE_BUILD_DIR", str(Path(__file__).resolve().parent / "native" / "build")))
     build_dir.mkdir(parents=True, exist_ok=True)
@@ -46,7 +52,13 @@ def _compile_native() -> Path | None:
     if output.is_file() and output.stat().st_mtime >= source.stat().st_mtime:
         return output
     system = platform.system().lower()
-    if system == "windows":
+    if system == "windows" and msvc:
+        object_dir = str(build_dir) + os.sep
+        cmd = [
+            msvc, "/nologo", "/O2", "/LD", "/DNEXUS_LIBRARY",
+            f"/Fe:{output}", f"/Fo:{object_dir}", str(source),
+        ]
+    elif system == "windows":
         cmd = [compiler, "-O3", "-pthread", "-shared", "-DNEXUS_LIBRARY", "-o", str(output), str(source)]
     elif system == "darwin":
         cmd = [compiler, "-O3", "-pthread", "-fPIC", "-dynamiclib", "-DNEXUS_LIBRARY", "-o", str(output), str(source)]
@@ -79,7 +91,10 @@ def _load_library():
         if candidate is None:
             candidate = _compile_native()
         if candidate is None:
-            _LOAD_ERROR = _LOAD_ERROR or "No native library and no supported C compiler found."
+            _LOAD_ERROR = _LOAD_ERROR or (
+                "No native library or supported compiler found. Install GCC/Clang, "
+                "or run from a Visual Studio x64 Developer environment for the MSVC scalar backend."
+            )
             return None
         try:
             lib = ctypes.CDLL(str(candidate))
