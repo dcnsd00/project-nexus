@@ -354,6 +354,43 @@ class EdgeManager:
         return counts
 
     @_synchronized
+    def record_telemetry(
+        self,
+        node_id: str,
+        payload: dict[str, Any],
+        *,
+        transport: str,
+    ) -> dict[str, Any]:
+        """Persist telemetry only after the caller has authenticated the envelope."""
+        self._get_node(node_id)
+        if not isinstance(payload, dict):
+            raise EdgeError("telemetry payload must be a JSON object")
+        if len(_canonical(payload)) > self.max_payload_bytes:
+            raise EdgeError("telemetry payload exceeds configured size limit")
+        if transport not in {"https", "mqtts", "lorawan", "iot"}:
+            raise EdgeError("unsupported telemetry transport")
+        if self._store is None:
+            raise EdgeError("durable EDGE storage is required for telemetry ingestion")
+        try:
+            return self._store.append_telemetry(
+                node_id=node_id,
+                received_at=self._clock(),
+                transport=transport,
+                payload=payload,
+            )
+        except Exception as exc:
+            raise EdgeError("telemetry persistence failed") from exc
+
+    @_synchronized
+    def telemetry(self, *, limit: int = 100) -> list[dict[str, Any]]:
+        if self._store is None:
+            return []
+        try:
+            return self._store.list_telemetry(limit=limit)
+        except (TypeError, ValueError) as exc:
+            raise EdgeError(str(exc)) from exc
+
+    @_synchronized
     def list_nodes(self) -> list[dict[str, Any]]:
         """Return operator-safe node status without exposing authentication secrets."""
         return [self.node_status(node_id) for node_id in sorted(self._nodes)]
@@ -410,6 +447,7 @@ class EdgeManager:
             "nodes_online": sum(self._is_online(n, now) for n in self._nodes.values()),
             "tasks_total": len(self._tasks),
             "task_states": states,
+            "telemetry_total": self._store.telemetry_count() if self._store is not None else 0,
             "network_io_enabled": False,
             "wallet_access_enabled": False,
             "miner_autostart_enabled": False,
