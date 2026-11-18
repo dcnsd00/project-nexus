@@ -22,6 +22,10 @@ connection and the uplink subscription succeeds. Malformed or unauthenticated
 uplinks are rejected in the network callback and counted without logging their
 payloads.
 
+The broker connection itself must authenticate with a username/password pair
+or a client certificate/key pair. TLS certificate verification is not
+disabled. Anonymous broker sessions are rejected by configuration validation.
+
 **Current ingress boundary:** authenticated HTTPS/MQTTS uplinks are validated
 and accepted, but the MQTTS runtime currently retains accepted uplinks only in
 a bounded in-memory diagnostics queue. It is not yet a durable telemetry
