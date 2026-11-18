@@ -146,8 +146,18 @@ class EdgePersistenceInvariantTests(unittest.TestCase):
         first = self.manager()
         self.register_online_node(first)
         payload = {"temperature_c": 21.75, "battery_pct": 94}
-        event = first.record_telemetry(
-            self.node_id, payload, transport="https"
+        timestamp = self.clock()
+        message = {
+            "kind": "node_request",
+            "action": "https.uplink",
+            "node_id": self.node_id,
+            "timestamp": timestamp,
+            "sequence": 2,
+            "payload": payload,
+        }
+        event = first.authenticate_and_record_telemetry(
+            self.node_id, "https.uplink", timestamp, 2, payload,
+            sign_message(self.secret, message), transport="https",
         )
         self.assertEqual(event["transport"], "https")
         self.assertEqual(len(event["payload_sha256"]), 64)
@@ -163,13 +173,16 @@ class EdgePersistenceInvariantTests(unittest.TestCase):
     def test_telemetry_rejects_unknown_nodes_invalid_transport_and_oversized_payload(self):
         manager = self.manager()
         self.register_online_node(manager)
+        timestamp = self.clock()
         with self.assertRaisesRegex(EdgeError, "unknown node"):
-            manager.record_telemetry(
-                "edge-c5-unknown", {"value": 1}, transport="https"
+            manager.authenticate_and_record_telemetry(
+                "edge-c5-unknown", "https.uplink", timestamp, 2,
+                {"value": 1}, "bad", transport="https",
             )
         with self.assertRaisesRegex(EdgeError, "unsupported telemetry transport"):
-            manager.record_telemetry(
-                self.node_id, {"value": 1}, transport="raw"
+            manager.authenticate_and_record_telemetry(
+                self.node_id, "https.uplink", timestamp, 2,
+                {"value": 1}, "bad", transport="raw",
             )
         tiny = EdgeManager(
             clock=self.clock,
@@ -178,8 +191,9 @@ class EdgePersistenceInvariantTests(unittest.TestCase):
             store=SQLiteEdgeStore(self.database, encryption_key=self.key),
         )
         with self.assertRaisesRegex(EdgeError, "payload exceeds configured size limit"):
-            tiny.record_telemetry(
-                self.node_id, {"data": "x" * 256}, transport="https"
+            tiny.authenticate_and_record_telemetry(
+                self.node_id, "https.uplink", timestamp, 2,
+                {"data": "x" * 256}, "bad", transport="https",
             )
 
     def test_concurrent_replay_acceptance_is_atomic(self):
