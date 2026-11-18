@@ -2,11 +2,12 @@
 import sqlite3
 import tempfile
 import unittest
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 from cryptography.fernet import Fernet
 
-from nexus_edge import EdgeError, EdgeManager, SQLiteEdgeStore, SQLiteReplayGuard, sign_message
+from nexus_edge import EdgeError, EdgeManager, ReplayError, SQLiteEdgeStore, SQLiteReplayGuard, sign_message
 
 
 class Clock:
@@ -128,6 +129,23 @@ class EdgePersistenceTests(unittest.TestCase):
         self.assertEqual(
             restarted.node_status(self.node_id)["active_tasks"], []
         )
+
+    def test_concurrent_replay_acceptance_is_atomic(self):
+        guard = SQLiteReplayGuard(self.database)
+
+        def attempt_acceptance():
+            try:
+                guard.accept(self.node_id, 7)
+                return True
+            except ReplayError:
+                return False
+
+        with ThreadPoolExecutor(max_workers=8) as executor:
+            accepted = list(executor.map(
+                lambda _: attempt_acceptance(), range(16)
+            ))
+
+        self.assertEqual(sum(accepted), 1)
 
     def test_node_secret_is_encrypted_at_rest(self):
         manager = self.manager()
