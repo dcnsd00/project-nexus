@@ -10,6 +10,7 @@ from cryptography.fernet import Fernet
 from nexus_edge import (
     EdgeError,
     EdgeManager,
+    EdgePersistenceError,
     ReplayError,
     SQLiteEdgeStore,
     SQLiteReplayGuard,
@@ -195,12 +196,55 @@ class EdgePersistenceInvariantTests(unittest.TestCase):
         self.assertEqual(len(event["payload_sha256"]), 64)
         self.assertEqual(first.snapshot()["telemetry_total"], 1)
 
+        duplicate = first.authenticate_and_record_telemetry(
+            self.node_id, "https.uplink", timestamp, 2, payload,
+            sign_message(self.secret, message), transport="https",
+        )
+        self.assertTrue(duplicate["duplicate"])
+        self.assertEqual(first.snapshot()["telemetry_total"], 1)
+
         restarted = self.manager()
         history = restarted.telemetry(limit=10)
         self.assertEqual(len(history), 1)
         self.assertEqual(history[0]["event_id"], event["event_id"])
         self.assertEqual(history[0]["payload"], payload)
         self.assertEqual(restarted.snapshot()["telemetry_total"], 1)
+
+    def test_failed_telemetry_commit_does_not_consume_sequence_and_can_retry(self):
+        manager = self.manager()
+        self.register_online_node(manager)
+        store = manager._store
+        original = store.accept_and_append_telemetry
+
+        def fail_commit(**kwargs):
+            raise OSError("simulated SQLite write failure")
+
+        store.accept_and_append_telemetry = fail_commit
+        timestamp = self.clock()
+        payload = {"temperature_c": 19.5}
+        message = {
+            "kind": "node_request",
+            "action": "mqtt.uplink",
+            "node_id": self.node_id,
+            "timestamp": timestamp,
+            "sequence": 2,
+            "payload": payload,
+        }
+        signature = sign_message(self.secret, message)
+        with self.assertRaises(EdgePersistenceError):
+            manager.authenticate_and_record_telemetry(
+                self.node_id, "mqtt.uplink", timestamp, 2, payload,
+                signature, transport="mqtts",
+            )
+        self.assertEqual(manager.next_node_sequence(self.node_id), 2)
+
+        store.accept_and_append_telemetry = original
+        accepted = manager.authenticate_and_record_telemetry(
+            self.node_id, "mqtt.uplink", timestamp, 2, payload,
+            signature, transport="mqtts",
+        )
+        self.assertFalse(accepted["duplicate"])
+        self.assertEqual(manager.next_node_sequence(self.node_id), 3)
 
     def test_telemetry_rejects_unknown_nodes_invalid_transport_and_oversized_payload(self):
         manager = self.manager()
