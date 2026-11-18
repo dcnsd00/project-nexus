@@ -20,7 +20,13 @@ MODULES: tuple[dict[str, Any], ...] = (
     {"id": "earnings_intelligence", "name": "Earnings Intelligence", "paths": ("modules/earnings_intelligence.py",), "route_prefixes": ("/api/intel",), "runtime_service": "earnings_intelligence", "critical": False},
     {"id": "mining_switch_controller", "name": "Conditional Mining Switch", "paths": ("modules/mining_switch_controller.py",), "route_prefixes": ("/api/mining/hybrid",), "runtime_service": "mining_switch_controller", "critical": False},
     {"id": "blockchain_regtest", "name": "Local Blockchain Regtest", "paths": ("modules/blockchain_regtest/nexus_v05_integration.py",), "route_prefixes": (), "runtime_service": "blockchain_regtest", "critical": False},
-    {"id": "edge_manager", "name": "NEXUS EDGE Manager", "paths": ("nexus_edge/manager.py", "nexus_edge/service.py"), "route_prefixes": (), "runtime_service": "edge_manager", "critical": False},
+    {"id": "edge_manager", "name": "NEXUS EDGE Manager", "paths": (
+        "nexus_edge/manager.py", "nexus_edge/service.py",
+        "nexus_edge/replay_guard.py", "nexus_edge/sqlite_store.py",
+        "nexus_edge/gateway.py", "nexus_edge/gateway_runtime.py",
+        "nexus_edge/runtime.py", "nexus_edge/transports.py",
+        "nexus_edge/topology.py", "nexus_edge/config.py",
+    ), "route_prefixes": (), "runtime_service": "edge_manager", "critical": False},
     {"id": "depin_fieldstation", "name": "DePIN Fieldstation", "paths": ("adapters/fieldstation/crypto_fieldstation/app.py",), "route_prefixes": (), "runtime_service": "depin_fieldstation", "critical": False},
 )
 
