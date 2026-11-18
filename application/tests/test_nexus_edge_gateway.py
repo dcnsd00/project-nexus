@@ -127,6 +127,60 @@ def test_gateway_signed_payload_is_bound_to_requested_task(tmp_path):
     assert response.status_code == 400
 
 
+def test_gateway_completes_task_only_with_claimed_assignment_nonce(tmp_path):
+    manager = _manager(tmp_path)
+    client = TestClient(create_edge_app(manager, provisioning_token="p" * 40))
+    node_id = "esp32-node-lease-01"
+    secret = b"l" * 32
+    manager.register_node(node_id, ["math.verify"], secret)
+
+    heartbeat = _envelope(secret, node_id, "heartbeat", 1)
+    assert client.post(
+        f"/v1/edge/nodes/{node_id}/heartbeat", json=heartbeat
+    ).status_code == 200
+
+    task = manager.submit_task(
+        "math.verify", {"input": "lease-bound"}, ["math.verify"]
+    )
+    claimed_response = client.post(
+        f"/v1/edge/nodes/{node_id}/claim",
+        json=_envelope(secret, node_id, "claim_task", 2),
+    )
+    assert claimed_response.status_code == 200
+    claimed = claimed_response.json()["task"]
+    assert claimed["task_id"] == task["task_id"]
+    assignment_nonce = claimed["assignment_nonce"]
+
+    started = client.post(
+        f"/v1/edge/nodes/{node_id}/tasks/{task['task_id']}/start",
+        json=_envelope(
+            secret, node_id, "start_task", 3, {"task_id": task["task_id"]}
+        ),
+    )
+    assert started.status_code == 200
+
+    result = {"verified": True, "answer": 42}
+    result_message = {
+        "kind": "task_result",
+        "node_id": node_id,
+        "task_id": task["task_id"],
+        "assignment_nonce": assignment_nonce,
+        "result": result,
+    }
+    completion_payload = {
+        "task_id": task["task_id"],
+        "result": result,
+        "assignment_nonce": assignment_nonce,
+        "result_signature": sign_message(secret, result_message),
+    }
+    completed = client.post(
+        f"/v1/edge/nodes/{node_id}/tasks/{task['task_id']}/complete",
+        json=_envelope(secret, node_id, "complete_task", 4, completion_payload),
+    )
+    assert completed.status_code == 200
+    assert completed.json()["state"] == "SUCCEEDED"
+
+
 def test_gateway_reports_transport_matrix_without_claiming_external_connectivity(tmp_path):
     client = TestClient(create_edge_app(_manager(tmp_path), provisioning_token="p" * 40))
     response = client.get("/v1/edge/transports")
