@@ -35,7 +35,7 @@ def test_network_paths_map_to_explicit_transport_types():
 
 def test_mqtt_bridge_uses_tls_and_subscribes_to_node_uplink():
     client=FakeClient(); received=[]
-    bridge=MQTTBridge(MQTTConfig(host="broker.example",client_id="nexus-test"),
+    bridge=MQTTBridge(MQTTConfig(host="broker.example",client_id="nexus-test",username="nexus",password="test-password"),
                       lambda topic,body: received.append((topic,body)),
                       client_factory=lambda **kwargs: client)
     bridge.start()
@@ -101,6 +101,11 @@ def test_mqtt_bridge_does_not_report_broker_rejection_as_connected():
     with pytest.raises(RuntimeError, match="not connected"):
         bridge.publish_downlink("esp32-node-01", {"notice": "test"})
     bridge.stop()
+
+
+def test_mqtt_bridge_requires_broker_authentication():
+    with pytest.raises(ValueError, match="broker authentication is required"):
+        MQTTConfig(host="broker.example", client_id="nexus-test").validate()
 
 
 def test_mqtt_bridge_rejects_invalid_tls_client_cert_pair():
