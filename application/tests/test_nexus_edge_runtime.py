@@ -1,4 +1,5 @@
 from cryptography.fernet import Fernet
+import time
 
 from nexus_edge.manager import EdgeManager, sign_message
 from nexus_edge.replay_guard import SQLiteReplayGuard
@@ -71,7 +72,7 @@ def test_edge_runtime_reuses_shared_durable_manager_and_authenticates_uplinks(
     assert len(created) == 1 and created[0].started
     assert runtime._manager is manager
 
-    timestamp = 1_800_000_000
+    timestamp = int(time.time())
     payload = {"temperature_c": 21.5}
     signed = {
         "kind": "node_request",
