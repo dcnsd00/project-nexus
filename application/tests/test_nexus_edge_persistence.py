@@ -1,4 +1,5 @@
 """Additional EDGE durability invariants not covered by the store contract suite."""
+import sqlite3
 import tempfile
 import unittest
 from concurrent.futures import ThreadPoolExecutor
@@ -118,6 +119,28 @@ class EdgePersistenceInvariantTests(unittest.TestCase):
                 self.node_id, timestamp, 3,
                 sign_message(self.secret, old_message),
             )
+
+    def test_store_migrates_existing_schema_version_one_to_two(self):
+        store = SQLiteEdgeStore(self.database, encryption_key=self.key)
+        with sqlite3.connect(self.database) as connection:
+            connection.execute(
+                "UPDATE nexus_edge_schema SET version = 1 WHERE component = 'edge_store'"
+            )
+            connection.execute("DROP TABLE edge_telemetry")
+
+        migrated = SQLiteEdgeStore(self.database, encryption_key=self.key)
+        self.assertEqual(migrated.telemetry_count(), 0)
+        with sqlite3.connect(self.database) as connection:
+            version = connection.execute(
+                "SELECT version FROM nexus_edge_schema WHERE component = 'edge_store'"
+            ).fetchone()[0]
+            tables = {
+                row[0] for row in connection.execute(
+                    "SELECT name FROM sqlite_master WHERE type = 'table'"
+                )
+            }
+        self.assertEqual(version, 2)
+        self.assertIn("edge_telemetry", tables)
 
     def test_authenticated_telemetry_is_persisted_and_survives_restart(self):
         first = self.manager()
