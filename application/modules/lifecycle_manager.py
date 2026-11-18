@@ -61,6 +61,16 @@ class LifecycleManager:
         self._records[spec.name] = ServiceRecord(spec=spec)
         self._order = []
 
+    def get_service_instance(self, name: str) -> Any:
+        """Return a running service instance for explicit dependency sharing."""
+        try:
+            record = self._records[name]
+        except KeyError as exc:
+            raise LifecycleError(f"unknown service: {name}") from exc
+        if record.state != ServiceState.RUNNING or record.instance is None:
+            raise LifecycleError(f"service is not running: {name}")
+        return record.instance
+
     def _topological_order(self) -> list[str]:
         temporary: set[str] = set()
         permanent: set[str] = set()
