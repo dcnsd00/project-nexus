@@ -60,6 +60,22 @@ Active-active remains blocked until distributed task claims, shared database
 transactions, idempotency, leader/fencing or equivalent coordination, and
 failover tests are implemented.
 
+## Deployment topology validation
+
+NEXUS MASTER validates `NEXUS_DEPLOYMENT_MODE`, `NEXUS_SERVER_COUNT`,
+`NEXUS_STATE_BACKEND`, `NEXUS_SHARED_STATE`, and
+`NEXUS_DISTRIBUTED_TASK_CLAIMS` during startup. The validated declaration is
+reported by `GET /api/edge/topology`, the `nexus_cli.py edge` command, and the
+unified operator snapshot.
+
+This is a configuration guard, not a high-availability implementation.
+Primary/standby requires exactly two servers and a declared shared/replicated
+state backend. Active-active additionally requires declared distributed task
+claims. NEXUS does not provision the database, replication, leader election,
+fencing, or failover through this validator; those remain operational
+implementation and validation gates. The reported field
+`operational_failover_verified` therefore remains false.
+
 ## Security and rollout gates
 No WAN listener, MQTT broker, LoRaWAN Network Server or hardware is assumed
 present. Network adapters are opt-in. Before remote exposure require TLS,
