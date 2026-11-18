@@ -356,29 +356,44 @@ class EdgeManager:
     def _persist(self) -> None:
         if self._store is None:
             return
-        self._store.save_state(
-            nodes=[{
-                "node_id": node.node_id,
-                "capabilities": sorted(node.capabilities),
-                "secret": node.secret,
-                "max_parallel": node.max_parallel,
-                "last_seen": node.last_seen,
-            } for node in self._nodes.values()],
-            tasks=[{
-                "task_id": task.task_id,
-                "task_type": task.task_type,
-                "payload": task.payload,
-                "required_capabilities": sorted(task.required_capabilities),
-                "created_at": task.created_at,
-                "deadline": task.deadline,
-                "state": task.state,
-                "node_id": task.node_id,
-                "lease_until": task.lease_until,
-                "result": task.result,
-                "result_sha256": task.result_sha256,
-                "error": task.error,
-            } for task in self._tasks.values()],
-        )
+        try:
+            self._store.save_state(
+                nodes=[{
+                    "node_id": node.node_id,
+                    "capabilities": sorted(node.capabilities),
+                    "secret": node.secret,
+                    "max_parallel": node.max_parallel,
+                    "last_seen": node.last_seen,
+                } for node in self._nodes.values()],
+                tasks=[{
+                    "task_id": task.task_id,
+                    "task_type": task.task_type,
+                    "payload": task.payload,
+                    "required_capabilities": sorted(task.required_capabilities),
+                    "created_at": task.created_at,
+                    "deadline": task.deadline,
+                    "state": task.state,
+                    "node_id": task.node_id,
+                    "lease_until": task.lease_until,
+                    "result": task.result,
+                    "result_sha256": task.result_sha256,
+                    "error": task.error,
+                } for task in self._tasks.values()],
+            )
+        except Exception:
+            # Manager methods mutate their in-memory objects before persisting.
+            # Reconcile from the last committed snapshot so a failed write does
+            # not leave this process reporting state that SQLite never accepted.
+            try:
+                persisted_state = self._store.load_state()
+                self._nodes.clear()
+                self._tasks.clear()
+                self._restore(persisted_state)
+            except Exception as recovery_error:
+                raise RuntimeError(
+                    "EDGE persistence failed and in-memory state could not be reconciled"
+                ) from recovery_error
+            raise
 
     def _restore(self, state: dict[str, Any]) -> None:
         for item in state.get("nodes", []):
