@@ -7,7 +7,7 @@ from fastapi.testclient import TestClient
 
 from nexus_edge.gateway import create_edge_app
 from nexus_edge.manager import EdgeManager, sign_message
-from nexus_edge.replay_guard import SQLiteReplayGuard
+from nexus_edge.replay_guard import MemoryReplayGuard, SQLiteReplayGuard
 from nexus_edge.sqlite_store import SQLiteEdgeStore
 
 
@@ -46,6 +46,17 @@ def test_gateway_requires_strong_operator_token():
 def test_gateway_rejects_ephemeral_manager():
     with pytest.raises(RuntimeError, match="encrypted sqlite_persistent"):
         create_edge_app(EdgeManager(), provisioning_token="p" * 40)
+
+
+def test_gateway_rejects_sqlite_state_with_process_local_replay_guard(tmp_path):
+    database = tmp_path / "edge.sqlite3"
+    manager = EdgeManager(
+        replay_guard=MemoryReplayGuard(),
+        store=SQLiteEdgeStore(database, encryption_key=Fernet.generate_key()),
+    )
+    assert manager.snapshot()["mode"] == "in_memory_pilot"
+    with pytest.raises(RuntimeError, match="encrypted sqlite_persistent"):
+        create_edge_app(manager, provisioning_token="p" * 40)
 
 
 def test_gateway_provisions_node_and_requires_operator_token(tmp_path):
