@@ -54,7 +54,7 @@ Status: **Host-side EDGE control plane is integrated into NEXUS MASTER as an opt
 - `NEXUS_EDGE_DATABASE`: optional SQLite path; otherwise the canonical NEXUS data path is used.
 - `NEXUS_EDGE_GATEWAY_ENABLED=true`: enables the HTTPS gateway.
 - `NEXUS_EDGE_MQTT_ENABLED=true`: enables MQTTS. Configure `NEXUS_EDGE_MQTT_HOST` and either username/password or client certificate/key credentials. Install `paho-mqtt>=2,<3`.
-- Both network adapters remain disabled unless explicitly enabled. Missing storage encryption or weak/missing operator credentials fail the optional network service closed; they do not authorize an in-memory online gateway.
+- Install the optional MQTTS runtime dependency set from `application/` with `pip install -r requirements-edge.txt`; this includes `paho-mqtt>=2,<3`. Both network adapters remain disabled unless explicitly enabled. Missing storage encryption or weak/missing operator credentials fail the optional network service closed; they do not authorize an in-memory online gateway.
 
 ## Security and deployment boundaries
 
