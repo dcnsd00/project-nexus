@@ -84,3 +84,118 @@ def test_master_still_stops_core_services_when_optional_edge_shutdown_fails(monk
 
     assert runtime.snapshot()["running"] == 0
     assert nexus_master.app.state.nexus_runtime is None
+
+def test_master_end_to_end_shared_manager_https_and_mqtts_telemetry(monkeypatch, tmp_path):
+    import base64
+    import time
+    from cryptography.fernet import Fernet
+    from modules import data_paths
+    from nexus_edge.gateway_runtime import EdgeGatewayRuntime
+    from nexus_edge.manager import sign_message
+    from nexus_edge.runtime import EdgeTransportRuntime
+
+    database = tmp_path / "edge.sqlite3"
+    token = "operator-token-" + "x" * 40
+    monkeypatch.setattr(data_paths, "DATA_DIR", tmp_path / "nexus-data")
+    monkeypatch.setenv("NEXUS_EDGE_DATABASE", str(database))
+    monkeypatch.setenv("NEXUS_EDGE_STORAGE_KEY", Fernet.generate_key().decode("ascii"))
+    monkeypatch.setenv("NEXUS_EDGE_PROVISIONING_TOKEN", token)
+    monkeypatch.setenv("NEXUS_EDGE_GATEWAY_ENABLED", "true")
+    monkeypatch.setenv("NEXUS_EDGE_MQTT_ENABLED", "true")
+    monkeypatch.setenv("NEXUS_EDGE_MQTT_HOST", "broker.example")
+    monkeypatch.setenv("NEXUS_EDGE_MQTT_USERNAME", "nexus")
+    monkeypatch.setenv("NEXUS_EDGE_MQTT_PASSWORD", "test-password")
+    monkeypatch.delenv("NEXUS_DEPLOYMENT_MODE", raising=False)
+    monkeypatch.delenv("NEXUS_SERVER_COUNT", raising=False)
+    monkeypatch.delenv("NEXUS_STATE_BACKEND", raising=False)
+
+    class FakeBridge:
+        def __init__(self, config, on_message):
+            self.config = config
+            self.callback = on_message
+            self.started = False
+            self.connected = False
+
+        def start(self):
+            self.started = True
+            self.connected = True
+
+        def stop(self):
+            self.started = False
+            self.connected = False
+
+        def status(self):
+            return {"started": self.started, "connected": self.connected}
+
+    gateway_runtime = EdgeGatewayRuntime()
+    transport_runtime = EdgeTransportRuntime(
+        bridge_factory=lambda config, on_message: FakeBridge(config, on_message)
+    )
+    monkeypatch.setattr(nexus_master, "_edge_gateway_runtime", gateway_runtime)
+    monkeypatch.setattr(nexus_master, "_edge_transport", transport_runtime)
+
+    with TestClient(nexus_master.app) as client:
+        runtime = nexus_master.app.state.nexus_runtime
+        manager = runtime.get_service_instance("edge_manager").service.manager
+        assert gateway_runtime._mounted_app.state.edge_manager is manager
+        assert transport_runtime._manager is manager
+        assert transport_runtime.status()["mqtts"] == "connected"
+
+        provisioned = client.post(
+            "/edge/v1/edge/nodes/provision",
+            headers={"Authorization": "Bearer " + token},
+            json={"node_id": "esp32-shared-001", "capabilities": ["telemetry"]},
+        )
+        assert provisioned.status_code == 200
+        secret = base64.urlsafe_b64decode(
+            provisioned.json()["node_secret_b64url"]
+        )
+        assert provisioned.json()["minimum_next_sequence"] == 1
+
+        node_id = "esp32-shared-001"
+        mqtt_payload = {"temperature_c": 20.5, "source": "mqtt"}
+        mqtt_timestamp = int(time.time())
+        mqtt_message = {
+            "kind": "node_request",
+            "action": "mqtt.uplink",
+            "node_id": node_id,
+            "timestamp": mqtt_timestamp,
+            "sequence": 1,
+            "payload": mqtt_payload,
+        }
+        mqtt_body = {
+            "timestamp": mqtt_timestamp,
+            "sequence": 1,
+            "payload": mqtt_payload,
+            "signature": sign_message(secret, mqtt_message),
+        }
+        transport_runtime._bridge.callback(
+            f"nexus/v1/nodes/{node_id}/up", mqtt_body
+        )
+
+        https_payload = {"temperature_c": 21.0, "source": "https"}
+        https_timestamp = int(time.time())
+        https_message = {
+            "kind": "node_request",
+            "action": "https.uplink",
+            "node_id": node_id,
+            "timestamp": https_timestamp,
+            "sequence": 2,
+            "payload": https_payload,
+        }
+        https_response = client.post(
+            f"/edge/v1/edge/nodes/{node_id}/uplink/https",
+            json={
+                "timestamp": https_timestamp,
+                "sequence": 2,
+                "payload": https_payload,
+                "signature": sign_message(secret, https_message),
+            },
+        )
+        assert https_response.status_code == 200
+
+        history = manager.telemetry(limit=10)
+        assert [event["transport"] for event in history] == ["https", "mqtts"]
+        assert [event["sequence"] for event in history] == [2, 1]
+        assert client.get("/api/edge/telemetry").json()["events"][0].get("payload") is None
+
