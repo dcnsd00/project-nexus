@@ -118,6 +118,26 @@ def create_edge_app(manager: EdgeManager | None = None, *,
         return {"node": node, "node_secret_b64url": base64.urlsafe_b64encode(secret).decode("ascii"),
                 "secret_delivery": "one_time_response_operator_must_provision_securely"}
 
+    @router.post("/nodes/{node_id}/rotate-secret")
+    def rotate_node_secret(
+        node_id: str,
+        authorization: str | None = Header(default=None),
+    ):
+        require_operator(authorization)
+        secret = secrets.token_bytes(32)
+        try:
+            node = edge.rotate_node_secret(node_id, secret)
+            next_sequence = edge.next_node_sequence(node_id)
+        except EdgeError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        return {
+            "node": node,
+            "node_secret_b64url": base64.urlsafe_b64encode(secret).decode("ascii"),
+            "minimum_next_sequence": next_sequence,
+            "sequence_counter_reset": False,
+            "secret_delivery": "one_time_response_operator_must_provision_securely",
+        }
+
     @router.post("/tasks")
     def submit_task(body: TaskRequest, authorization: str | None = Header(default=None)):
         require_operator(authorization)
