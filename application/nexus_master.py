@@ -30,8 +30,13 @@ _core_lifespan = app.router.lifespan_context
 async def _nexus_lifespan(application):
     async with _core_lifespan(application):
         initialize_wallet_schema()
-        # Network transports remain disabled unless the operator opts in.
+        # Start the safe, local-only NEXUS service graph. Optional service
+        # failures remain visible without taking down independent services.
         import asyncio
+        runtime_manager = build_runtime(ROOT)
+        await asyncio.to_thread(runtime_manager.start_all)
+        application.state.nexus_runtime = runtime_manager
+        # Network transports remain disabled unless the operator opts in.
         try:
             await asyncio.to_thread(_edge_transport.start)
         except Exception as exc:
@@ -47,6 +52,8 @@ async def _nexus_lifespan(application):
         finally:
             await asyncio.to_thread(_edge_gateway_runtime.stop, application)
             await asyncio.to_thread(_edge_transport.stop)
+            await asyncio.to_thread(runtime_manager.stop_all)
+            application.state.nexus_runtime = None
 app.router.lifespan_context = _nexus_lifespan
 from nexus_wallet_recovery_api import router as wallet_recovery_router  # noqa: E402
 app.include_router(wallet_recovery_router)
@@ -1587,18 +1594,34 @@ def rcsc_run_detail(run_id: str):
         raise HTTPException(status_code=404, detail="RCSC run not found")
     return result
 
-# NEXUS unified module registry: reports source and route evidence separately.
+# NEXUS unified module registry and live lifecycle status.
 from modules.module_registry import build_module_registry  # noqa: E402
 from modules.nexus_runtime import build_runtime  # noqa: E402
 
+def _active_runtime_services():
+    manager = getattr(app.state, "nexus_runtime", None)
+    if manager is None:
+        return set()
+    return {
+        row["name"] for row in manager.snapshot()["services"]
+        if row["state"] == "running"
+    }
+
+@app.get("/api/nexus/runtime")
+def nexus_runtime_status():
+    manager = getattr(app.state, "nexus_runtime", None)
+    if manager is None:
+        return {"state": "not_started", "running": 0, "total": 0,
+                "system_ready": False, "services": []}
+    return manager.health_check_all()
+
 @app.get("/api/nexus/module-registry")
 def nexus_module_registry():
-    runtime_services = {row["name"] for row in build_runtime().snapshot()["services"]}
-    return build_module_registry(ROOT, app, runtime_services=runtime_services)
+    return build_module_registry(ROOT, app, runtime_services=_active_runtime_services())
 
 @app.get("/api/nexus/module-registry/health")
 def nexus_module_registry_health():
-    runtime_services = {row["name"] for row in build_runtime().snapshot()["services"]}
+    runtime_services = _active_runtime_services()
     registry = build_module_registry(ROOT, app, runtime_services=runtime_services)
     critical = [m for m in registry["modules"] if m["critical"]]
     return {

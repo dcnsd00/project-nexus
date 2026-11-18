@@ -10,6 +10,7 @@ READ_ONLY_STATUS_ENDPOINTS = (
     "/api/nexus/modules",
     "/api/nexus/module-registry",
     "/api/nexus/module-registry/health",
+    "/api/nexus/runtime",
     "/api/nexus/telemetry",
     "/api/mining/hardware",
     "/api/mining/miners",
@@ -104,3 +105,21 @@ def test_mining_start_stop_commands_are_connected_to_supervisor(monkeypatch):
         stopped = client.post("/api/mining/stop")
         assert stopped.status_code == 200
         assert stopped.json()["status"] == "stopped"
+
+
+def test_master_starts_and_reports_the_local_runtime_graph():
+    with TestClient(app) as client:
+        response = client.get("/api/nexus/runtime")
+        assert response.status_code == 200
+        body = response.json()
+        assert body["system_ready"] is True
+        assert body["running"] == body["total"]
+        services = {row["name"]: row for row in body["services"]}
+        assert services["crypto_engine"]["state"] == "running"
+        assert services["data_paths"]["state"] == "running"
+        assert services["edge_manager"]["state"] == "running"
+        assert services["edge_manager"]["health"]["mode"] == "local_control_plane_no_transport"
+        registry = client.get("/api/nexus/module-registry").json()
+        edge = next(row for row in registry["modules"] if row["id"] == "edge_manager")
+        assert edge["runtime_registered"] is True
+        assert edge["operational_verified"] is False
