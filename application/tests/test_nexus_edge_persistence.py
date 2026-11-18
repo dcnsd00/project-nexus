@@ -119,6 +119,46 @@ class EdgePersistenceInvariantTests(unittest.TestCase):
                 sign_message(self.secret, old_message),
             )
 
+    def test_authenticated_telemetry_is_persisted_and_survives_restart(self):
+        first = self.manager()
+        self.register_online_node(first)
+        payload = {"temperature_c": 21.75, "battery_pct": 94}
+        event = first.record_telemetry(
+            self.node_id, payload, transport="https"
+        )
+        self.assertEqual(event["transport"], "https")
+        self.assertEqual(len(event["payload_sha256"]), 64)
+        self.assertEqual(first.snapshot()["telemetry_total"], 1)
+
+        restarted = self.manager()
+        history = restarted.telemetry(limit=10)
+        self.assertEqual(len(history), 1)
+        self.assertEqual(history[0]["event_id"], event["event_id"])
+        self.assertEqual(history[0]["payload"], payload)
+        self.assertEqual(restarted.snapshot()["telemetry_total"], 1)
+
+    def test_telemetry_rejects_unknown_nodes_invalid_transport_and_oversized_payload(self):
+        manager = self.manager()
+        self.register_online_node(manager)
+        with self.assertRaisesRegex(EdgeError, "unknown node"):
+            manager.record_telemetry(
+                "edge-c5-unknown", {"value": 1}, transport="https"
+            )
+        with self.assertRaisesRegex(EdgeError, "unsupported telemetry transport"):
+            manager.record_telemetry(
+                self.node_id, {"value": 1}, transport="raw"
+            )
+        tiny = EdgeManager(
+            clock=self.clock,
+            max_payload_bytes=128,
+            replay_guard=SQLiteReplayGuard(self.database),
+            store=SQLiteEdgeStore(self.database, encryption_key=self.key),
+        )
+        with self.assertRaisesRegex(EdgeError, "payload exceeds configured size limit"):
+            tiny.record_telemetry(
+                self.node_id, {"data": "x" * 256}, transport="https"
+            )
+
     def test_concurrent_replay_acceptance_is_atomic(self):
         guard = SQLiteReplayGuard(self.database)
 
