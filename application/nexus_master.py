@@ -36,15 +36,37 @@ async def _nexus_lifespan(application):
         runtime_manager = build_runtime(ROOT)
         await asyncio.to_thread(runtime_manager.start_all)
         application.state.nexus_runtime = runtime_manager
-        # Network transports remain disabled unless the operator opts in.
-        try:
-            await asyncio.to_thread(_edge_transport.start)
-        except Exception as exc:
-            _edge_transport.set_start_error(type(exc).__name__)
-        try:
-            await asyncio.to_thread(_edge_gateway_runtime.start, application)
-        except Exception as exc:
-            _edge_gateway_runtime.set_start_error(type(exc).__name__)
+        # Both network adapters must use the exact manager owned by the
+        # LifecycleManager service. Independent managers pointed at the same
+        # SQLite file would keep divergent in-memory snapshots and overwrite
+        # each other's state.
+        shared_edge_manager = None
+        if _edge_transport.enabled() or _edge_gateway_runtime.enabled():
+            try:
+                edge_adapter = runtime_manager.get_service_instance("edge_manager")
+                shared_edge_manager = edge_adapter.service.manager
+            except Exception as exc:
+                if _edge_transport.enabled():
+                    _edge_transport.set_start_error(type(exc).__name__)
+                if _edge_gateway_runtime.enabled():
+                    _edge_gateway_runtime.set_start_error(type(exc).__name__)
+
+        if _edge_transport.enabled():
+            try:
+                if shared_edge_manager is None:
+                    raise RuntimeError("shared LifecycleManager EDGE service is unavailable")
+                await asyncio.to_thread(_edge_transport.start, shared_edge_manager)
+            except Exception as exc:
+                _edge_transport.set_start_error(type(exc).__name__)
+        if _edge_gateway_runtime.enabled():
+            try:
+                if shared_edge_manager is None:
+                    raise RuntimeError("shared LifecycleManager EDGE service is unavailable")
+                await asyncio.to_thread(
+                    _edge_gateway_runtime.start, application, shared_edge_manager
+                )
+            except Exception as exc:
+                _edge_gateway_runtime.set_start_error(type(exc).__name__)
         application.state.edge_transport = _edge_transport
         application.state.edge_gateway = _edge_gateway_runtime
         try:
