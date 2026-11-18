@@ -80,6 +80,10 @@ class MQTTConfig:
             raise ValueError("invalid MQTT topic prefix")
 
 
+class RetryableTransportError(RuntimeError):
+    """A message must remain unacknowledged so the broker can retry it."""
+
+
 class MQTTBridge:
     """Opt-in MQTTS client; payload authorization remains the EDGE manager's job."""
 
@@ -119,6 +123,10 @@ class MQTTBridge:
                 keyfile=self.config.client_key,
             )
             client.tls_insecure_set(False)
+            manual_ack = getattr(client, "manual_ack_set", None)
+            if not callable(manual_ack):
+                raise RuntimeError("MQTT client does not support manual acknowledgements")
+            manual_ack(True)
             client.on_message = self._handle_message
             client.on_connect = self._on_connect
             client.on_disconnect = self._on_disconnect
@@ -170,6 +178,18 @@ class MQTTBridge:
     def _on_disconnect(self, client: Any, userdata: Any, *args: Any) -> None:
         self.connected = False
 
+    @staticmethod
+    def _ack_message(client: Any, message: Any) -> None:
+        qos = int(getattr(message, "qos", 0))
+        if qos <= 0:
+            return
+        ack = getattr(client, "ack", None)
+        if not callable(ack):
+            raise RuntimeError("MQTT client cannot acknowledge QoS messages")
+        result = ack(message.mid, qos)
+        if result not in (None, 0):
+            raise RuntimeError("MQTT broker acknowledgement failed")
+
     def _handle_message(self, client: Any, userdata: Any, message: Any) -> None:
         try:
             raw = bytes(message.payload)
@@ -179,9 +199,27 @@ class MQTTBridge:
             if not isinstance(body, dict):
                 raise ValueError("MQTT message must contain a JSON object")
             self.on_message(str(message.topic), body)
+        except RetryableTransportError as exc:
+            # Persistence failed: leave QoS delivery unacknowledged so the
+            # broker retries. The telemetry ledger is idempotent on redelivery.
+            self.rejected_messages += 1
+            self.last_message_error_type = type(exc).__name__
+            return
         except Exception as exc:
-            # Never let malformed or unauthenticated broker messages terminate
-            # the Paho network-loop callback. Record type only, not payload.
+            # Invalid/authentication-failed messages are terminal. Acknowledge
+            # them to avoid an endless poison-message redelivery loop.
+            self.rejected_messages += 1
+            self.last_message_error_type = type(exc).__name__
+            try:
+                self._ack_message(client, message)
+            except Exception as ack_error:
+                self.last_message_error_type = type(ack_error).__name__
+            return
+        try:
+            self._ack_message(client, message)
+        except Exception as exc:
+            # The event is already committed. Redelivery is safe because the
+            # EDGE telemetry store recognizes the same node/sequence/payload.
             self.rejected_messages += 1
             self.last_message_error_type = type(exc).__name__
 
