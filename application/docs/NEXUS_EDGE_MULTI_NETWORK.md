@@ -55,7 +55,11 @@ QoS 1, bounded JSON messages, authenticated broker credentials, and explicit
 start/stop. It starts only when the operator opts in. Install
 `paho-mqtt>=2,<3` in the gateway environment to enable the production client.
 Node messages are HMAC-authenticated and anti-replay checked before telemetry
-is committed to the durable ledger.
+is committed to the durable ledger. QoS acknowledgements are manual: the broker
+message is acknowledged only after the telemetry event and replay sequence
+commit atomically. A redelivered event is idempotently recognized by
+(node_id, sequence, transport, payload digest); transient storage failures
+remain unacknowledged for broker retry.
 
 ## Multi-server target
 The first two-server target is primary/standby, not active-active:
