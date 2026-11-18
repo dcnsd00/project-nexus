@@ -98,6 +98,7 @@ class MQTTBridge:
         self.connected = False
         self.rejected_messages = 0
         self.last_message_error_type: str | None = None
+        self._subscription_mid: int | None = None
 
     def _factory(self) -> Callable[..., Any]:
         if self._client_factory is not None:
@@ -129,6 +130,7 @@ class MQTTBridge:
             manual_ack(True)
             client.on_message = self._handle_message
             client.on_connect = self._on_connect
+            client.on_subscribe = self._on_subscribe
             client.on_disconnect = self._on_disconnect
             result = client.connect(
                 self.config.host, self.config.port, self.config.keepalive_s
@@ -159,7 +161,8 @@ class MQTTBridge:
             accepted = int(reason_code) == 0
         except (TypeError, ValueError):
             accepted = str(reason_code).strip().lower() in {"0", "success"}
-        self.connected = accepted
+        self.connected = False
+        self._subscription_mid = None
         if not accepted:
             self.last_message_error_type = "BrokerConnectionRejected"
             return
@@ -167,16 +170,34 @@ class MQTTBridge:
             result = client.subscribe(
                 f"{self.config.topic_prefix}/nodes/+/up", qos=1
             )
-            result_code = result[0] if isinstance(result, tuple) else result
+            if not isinstance(result, tuple) or len(result) < 2:
+                raise RuntimeError("MQTT subscription did not return a message ID")
+            result_code, message_id = result[0], result[1]
             if result_code not in (None, 0):
-                self.connected = False
                 self.last_message_error_type = "SubscriptionRejected"
+                return
+            self._subscription_mid = int(message_id)
         except Exception as exc:
             self.connected = False
             self.last_message_error_type = type(exc).__name__
 
+    def _on_subscribe(
+        self, client: Any, userdata: Any, message_id: int,
+        reason_codes: Any, properties: Any = None,
+    ) -> None:
+        if self._subscription_mid is None or int(message_id) != self._subscription_mid:
+            return
+        codes = list(reason_codes or [])
+        accepted = bool(codes) and all(
+            (not code.is_failure) if hasattr(code, "is_failure") else int(code) < 128
+            for code in codes
+        )
+        self.connected = accepted
+        self.last_message_error_type = None if accepted else "SubscriptionRejected"
+
     def _on_disconnect(self, client: Any, userdata: Any, *args: Any) -> None:
         self.connected = False
+        self._subscription_mid = None
 
     @staticmethod
     def _ack_message(client: Any, message: Any) -> None:
