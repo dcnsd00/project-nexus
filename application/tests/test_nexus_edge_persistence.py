@@ -264,6 +264,28 @@ class EdgePersistenceInvariantTests(unittest.TestCase):
         self.assertFalse(accepted["duplicate"])
         self.assertEqual(manager.next_node_sequence(self.node_id), 3)
 
+    def test_authenticated_telemetry_refreshes_node_liveness_durably(self):
+        manager = self.manager()
+        manager.register_node(self.node_id, ["telemetry"], self.secret)
+        timestamp = self.clock()
+        payload = {"temperature_c": 20.0}
+        message = {
+            "kind": "node_request",
+            "action": "https.uplink",
+            "node_id": self.node_id,
+            "timestamp": timestamp,
+            "sequence": 1,
+            "payload": payload,
+        }
+        manager.authenticate_and_record_telemetry(
+            self.node_id, "https.uplink", timestamp, 1, payload,
+            sign_message(self.secret, message), transport="https",
+        )
+        self.assertTrue(manager.node_status(self.node_id)["online"])
+
+        restarted = self.manager()
+        self.assertTrue(restarted.node_status(self.node_id)["online"])
+
     def test_telemetry_rejects_unknown_nodes_invalid_transport_and_oversized_payload(self):
         manager = self.manager()
         self.register_online_node(manager)
