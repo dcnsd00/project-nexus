@@ -10,11 +10,15 @@ class FakeResult:
 class FakeMessage:
     topic = "nexus/v1/nodes/esp32-node-01/up"
     payload = b'{"sequence":1}'
+    mid = 1
+    qos = 1
 
 class FakeClient:
     def __init__(self, **kwargs):
         self.kwargs=kwargs; self.calls=[]; self.on_message=None
     def username_pw_set(self,*args): self.calls.append(("auth",args))
+    def manual_ack_set(self,value): self.calls.append(("manual_ack_set",value))
+    def ack(self,mid,qos): self.calls.append(("ack",mid,qos)); return 0
     def tls_set(self,**kwargs): self.calls.append(("tls",kwargs))
     def tls_insecure_set(self,value): self.calls.append(("tls_insecure",value))
     def connect(self,*args):
@@ -101,6 +105,27 @@ def test_mqtt_bridge_cleans_up_when_connection_start_fails():
     assert bridge.connected is False
     assert ("disconnect",) in client.calls
     assert ("loop_stop",) in client.calls
+
+
+def test_mqtt_bridge_leaves_retryable_persistence_failures_unacknowledged():
+    from nexus_edge.transports import RetryableTransportError
+
+    bridge = MQTTBridge(
+        MQTTConfig(
+            host="broker.example", client_id="nexus-test",
+            username="nexus", password="test-password",
+        ),
+        lambda topic, body: (_ for _ in ()).throw(
+            RetryableTransportError("database busy")
+        ),
+        client_factory=lambda **kwargs: FakeClient(),
+    )
+    bridge.start()
+    bridge._handle_message(bridge._client, None, FakeMessage())
+    assert bridge.rejected_messages == 1
+    assert bridge.last_message_error_type == "RetryableTransportError"
+    assert not any(call[0] == "ack" for call in bridge._client.calls)
+    bridge.stop()
 
 
 def test_mqtt_bridge_does_not_report_broker_rejection_as_connected():
