@@ -23,19 +23,19 @@ from .transports import transport_matrix
 class ProvisionRequest(BaseModel):
     node_id: str = Field(min_length=3, max_length=64, pattern=r"^[A-Za-z0-9][A-Za-z0-9._:-]{2,63}$")
     capabilities: list[str] = Field(min_length=1, max_length=32)
-    max_parallel: int = Field(default=1, ge=1, le=64)
+    max_parallel: int = Field(default=1, ge=1, le=64, strict=True)
 
 
 class TaskRequest(BaseModel):
     task_type: str = Field(min_length=2, max_length=64)
     payload: dict[str, Any]
     required_capabilities: list[str] = Field(min_length=1, max_length=32)
-    ttl_s: int = Field(default=300, ge=1, le=86400)
+    ttl_s: int = Field(default=300, ge=1, le=86400, strict=True)
 
 
 class NodeEnvelope(BaseModel):
-    timestamp: int
-    sequence: int = Field(ge=1)
+    timestamp: int = Field(strict=True)
+    sequence: int = Field(ge=1, strict=True)
     payload: dict[str, Any] = Field(default_factory=dict)
     signature: str = Field(min_length=64, max_length=64, pattern=r"^[0-9a-fA-F]{64}$")
 
