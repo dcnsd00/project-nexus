@@ -40,6 +40,7 @@ manager state.
 - `GET /v1/edge/health`: read-only service status.
 - `GET /v1/edge/nodes`: operator-authenticated node inventory (secrets excluded).
 - `GET /v1/edge/tasks`: operator-authenticated task inventory (payloads and raw results excluded).
+- `GET /v1/edge/telemetry`: operator-authenticated persisted telemetry history.
 - `POST /v1/edge/nodes/provision`: operator-authenticated one-time node secret provisioning.
 - `POST /v1/edge/nodes/{node_id}/rotate-secret`: operator-authenticated one-time credential rotation.
 - `POST /v1/edge/nodes/{node_id}/revoke`: operator-authenticated node revocation and unfinished-task recovery.
@@ -48,6 +49,7 @@ manager state.
 - `POST /v1/edge/nodes/{node_id}/claim`: signed, sequence-protected task claim.
 - `POST /v1/edge/nodes/{node_id}/tasks/{task_id}/start`: signed task start.
 - `POST /v1/edge/nodes/{node_id}/tasks/{task_id}/complete`: signed task completion plus separately verified result signature.
+- `POST /v1/edge/nodes/{node_id}/uplink/{network}`: signed HTTPS, LoRaWAN-bridge, or IoT webhook telemetry ingress.
 
 Node request signatures cover action, node ID, integer Unix timestamp (seconds), monotonic sequence
 number, and payload. A durable replay guard rejects repeated or out-of-order
