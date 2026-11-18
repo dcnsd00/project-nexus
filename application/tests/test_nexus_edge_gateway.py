@@ -242,3 +242,28 @@ def test_gateway_revokes_node_requeues_work_and_preserves_sequence_on_reprovisio
     assert client.post(
         f"/v1/edge/nodes/{node_id}/heartbeat", json=old_heartbeat
     ).status_code == 401
+
+def test_gateway_persists_authenticated_https_uplink_and_exposes_history(tmp_path):
+    manager = _manager(tmp_path)
+    client = TestClient(create_edge_app(manager, provisioning_token="p" * 40))
+    node_id = "esp32-node-07"
+    secret = b"t" * 32
+    manager.register_node(node_id, ["telemetry"], secret)
+    payload = {"temperature_c": 22.25, "humidity_pct": 48}
+    envelope = _envelope(secret, node_id, "https.uplink", 1, payload)
+
+    accepted = client.post(
+        f"/v1/edge/nodes/{node_id}/uplink/https", json=envelope
+    )
+    assert accepted.status_code == 200
+    assert accepted.json()["event"]["transport"] == "https"
+    assert manager.snapshot()["telemetry_total"] == 1
+
+    denied = client.get("/v1/edge/telemetry")
+    assert denied.status_code == 401
+    history = client.get(
+        "/v1/edge/telemetry",
+        headers={"Authorization": "Bearer " + "p" * 40},
+    )
+    assert history.status_code == 200
+    assert history.json()["events"][0]["payload"] == payload
