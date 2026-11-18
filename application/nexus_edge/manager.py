@@ -26,6 +26,10 @@ class EdgeError(ValueError):
     """Raised when a node or task operation violates the EDGE contract."""
 
 
+class EdgePersistenceError(EdgeError):
+    """Raised when authenticated state could not be committed durably."""
+
+
 def _canonical(value: Any) -> bytes:
     try:
         return json.dumps(
@@ -354,32 +358,67 @@ class EdgeManager:
         return counts
 
     @_synchronized
-    def record_telemetry(
+    def authenticate_and_record_telemetry(
         self,
         node_id: str,
+        action: str,
+        timestamp: float,
+        sequence: int,
         payload: dict[str, Any],
+        signature: str,
         *,
         transport: str,
     ) -> dict[str, Any]:
-        """Persist telemetry only after the caller has authenticated the envelope."""
-        self._get_node(node_id)
+        """Verify a node envelope and atomically commit replay state plus telemetry."""
+        node = self._get_node(node_id)
+        now = self._clock()
+        timestamp_value = _validate_timestamp(timestamp)
+        if abs(now - timestamp_value) > self.heartbeat_ttl_s:
+            raise EdgeError("request timestamp outside allowed clock-skew window")
+        if not isinstance(action, str) or not re.fullmatch(r"[a-z][a-z0-9_.-]{1,63}", action):
+            raise EdgeError("invalid request action")
+        if not isinstance(sequence, int) or isinstance(sequence, bool) or sequence < 1:
+            raise EdgeError("sequence must be a positive integer")
         if not isinstance(payload, dict):
             raise EdgeError("telemetry payload must be a JSON object")
         if len(_canonical(payload)) > self.max_payload_bytes:
             raise EdgeError("telemetry payload exceeds configured size limit")
         if transport not in {"https", "mqtts", "lorawan", "iot"}:
             raise EdgeError("unsupported telemetry transport")
+        message = {
+            "kind": "node_request",
+            "action": action,
+            "node_id": node_id,
+            "timestamp": timestamp,
+            "sequence": sequence,
+            "payload": payload,
+        }
+        if not _verify(node.secret, message, signature):
+            raise EdgeError("invalid node request signature")
         if self._store is None:
-            raise EdgeError("durable EDGE storage is required for telemetry ingestion")
+            raise EdgePersistenceError("durable EDGE storage is required for telemetry ingestion")
+        if getattr(self._replay_guard, "database", None) != self._store.database:
+            raise EdgeError("telemetry ingestion requires a SQLite replay guard sharing the EDGE database")
+
+        digest = hashlib.sha256(_canonical(payload)).hexdigest()
+        existing = self._store.get_telemetry_event(node_id, sequence)
+        if existing is not None:
+            if existing["transport"] != transport or existing["payload_sha256"] != digest:
+                raise EdgeError("protocol sequence already recorded with different telemetry")
+            return {**existing, "duplicate": True}
+
         try:
-            return self._store.append_telemetry(
+            return self._store.accept_and_append_telemetry(
                 node_id=node_id,
-                received_at=self._clock(),
+                sequence=sequence,
+                received_at=now,
                 transport=transport,
                 payload=payload,
             )
+        except ValueError as exc:
+            raise EdgeError(str(exc)) from exc
         except Exception as exc:
-            raise EdgeError("telemetry persistence failed") from exc
+            raise EdgePersistenceError("telemetry persistence failed; message may be retried") from exc
 
     @_synchronized
     def telemetry(self, *, limit: int = 100) -> list[dict[str, Any]]:
