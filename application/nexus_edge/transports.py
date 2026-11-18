@@ -82,6 +82,9 @@ class MQTTBridge:
         self._client_factory = client_factory
         self._client: Any = None
         self.started = False
+        self.connected = False
+        self.rejected_messages = 0
+        self.last_message_error_type: str | None = None
 
     def _factory(self) -> Callable[..., Any]:
         if self._client_factory is not None:
@@ -98,32 +101,74 @@ class MQTTBridge:
         if self.started:
             return
         client = self._factory()(client_id=self.config.client_id)
-        if self.config.username is not None:
-            client.username_pw_set(self.config.username, self.config.password)
-        client.tls_set(
-            ca_certs=self.config.ca_certs,
-            certfile=self.config.client_cert,
-            keyfile=self.config.client_key,
+        try:
+            if self.config.username is not None:
+                client.username_pw_set(self.config.username, self.config.password)
+            client.tls_set(
+                ca_certs=self.config.ca_certs,
+                certfile=self.config.client_cert,
+                keyfile=self.config.client_key,
+            )
+            client.tls_insecure_set(False)
+            client.on_message = self._handle_message
+            client.on_connect = self._on_connect
+            client.on_disconnect = self._on_disconnect
+            result = client.connect(
+                self.config.host, self.config.port, self.config.keepalive_s
+            )
+            if result not in (None, 0):
+                raise RuntimeError("MQTT client rejected the connection request")
+            self._client = client
+            client.loop_start()
+            self.started = True
+        except Exception:
+            self.connected = False
+            self.started = False
+            self._client = None
+            for method in ("disconnect", "loop_stop"):
+                try:
+                    getattr(client, method)()
+                except Exception:
+                    pass
+            raise
+
+    def _on_connect(
+        self, client: Any, userdata: Any, flags: Any,
+        reason_code: Any, properties: Any = None,
+    ) -> None:
+        try:
+            accepted = int(reason_code) == 0
+        except (TypeError, ValueError):
+            accepted = str(reason_code).strip().lower() in {"0", "success"}
+        self.connected = accepted
+        if not accepted:
+            self.last_message_error_type = "BrokerConnectionRejected"
+            return
+        result = client.subscribe(
+            f"{self.config.topic_prefix}/nodes/+/up", qos=1
         )
-        client.tls_insecure_set(False)
-        client.on_message = self._handle_message
-        client.connect(self.config.host, self.config.port, self.config.keepalive_s)
-        client.loop_start()
-        client.subscribe(f"{self.config.topic_prefix}/nodes/+/up", qos=1)
-        self._client = client
-        self.started = True
+        result_code = result[0] if isinstance(result, tuple) else result
+        if result_code not in (None, 0):
+            self.connected = False
+            self.last_message_error_type = "SubscriptionRejected"
+
+    def _on_disconnect(self, client: Any, userdata: Any, *args: Any) -> None:
+        self.connected = False
 
     def _handle_message(self, client: Any, userdata: Any, message: Any) -> None:
-        raw = bytes(message.payload)
-        if len(raw) > self.config.max_message_bytes:
-            return
         try:
+            raw = bytes(message.payload)
+            if len(raw) > self.config.max_message_bytes:
+                raise ValueError("message exceeds configured size limit")
             body = json.loads(raw.decode("utf-8"))
-        except (UnicodeDecodeError, json.JSONDecodeError):
-            return
-        if not isinstance(body, dict):
-            return
-        self.on_message(str(message.topic), body)
+            if not isinstance(body, dict):
+                raise ValueError("MQTT message must contain a JSON object")
+            self.on_message(str(message.topic), body)
+        except Exception as exc:
+            # Never let malformed or unauthenticated broker messages terminate
+            # the Paho network-loop callback. Record type only, not payload.
+            self.rejected_messages += 1
+            self.last_message_error_type = type(exc).__name__
 
     def publish_downlink(self, node_id: str, payload: dict[str, Any]) -> None:
         if not self.started or self._client is None:
@@ -146,6 +191,7 @@ class MQTTBridge:
             self._client.loop_stop()
         self._client = None
         self.started = False
+        self.connected = False
 
 
 def mqtt_config_from_env(env: dict[str, str] | None = None) -> MQTTConfig:
