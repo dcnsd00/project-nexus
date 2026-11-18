@@ -136,7 +136,7 @@ async function pollOperatorReport(){
   if(evm.peers) lines.push('EVM PEERS: '+fmt(evm.peers.count)+' ('+fmt(evm.peers.status)+') | gas '+fmt(evm.gas_price_wei)+' wei');
   if(evm.error) lines.push('EVM NODE NOTE: '+evm.error);
   lines.push('EDGE transports: '+JSON.stringify(s.edge_transports?.data||{})+' | Gateway: '+JSON.stringify(s.edge_gateway?.data||{})+' | Topology: '+JSON.stringify(s.edge_topology?.data||{}));
-  lines.push('EDGE inventory: nodes='+(s.edge_nodes?.data?.nodes||[]).length+' | tasks='+(s.edge_tasks?.data?.tasks||[]).length);
+  lines.push('EDGE inventory: nodes='+(s.edge_nodes?.data?.nodes||[]).length+' | tasks='+(s.edge_tasks?.data?.tasks||[]).length+' | telemetry events='+(s.edge_telemetry?.data?.events||[]).length);
   lines.push('','SECURITY / EVIDENCE: read-only='+d.safety?.read_only+' | miner autostart='+d.safety?.starts_or_stops_miners+' | module operation verified='+fmt(modules.system_operational_verified));
   lines.push('Sectiuni indisponibile: '+(d.summary?.unavailable_sections||[]).join(', '));
   $('operatorReport').textContent=lines.join('\n');
