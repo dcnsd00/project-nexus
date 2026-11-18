@@ -479,15 +479,16 @@ class EdgeManager:
         states: dict[str, int] = {}
         for task in self._tasks.values():
             states[task.state] = states.get(task.state, 0) + 1
+        replay_database = getattr(self._replay_guard, "database", None)
+        replay_persistent = replay_database is not None
         durable_replay = (
-            self._store is not None
-            and getattr(self._replay_guard, "database", None) == self._store.database
+            self._store is not None and replay_database == self._store.database
         )
         return {
             "component": "nexus_edge_manager",
             "mode": "sqlite_persistent" if durable_replay else "in_memory_pilot",
             "state_store_mode": "sqlite_persistent" if self._store is not None else "in_memory_pilot",
-            "replay_guard_mode": "sqlite_persistent" if durable_replay else "memory_or_mismatched",
+            "replay_guard_mode": "sqlite_persistent" if replay_persistent else "memory",
             "nodes_total": len(self._nodes),
             "nodes_online": sum(self._is_online(n, now) for n in self._nodes.values()),
             "tasks_total": len(self._tasks),
