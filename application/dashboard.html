@@ -100,7 +100,37 @@ async function pollTelemetry(){
   drawResourceChart(h);
  }catch(e){$('telemetryMeta').textContent='Telemetrie indisponibilă: '+e.message;}
 }
-async function pollOperatorReport(){try{const d=await api('/api/nexus/operator');$('operatorReport').textContent=JSON.stringify(d,null,2);$('operatorReportMeta').textContent='Stare: '+d.overall_state+' · servicii: '+d.summary.services_running+'/'+d.summary.services_total+' · secțiuni indisponibile: '+d.summary.unavailable_sections.length+' · UTC: '+d.generated_at_utc;}catch(e){$('operatorReportMeta').textContent='Raport indisponibil: '+e.message;}}
+async function pollOperatorReport(){
+ try{
+  const d=await api('/api/nexus/operator');
+  const s=d.sections||{}, host=s.host_telemetry?.data?.snapshot||{}, runtime=s.runtime?.data||{};
+  const modules=s.modules?.data||{}, mining=s.mining?.data||{}, procs=s.mining_processes?.data||{};
+  const readiness=s.blockchain_readiness?.data||{}, services=d.services||[];
+  const fmt=(v)=>v===null||v===undefined?'indisponibil':(typeof v==='number'?v.toLocaleString('ro-RO',{maximumFractionDigits:2}):String(v));
+  const lines=[
+   'STARE GENERALA: '+d.overall_state,
+   'MASTER PID: '+fmt(d.execution_model?.master_pid)+' | Runtime: '+(runtime.system_ready?'READY':'NOT READY')+' | Servicii: '+fmt(runtime.running)+'/'+fmt(runtime.total),
+   'MODULE: '+fmt(modules.total)+' | Operational verified: '+fmt(modules.system_operational_verified)+' | State counts: '+JSON.stringify(modules.counts||{}),
+   '',
+   'RESURSE HOST (masurate local)',
+   'CPU: '+fmt(host.cpu?.utilization_percent)+'% | Frecventa: '+fmt(host.cpu?.frequency_mhz)+' MHz | Cores: '+fmt(host.host?.logical_cpus),
+   'RAM: '+fmt(host.memory?.utilization_percent)+'% | '+fmt(host.memory?.used_bytes)+' / '+fmt(host.memory?.total_bytes)+' bytes',
+   'Disk: '+fmt(host.disk?.utilization_percent)+'% | Network RX/TX: '+fmt(host.network?.rx_mbps)+' / '+fmt(host.network?.tx_mbps)+' Mbps',
+   'GPU: '+(host.gpu?.available?JSON.stringify(host.gpu):'indisponibil in acest runtime'),
+   '',
+   'SERVICII (PID comun MASTER; fara CPU/RAM separat instrumentat)'
+  ];
+  for(const x of services) lines.push('- '+x.name+' | '+x.state+' | uptime '+fmt(x.uptime_seconds)+'s | startup '+fmt(x.startup_duration_seconds)+'s | deps '+(x.dependencies||[]).join(', '));
+  lines.push('','MINING STATUS: '+JSON.stringify(mining));
+  lines.push('Procese detectate: '+fmt((procs.processes||[]).length)+' | Diagnostics: '+JSON.stringify(s.mining_diagnostics?.data||s.mining_diagnostics||{}));
+  lines.push('','BLOCKCHAIN TOOL READINESS: '+JSON.stringify(readiness.tools||{}));
+  lines.push('EDGE transports: '+JSON.stringify(s.edge_transports?.data||{})+' | Gateway: '+JSON.stringify(s.edge_gateway?.data||{}));
+  lines.push('','SECURITY / EVIDENCE: read-only='+d.safety?.read_only+' | miner autostart='+d.safety?.starts_or_stops_miners+' | module operation verified='+fmt(modules.system_operational_verified));
+  lines.push('Sectiuni indisponibile: '+(d.summary?.unavailable_sections||[]).join(', '));
+  $('operatorReport').textContent=lines.join('\n');
+  $('operatorReportMeta').textContent='Actualizat UTC: '+d.generated_at_utc+' | stare '+d.overall_state;
+ }catch(e){$('operatorReportMeta').textContent='Raport indisponibil: '+e.message;}
+}
 $('refreshOperatorReport')?.addEventListener('click',pollOperatorReport);
 
 function drawResourceChart(history){

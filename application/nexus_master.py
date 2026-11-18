@@ -1776,7 +1776,7 @@ def nexus_operator_snapshot():
     unavailable_sections = [name for name, item in sections.items()
                             if item.get("status") != "available"]
     runtime_ready = runtime_data.get("system_ready") is True
-    overall = "operational_local" if runtime_ready and not unavailable_sections else "degraded_or_incomplete"
+    overall = "local_runtime_ready_modules_unverified" if runtime_ready and not unavailable_sections else "degraded_or_incomplete"
     return {
         "product": "NEXUS",
         "report_version": "1.0",
@@ -1787,6 +1787,8 @@ def nexus_operator_snapshot():
             "services_running": runtime_data.get("running", 0),
             "services_total": runtime_data.get("total", 0),
             "modules_total": module_data.get("total", 0),
+            "modules_operational_verified": module_data.get("system_operational_verified", False),
+            "module_state_counts": module_data.get("counts", {}),
             "mining_status": mining_data.get("status", "unavailable"),
             "unavailable_sections": unavailable_sections,
         },

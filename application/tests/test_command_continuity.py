@@ -137,4 +137,6 @@ def test_unified_operator_snapshot_is_read_only_and_reports_evidence_boundaries(
         assert body["execution_model"]["individual_service_pids"].startswith("not_applicable")
         assert body["evidence_policy"]["missing_values"].startswith("reported_as_unavailable")
         assert body["summary"]["services_total"] >= 1
+        assert body["summary"]["modules_operational_verified"] is False
+        assert body["overall_state"] in {"local_runtime_ready_modules_unverified", "degraded_or_incomplete"}
         assert isinstance(body["services"], list)

@@ -59,3 +59,11 @@ durata de startup și uptime-ul măsurat cu un ceas monotonic. PID-ul raportat
 este PID-ul comun al procesului MASTER; PID separat per serviciu și CPU/RAM
 per serviciu rămân explicit neimplementate deoarece serviciile nu rulează încă
 în procese izolate.
+
+
+### Interpretarea stării
+
+`local_runtime_ready_modules_unverified` înseamnă că serviciile critice locale
+sunt pornite și endpoint-urile raportului au răspuns. Nu înseamnă că toate
+modulele au trecut verificări funcționale independente. Registrul păstrează
+`system_operational_verified=false` până la teste funcționale dedicate.
