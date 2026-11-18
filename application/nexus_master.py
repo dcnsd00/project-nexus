@@ -29,6 +29,10 @@ _core_lifespan = app.router.lifespan_context
 @asynccontextmanager
 async def _nexus_lifespan(application):
     async with _core_lifespan(application):
+        from nexus_edge.topology import topology_from_env
+        # Validate the declared deployment shape before any network adapter
+        # starts. This validates configuration only; it does not provision HA.
+        application.state.nexus_topology = topology_from_env(dict(os.environ))
         initialize_wallet_schema()
         # Start the safe, local-only NEXUS service graph. Optional service
         # failures remain visible without taking down independent services.
@@ -100,6 +104,24 @@ def edge_transport_status():
 @app.get("/api/edge/gateway")
 def edge_gateway_status():
     return _edge_gateway_runtime.status()
+
+@app.get("/api/edge/topology")
+def edge_topology_status():
+    topology = getattr(app.state, "nexus_topology", None)
+    if topology is None:
+        return {"state": "not_started", "configuration_validated": False,
+                "operational_failover_verified": False}
+    return {
+        "state": "configuration_validated",
+        "mode": topology.mode.value,
+        "server_count": topology.server_count,
+        "state_backend": topology.state_backend,
+        "shared_state": topology.shared_state,
+        "distributed_task_claims": topology.distributed_task_claims,
+        "configuration_validated": True,
+        "operational_failover_verified": False,
+        "note": "Topology declaration is validated; failover and distributed claims are not provisioned or operationally verified.",
+    }
 
 
 def _tool(name: str) -> dict:
@@ -1783,6 +1805,7 @@ def nexus_operator_snapshot():
     evm_node = capture(evm_node_telemetry)
     transports = capture(edge_transport_status)
     gateway = capture(edge_gateway_status)
+    topology = capture(edge_topology_status)
 
     runtime_data = runtime.get("data") or {}
     telemetry_data = telemetry.get("data") or {}
@@ -1814,6 +1837,7 @@ def nexus_operator_snapshot():
         "evm_node": evm_node,
         "edge_transports": transports,
         "edge_gateway": gateway,
+        "edge_topology": topology,
     }
     unavailable_sections = [name for name, item in sections.items()
                             if item.get("status") != "available"]
