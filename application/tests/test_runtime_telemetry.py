@@ -89,9 +89,9 @@ def test_runtime_telemetry_never_invents_temperature_when_sensors_unavailable(mo
 def test_runtime_telemetry_reports_nvidia_gpu_clocks_power_limit_and_throttle(monkeypatch):
     responses = iter([
         SimpleNamespace(
-            stdout="NVIDIA GeForce GTX 1650, 24, 1024, 4096, 63, 42.5\\n"
+            stdout="NVIDIA GeForce GTX 1650, 24, 1024, 4096, 63, 42.5\n"
         ),
-        SimpleNamespace(stdout="1500, 1350, 4000, 75, Not Active\\n"),
+        SimpleNamespace(stdout="1500, 1350, 4000, 75, Not Active\n"),
     ])
     monkeypatch.setattr("shutil.which", lambda name: "nvidia-smi")
     monkeypatch.setattr(
