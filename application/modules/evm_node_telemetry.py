@@ -144,5 +144,7 @@ def evm_node_snapshot(rpc_factory=None) -> dict[str, Any]:
         return base
     except Exception as exc:
         base["rpc"]["status"] = "connection_failed"
-        base["error"] = f"{type(exc).__name__}: {str(exc)[:240]}"
+        # urllib/provider exceptions can embed the full request URL, including
+        # API keys in path or query parameters. Expose only the exception class.
+        base["error"] = f"{type(exc).__name__}: RPC request failed; endpoint details redacted."
         return base

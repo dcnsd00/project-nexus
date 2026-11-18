@@ -50,3 +50,21 @@ def test_evm_snapshot_marks_rpc_failures(monkeypatch):
     assert result["rpc"]["status"] == "connection_failed"
     assert result["rpc"]["reachable"] is False
     assert "TimeoutError" in result["error"]
+
+
+def test_evm_snapshot_redacts_provider_url_and_api_key_on_rpc_failure(monkeypatch):
+    secret = "sensitive-provider-key"
+    monkeypatch.setenv("NEXUS_EVM_RPC_URL", f"https://rpc.example.net/v1/{secret}?token={secret}")
+
+    class ProviderError(Exception):
+        pass
+
+    def fail(method, params=None):
+        raise ProviderError(f"request failed for https://rpc.example.net/v1/{secret}?token={secret}")
+
+    result = telemetry.evm_node_snapshot(rpc_factory=fail)
+    assert result["rpc"]["status"] == "connection_failed"
+    assert "ProviderError" in result["error"]
+    assert "redacted" in result["error"]
+    assert secret not in str(result)
+    assert "https://rpc.example.net" not in str(result)
