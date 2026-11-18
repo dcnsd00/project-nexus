@@ -354,6 +354,22 @@ class EdgeManager:
         return counts
 
     @_synchronized
+    def list_nodes(self) -> list[dict[str, Any]]:
+        """Return operator-safe node status without exposing authentication secrets."""
+        return [self.node_status(node_id) for node_id in sorted(self._nodes)]
+
+    @_synchronized
+    def list_tasks(self) -> list[dict[str, Any]]:
+        """Return task status without exposing task payloads or node secrets."""
+        return [
+            self.task_status(task_id)
+            for task_id in sorted(
+                self._tasks,
+                key=lambda item: (self._tasks[item].created_at, item),
+            )
+        ]
+
+    @_synchronized
     def node_status(self, node_id: str) -> dict[str, Any]:
         node = self._get_node(node_id)
         now = self._clock()
