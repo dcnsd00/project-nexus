@@ -1,10 +1,11 @@
 # NEXUS EDGE HTTPS Gateway — deployment contract
 
 ## State
-This increment adds an opt-in FastAPI gateway factory. It is not automatically
-mounted into NEXUS MASTER and does not establish an internet-facing deployment.
-The gateway is intended to run behind a TLS terminator (reverse proxy or managed
-load balancer). Do not expose plaintext HTTP to an untrusted network.
+The FastAPI gateway is mounted into NEXUS MASTER only when
+`NEXUS_EDGE_GATEWAY_ENABLED=true`; it can also run as a standalone alternative.
+Neither mode establishes an internet-facing deployment by itself. The gateway
+is intended to run behind a TLS terminator (reverse proxy or managed load
+balancer). Do not expose plaintext HTTP to an untrusted network.
 
 ## Start the gateway
 
@@ -21,8 +22,8 @@ for remote access; do not bind directly to a public interface during this pilot.
 - `NEXUS_EDGE_STORAGE_KEY`: stable Fernet URL-safe base64 key; provision via
   an OS secret store, never commit it or store it in the SQLite database.
 - `NEXUS_EDGE_PROVISIONING_TOKEN`: operator bearer token, minimum 32 characters.
-- `NEXUS_EDGE_DATABASE`: optional SQLite path; defaults to
-  `./data/db/edge_state.sqlite3`.
+- `NEXUS_EDGE_DATABASE`: optional SQLite path; defaults to the canonical
+  NEXUS data-path service location shared by MASTER and standalone adapters.
 
 The standalone Uvicorn entrypoint and the NEXUS MASTER-mounted gateway are
 alternative launch modes. Do not run both simultaneously against the same
@@ -33,6 +34,7 @@ manager state.
 ## Endpoints
 - `GET /v1/edge/health`: read-only service status.
 - `POST /v1/edge/nodes/provision`: operator-authenticated one-time node secret provisioning.
+- `POST /v1/edge/nodes/{node_id}/rotate-secret`: operator-authenticated one-time credential rotation.
 - `POST /v1/edge/tasks`: operator-authenticated task submission.
 - `POST /v1/edge/nodes/{node_id}/heartbeat`: signed node heartbeat.
 - `POST /v1/edge/nodes/{node_id}/claim`: signed, sequence-protected task claim.
@@ -41,8 +43,11 @@ manager state.
 
 Node request signatures cover action, node ID, integer Unix timestamp (seconds), monotonic sequence
 number, and payload. A durable replay guard rejects repeated or out-of-order
-sequences. The provisioning response returns a node secret once; operators
-must transfer it to the device through a separate authenticated channel.
+sequences. Provisioning and rotation responses return a node secret once;
+operators must transfer it to the device through a separate authenticated
+channel. Rotation invalidates the previous secret immediately and preserves
+the monotonic sequence counter; the response reports the minimum next sequence
+the device must use.
 
 The HTTPS gateway and optional MQTTS runtime are mounted from NEXUS
 MASTER using the same LifecycleManager-owned `EdgeManager` instance. Both
@@ -53,8 +58,9 @@ create independent in-memory schedulers pointed at the same database.
 - The gateway never executes arbitrary shell commands or Python supplied in a task.
 - Wallet access, private-key export, miner start/stop, and public-chain writes are
   not exposed by this gateway.
-- Rotate node credentials through a separately audited provisioning workflow;
-  key rotation is not yet implemented in this increment.
+- Node credentials can be rotated through the operator-authenticated endpoint.
+  Rotation of the database encryption key `NEXUS_EDGE_STORAGE_KEY` is not yet
+  implemented and requires a separately audited offline re-encryption migration.
 - SQLite is a single-host durable store, not a distributed multi-writer database.
 - Before public deployment add rate limiting, request-size limits at the proxy,
   TLS certificate automation, backup/restore drills, audit-log retention,
