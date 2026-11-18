@@ -21,6 +21,8 @@ class SQLiteEdgeStore:
     """Atomic SQLite persistence for EDGE nodes, tasks, leases and results."""
 
     SCHEMA_VERSION = 3
+    MAX_TELEMETRY_EVENTS = 10_000
+    TELEMETRY_PRUNE_INTERVAL = 100
 
     def __init__(
         self,
@@ -237,6 +239,14 @@ class SQLiteEdgeStore:
                     payload_json, digest,
                 ))
                 event_id = int(cursor.lastrowid)
+                if event_id % self.TELEMETRY_PRUNE_INTERVAL == 0:
+                    connection.execute("""
+                        DELETE FROM edge_telemetry
+                        WHERE event_id NOT IN (
+                            SELECT event_id FROM edge_telemetry
+                            ORDER BY event_id DESC LIMIT ?
+                        )
+                    """, (self.MAX_TELEMETRY_EVENTS,))
                 connection.commit()
             except Exception:
                 connection.rollback()
