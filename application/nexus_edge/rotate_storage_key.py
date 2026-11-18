@@ -40,7 +40,7 @@ def main(argv: list[str] | None = None) -> int:
         }
     required_tables = {
         "edge_nodes", "edge_tasks", "edge_protocol_sequences",
-        "nexus_edge_schema",
+        "nexus_edge_schema", "edge_telemetry",
     }
     if not required_tables.issubset(tables):
         parser.error("database does not contain the complete NEXUS EDGE schema")
