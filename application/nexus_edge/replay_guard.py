@@ -24,8 +24,6 @@ class ReplayGuard(Protocol):
     def last_accepted_sequence(self, node_id: str) -> int:
         """Return the highest accepted sequence, or zero when none exists."""
 
-    def rollback(self, node_id: str, expected_sequence: int, previous_sequence: int) -> None:
-        """Restore the previous sequence after a failed atomic telemetry write."""
 
 
 class MemoryReplayGuard:
@@ -48,19 +46,6 @@ class MemoryReplayGuard:
             raise ReplayError("node_id must be a non-empty string")
         with self._lock:
             return self._last.get(node_id, 0)
-
-    def rollback(self, node_id: str, expected_sequence: int, previous_sequence: int) -> None:
-        _validate(node_id, expected_sequence)
-        if not isinstance(previous_sequence, int) or isinstance(previous_sequence, bool) or previous_sequence < 0:
-            raise ReplayError("previous_sequence must be a non-negative integer")
-        with self._lock:
-            if self._last.get(node_id, 0) != expected_sequence:
-                raise ReplayError("cannot roll back a sequence that has advanced")
-            if previous_sequence == 0:
-                self._last.pop(node_id, None)
-            else:
-                self._last[node_id] = previous_sequence
-
 
 class SQLiteReplayGuard:
     """Durable replay guard using an atomic SQLite write transaction."""
@@ -131,35 +116,6 @@ class SQLiteReplayGuard:
                 (node_id,),
             ).fetchone()
         return int(row[0]) if row else 0
-
-    def rollback(self, node_id: str, expected_sequence: int, previous_sequence: int) -> None:
-        _validate(node_id, expected_sequence)
-        if not isinstance(previous_sequence, int) or isinstance(previous_sequence, bool) or previous_sequence < 0:
-            raise ReplayError("previous_sequence must be a non-negative integer")
-        with closing(self._connect()) as connection:
-            connection.execute("BEGIN IMMEDIATE")
-            try:
-                if previous_sequence == 0:
-                    cursor = connection.execute(
-                        "DELETE FROM edge_protocol_sequences "
-                        "WHERE node_id = ? AND last_sequence = ?",
-                        (node_id, expected_sequence),
-                    )
-                else:
-                    cursor = connection.execute(
-                        "UPDATE edge_protocol_sequences SET last_sequence = ?, "
-                        "updated_at = CURRENT_TIMESTAMP "
-                        "WHERE node_id = ? AND last_sequence = ?",
-                        (previous_sequence, node_id, expected_sequence),
-                    )
-                if cursor.rowcount != 1:
-                    raise ReplayError("cannot roll back a sequence that has advanced")
-                connection.execute("COMMIT")
-            except Exception:
-                if connection.in_transaction:
-                    connection.execute("ROLLBACK")
-                raise
-
 
 def _validate(node_id: str, sequence: int) -> None:
     if not isinstance(node_id, str) or not node_id.strip():
