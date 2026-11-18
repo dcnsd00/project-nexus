@@ -20,7 +20,7 @@ from cryptography.fernet import Fernet, InvalidToken
 class SQLiteEdgeStore:
     """Atomic SQLite persistence for EDGE nodes, tasks, leases and results."""
 
-    SCHEMA_VERSION = 2
+    SCHEMA_VERSION = 3
 
     def __init__(
         self,
@@ -84,6 +84,7 @@ class SQLiteEdgeStore:
                     CREATE TABLE IF NOT EXISTS edge_telemetry (
                         event_id INTEGER PRIMARY KEY AUTOINCREMENT,
                         node_id TEXT NOT NULL,
+                        sequence INTEGER NOT NULL CHECK(sequence >= 1),
                         received_at REAL NOT NULL,
                         transport TEXT NOT NULL,
                         payload_json TEXT NOT NULL,
@@ -91,6 +92,20 @@ class SQLiteEdgeStore:
                     );
                     CREATE INDEX IF NOT EXISTS idx_edge_telemetry_node_received
                         ON edge_telemetry(node_id, received_at DESC);
+                """)
+                telemetry_columns = {
+                    row[1] for row in connection.execute(
+                        "PRAGMA table_info(edge_telemetry)"
+                    )
+                }
+                if "sequence" not in telemetry_columns:
+                    connection.execute(
+                        "ALTER TABLE edge_telemetry ADD COLUMN "
+                        "sequence INTEGER NOT NULL DEFAULT 0 CHECK(sequence >= 0)"
+                    )
+                connection.execute("""
+                    CREATE UNIQUE INDEX IF NOT EXISTS idx_edge_telemetry_node_sequence
+                    ON edge_telemetry(node_id, sequence) WHERE sequence > 0
                 """)
                 connection.execute("""
                     INSERT INTO nexus_edge_schema(component, version)
@@ -176,6 +191,7 @@ class SQLiteEdgeStore:
         node_id: str,
         received_at: float,
         transport: str,
+        sequence: int,
         payload: dict[str, Any],
     ) -> dict[str, Any]:
         """Persist one authenticated telemetry event and its canonical digest."""
@@ -183,6 +199,8 @@ class SQLiteEdgeStore:
             raise ValueError("node_id must be a non-empty string")
         if not isinstance(transport, str) or not transport.strip():
             raise ValueError("transport must be a non-empty string")
+        if not isinstance(sequence, int) or isinstance(sequence, bool) or sequence < 1:
+            raise ValueError("sequence must be a positive integer")
         if isinstance(received_at, bool) or not isinstance(received_at, (int, float)) or not math.isfinite(float(received_at)):
             raise ValueError("received_at must be a finite number")
         payload_json = self._json(payload)
@@ -192,9 +210,13 @@ class SQLiteEdgeStore:
             try:
                 cursor = connection.execute("""
                     INSERT INTO edge_telemetry(
-                        node_id, received_at, transport, payload_json, payload_sha256
-                    ) VALUES (?, ?, ?, ?, ?)
-                """, (node_id, float(received_at), transport, payload_json, digest))
+                        node_id, sequence, received_at, transport,
+                        payload_json, payload_sha256
+                    ) VALUES (?, ?, ?, ?, ?, ?)
+                """, (
+                    node_id, sequence, float(received_at), transport,
+                    payload_json, digest,
+                ))
                 event_id = int(cursor.lastrowid)
                 connection.commit()
             except Exception:
@@ -203,9 +225,30 @@ class SQLiteEdgeStore:
         return {
             "event_id": event_id,
             "node_id": node_id,
+            "sequence": sequence,
             "received_at": float(received_at),
             "transport": transport,
             "payload_sha256": digest,
+        }
+
+    def get_telemetry_event(self, node_id: str, sequence: int) -> dict[str, Any] | None:
+        with closing(self._connect()) as connection:
+            row = connection.execute("""
+                SELECT event_id, node_id, sequence, received_at, transport,
+                       payload_json, payload_sha256
+                FROM edge_telemetry
+                WHERE node_id = ? AND sequence = ? AND sequence > 0
+            """, (node_id, sequence)).fetchone()
+        if row is None:
+            return None
+        return {
+            "event_id": int(row[0]),
+            "node_id": row[1],
+            "sequence": int(row[2]),
+            "received_at": float(row[3]),
+            "transport": row[4],
+            "payload": json.loads(row[5]),
+            "payload_sha256": row[6],
         }
 
     def list_telemetry(self, *, limit: int = 100) -> list[dict[str, Any]]:
@@ -213,7 +256,7 @@ class SQLiteEdgeStore:
             raise ValueError("telemetry limit must be an integer between 1 and 1000")
         with closing(self._connect()) as connection:
             rows = connection.execute("""
-                SELECT event_id, node_id, received_at, transport,
+                SELECT event_id, node_id, sequence, received_at, transport,
                        payload_json, payload_sha256
                 FROM edge_telemetry
                 ORDER BY event_id DESC LIMIT ?
@@ -221,10 +264,11 @@ class SQLiteEdgeStore:
         return [{
             "event_id": int(row[0]),
             "node_id": row[1],
-            "received_at": float(row[2]),
-            "transport": row[3],
-            "payload": json.loads(row[4]),
-            "payload_sha256": row[5],
+            "sequence": int(row[2]),
+            "received_at": float(row[3]),
+            "transport": row[4],
+            "payload": json.loads(row[5]),
+            "payload_sha256": row[6],
         } for row in rows]
 
     def telemetry_count(self) -> int:
