@@ -152,6 +152,9 @@ jobs:
         shell: pwsh
         run: |
           $Root = "${{ needs.source-detection.outputs.root }}"
+          $Compiler = Get-Command cl.exe -ErrorAction Stop
+          Write-Host "Native C compiler: $($Compiler.Source)"
+          $env:NEXUS_NATIVE_COMPILER = "msvc"
           Push-Location $Root
           try {
             python -m pytest -q --disable-warnings --maxfail=1
