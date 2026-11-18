@@ -60,7 +60,7 @@ def test_cli_reports_master_unavailable_without_crashing(monkeypatch):
     monkeypatch.setattr(nexus_cli, "urlopen", fake_urlopen)
     result = nexus_cli.collect("edge")
 
-    assert result["failed_endpoints"] == 3
+    assert result["failed_endpoints"] == 4
     assert result["successful_endpoints"] == 0
     assert all("hint" in row for row in result["results"].values())
 
