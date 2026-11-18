@@ -29,7 +29,7 @@ python .\nexus_cli.py all --url http://127.0.0.1:8766
 - `modules`: registrul modulelor și sumarul integrării.
 - `telemetry`: CPU/RAM/disk/network/GPU și istoricul disponibil.
 - `mining`: status miner, hardware detectat, procese și diagnostic.
-- `edge`: starea serviciilor EDGE, transport MQTTS, gateway HTTPS, topologia de deployment și inventarul nodurilor/taskurilor.\n- `operator`: raport consolidat read-only pentru runtime, module, host telemetry, mining, blockchain readiness și EDGE.
+- `edge`: starea serviciilor EDGE, transport MQTTS, gateway HTTPS, topologia de deployment, inventarul nodurilor/taskurilor și istoricul telemetriei.\n- `operator`: raport consolidat read-only pentru runtime, module, host telemetry, mining, blockchain readiness și EDGE.
 - `all`: toate endpoint-urile read-only de mai sus.
 
 Ieșirea este JSON pentru a putea fi arhivată și procesată automat. Codul de
