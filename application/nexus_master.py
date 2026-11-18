@@ -76,10 +76,20 @@ async def _nexus_lifespan(application):
         try:
             yield
         finally:
-            await asyncio.to_thread(_edge_gateway_runtime.stop, application)
-            await asyncio.to_thread(_edge_transport.stop)
-            await asyncio.to_thread(runtime_manager.stop_all)
-            application.state.nexus_runtime = None
+            # A failed optional network adapter must not prevent cleanup of
+            # the other adapter or the core LifecycleManager services.
+            try:
+                await asyncio.to_thread(_edge_gateway_runtime.stop, application)
+            except Exception as exc:
+                _edge_gateway_runtime.set_start_error(type(exc).__name__)
+            try:
+                await asyncio.to_thread(_edge_transport.stop)
+            except Exception as exc:
+                _edge_transport.set_start_error(type(exc).__name__)
+            try:
+                await asyncio.to_thread(runtime_manager.stop_all)
+            finally:
+                application.state.nexus_runtime = None
 app.router.lifespan_context = _nexus_lifespan
 from nexus_wallet_recovery_api import router as wallet_recovery_router  # noqa: E402
 app.include_router(wallet_recovery_router)
