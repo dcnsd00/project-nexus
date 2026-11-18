@@ -146,11 +146,14 @@ class MQTTBridge:
             self.connected = False
             self.started = False
             self._client = None
+            cleanup_errors = []
             for method in ("disconnect", "loop_stop"):
                 try:
                     getattr(client, method)()
-                except Exception:
-                    pass
+                except Exception as cleanup_exc:
+                    cleanup_errors.append(type(cleanup_exc).__name__)
+            if cleanup_errors:
+                self.last_message_error_type = "CleanupError:" + ",".join(cleanup_errors)
             raise
 
     def _on_connect(
