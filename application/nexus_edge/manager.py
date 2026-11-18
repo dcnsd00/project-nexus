@@ -126,8 +126,12 @@ class EdgeManager:
         self._nodes: dict[str, _Node] = {}
         self._tasks: dict[str, _Task] = {}
         if self._store is not None:
-            self._restore(self._store.load_state())
+            recovered_legacy_leases = self._restore(self._store.load_state())
             self.reap_expired()
+            if recovered_legacy_leases:
+                # Pre-v4 active leases have no assignment token and cannot safely
+                # authenticate a result. Persist them as queued for fresh claims.
+                self._persist()
 
     @_synchronized
     def register_node(
@@ -585,7 +589,8 @@ class EdgeManager:
                 ) from recovery_error
             raise
 
-    def _restore(self, state: dict[str, Any]) -> None:
+    def _restore(self, state: dict[str, Any]) -> bool:
+        recovered_legacy_leases = False
         for item in state.get("nodes", []):
             node = _Node(
                 item["node_id"], frozenset(item["capabilities"]), item["secret"],
@@ -604,9 +609,15 @@ class EdgeManager:
                 result=item.get("result"),
                 result_sha256=item.get("result_sha256"), error=item.get("error"),
             )
+            if task.state in {"ASSIGNED", "RUNNING"} and not task.assignment_nonce:
+                task.state = "QUEUED"
+                task.node_id = None
+                task.lease_until = None
+                recovered_legacy_leases = True
             self._tasks[task.task_id] = task
             if task.state in {"ASSIGNED", "RUNNING"} and task.node_id in self._nodes:
                 self._nodes[task.node_id].active_tasks.add(task.task_id)
+        return recovered_legacy_leases
 
     def _is_online(self, node: _Node, now: float) -> bool:
         return node.last_seen is not None and now - node.last_seen <= self.heartbeat_ttl_s
