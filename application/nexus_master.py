@@ -115,6 +115,33 @@ def edge_transport_status():
 def edge_gateway_status():
     return _edge_gateway_runtime.status()
 
+def _edge_manager_for_status():
+    runtime_manager = getattr(app.state, "nexus_runtime", None)
+    if runtime_manager is None:
+        return None
+    try:
+        adapter = runtime_manager.get_service_instance("edge_manager")
+        return adapter.service.manager
+    except Exception:
+        return None
+
+
+@app.get("/api/edge/nodes")
+def edge_nodes_status():
+    manager = _edge_manager_for_status()
+    if manager is None:
+        return {"state": "not_started", "nodes": []}
+    return {"state": "available", "nodes": manager.list_nodes()}
+
+
+@app.get("/api/edge/tasks")
+def edge_tasks_status():
+    manager = _edge_manager_for_status()
+    if manager is None:
+        return {"state": "not_started", "tasks": []}
+    return {"state": "available", "tasks": manager.list_tasks()}
+
+
 @app.get("/api/edge/topology")
 def edge_topology_status():
     topology = getattr(app.state, "nexus_topology", None)
@@ -1817,6 +1844,8 @@ def nexus_operator_snapshot():
     transports = capture(edge_transport_status)
     gateway = capture(edge_gateway_status)
     topology = capture(edge_topology_status)
+    edge_nodes = capture(edge_nodes_status)
+    edge_tasks = capture(edge_tasks_status)
 
     runtime_data = runtime.get("data") or {}
     telemetry_data = telemetry.get("data") or {}
@@ -1849,6 +1878,8 @@ def nexus_operator_snapshot():
         "edge_transports": transports,
         "edge_gateway": gateway,
         "edge_topology": topology,
+        "edge_nodes": edge_nodes,
+        "edge_tasks": edge_tasks,
     }
     unavailable_sections = [name for name, item in sections.items()
                             if item.get("status") != "available"]
