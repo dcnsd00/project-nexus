@@ -65,6 +65,15 @@ class MQTTConfig:
             raise ValueError("invalid MQTT port or keepalive")
         if (self.client_cert is None) != (self.client_key is None):
             raise ValueError("MQTT client certificate and key must be supplied together")
+        if (self.username is None) != (self.password is None):
+            raise ValueError("MQTT username and password must be supplied together")
+        password_auth = bool(self.username and self.password)
+        certificate_auth = bool(self.client_cert and self.client_key)
+        if not (password_auth or certificate_auth):
+            raise ValueError(
+                "MQTT broker authentication is required: configure username/password "
+                "or a client certificate/key pair"
+            )
         if self.max_message_bytes < 128 or self.max_message_bytes > 1_048_576:
             raise ValueError("invalid MQTT message size limit")
         if not re.fullmatch(r"[A-Za-z0-9/_-]{1,96}", self.topic_prefix):
