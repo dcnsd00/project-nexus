@@ -89,7 +89,8 @@ def test_edge_runtime_reuses_shared_durable_manager_and_authenticates_uplinks(
         "payload": payload,
         "signature": sign_message(secret, signed),
     }
-    created[0].callback(f"nexus/v1/nodes/{node_id}/up", body)
+    topic = f"nexus/v1/nodes/{node_id}/up"
+    created[0].callback(topic, body)
 
     assert runtime.status()["connected"] is True
     assert runtime.status()["accepted_uplinks_buffered"] == 1
@@ -97,6 +98,12 @@ def test_edge_runtime_reuses_shared_durable_manager_and_authenticates_uplinks(
     assert len(history) == 1
     assert history[0]["transport"] == "mqtts"
     assert history[0]["payload"] == payload
+
+    # QoS redelivery after a lost PUBACK must be idempotent.
+    created[0].callback(topic, body)
+    assert runtime.status()["accepted_uplinks_buffered"] == 2
+    assert manager.snapshot()["telemetry_total"] == 1
+    assert runtime._received[-1]["duplicate"] is True
     runtime.stop()
     assert created[0].started is False and created[0].stops == 1
 
