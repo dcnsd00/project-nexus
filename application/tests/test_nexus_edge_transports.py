@@ -119,6 +119,9 @@ def test_two_server_primary_standby_requires_shared_or_replicated_backend():
     bad=DeploymentTopology(DeploymentMode.PRIMARY_STANDBY,2,"sqlite")
     with pytest.raises(ValueError,match="replicated/shared"):
         bad.validate()
+    unshared=DeploymentTopology(DeploymentMode.PRIMARY_STANDBY,2,"postgresql",False,False)
+    with pytest.raises(ValueError,match="shared or replicated state"):
+        unshared.validate()
 
 def test_mqtt_uplink_requires_node_hmac_and_monotonic_sequence():
     from nexus_edge.transports import authenticate_mqtt_uplink
