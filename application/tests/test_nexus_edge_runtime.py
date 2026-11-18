@@ -54,7 +54,8 @@ def test_edge_runtime_reuses_shared_durable_manager_and_authenticates_uplinks(
     monkeypatch.setattr(
         "nexus_edge.transports.mqtt_config_from_env",
         lambda values: MQTTConfig(
-            host="broker.example", client_id="nexus-runtime-test"
+            host="broker.example", client_id="nexus-runtime-test",
+            username="nexus", password="test-password",
         ),
     )
     created = []
