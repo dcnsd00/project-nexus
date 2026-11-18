@@ -386,8 +386,16 @@ class EdgeManager:
             raise EdgeError("telemetry payload must be a JSON object")
         if len(_canonical(payload)) > self.max_payload_bytes:
             raise EdgeError("telemetry payload exceeds configured size limit")
-        if transport not in {"https", "mqtts", "lorawan", "iot"}:
+        if not isinstance(transport, str) or transport not in {"https", "mqtts", "lorawan", "iot"}:
             raise EdgeError("unsupported telemetry transport")
+        expected_actions = {
+            "https": "https.uplink",
+            "mqtts": "mqtt.uplink",
+            "lorawan": "lorawan.uplink",
+            "iot": "iot.uplink",
+        }
+        if action != expected_actions[transport]:
+            raise EdgeError("telemetry action does not match its transport")
         message = {
             "kind": "node_request",
             "action": action,
