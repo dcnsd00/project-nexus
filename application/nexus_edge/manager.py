@@ -144,6 +144,24 @@ class EdgeManager:
         return self.node_status(node_id)
 
     @_synchronized
+    def rotate_node_secret(self, node_id: str, new_secret: bytes) -> dict[str, Any]:
+        """Replace a node credential without resetting its anti-replay sequence."""
+        node = self._get_node(node_id)
+        if not isinstance(new_secret, bytes) or len(new_secret) < 32:
+            raise EdgeError("node secret must contain at least 32 bytes")
+        if hmac.compare_digest(node.secret, new_secret):
+            raise EdgeError("new node secret must differ from the current secret")
+        node.secret = new_secret
+        self._persist()
+        return self.node_status(node_id)
+
+    @_synchronized
+    def next_node_sequence(self, node_id: str) -> int:
+        """Return the minimum next outbound sequence required for this node."""
+        self._get_node(node_id)
+        return self._replay_guard.last_accepted_sequence(node_id) + 1
+
+    @_synchronized
     def heartbeat(self, node_id: str, timestamp: float, sequence: int, signature: str) -> dict[str, Any]:
         node = self._get_node(node_id)
         now = self._clock()
