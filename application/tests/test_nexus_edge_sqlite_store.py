@@ -2,6 +2,7 @@ import sqlite3
 import tempfile
 import threading
 import unittest
+from contextlib import closing
 from pathlib import Path
 
 from cryptography.fernet import Fernet
@@ -159,7 +160,7 @@ class SQLiteEdgeStoreTests(unittest.TestCase):
 
         self.assertIsNone(manager.claim_task("edge-c5-009"))
         self.assertEqual(manager.task_status(task["task_id"])["state"], "EXPIRED")
-        with sqlite3.connect(self.database) as connection:
+        with closing(sqlite3.connect(self.database)) as connection:
             row = connection.execute(
                 "SELECT state FROM edge_tasks WHERE task_id = ?",
                 (task["task_id"],),
