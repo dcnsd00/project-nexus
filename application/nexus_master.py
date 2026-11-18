@@ -190,7 +190,8 @@ def nexus_master_manifest():
             "math_intelligence": {"present": (ROOT/"modules"/"math_intelligence.py").is_file(), "runtime": "SHA-2/SHA-3 exact benchmarks, modular congruence solver and measured candidate triage; manual review only"},
             "integrations": {"present": (ROOT/"modules"/"integration_registry.py").is_file(), "runtime": "12-provider read-only configuration registry; live API adapters pending provider-specific validation"},
             "sha2_research_package": {"present": (ROOT/"research"/"sha2_independent"/"nexus_sha"/"sha256_advanced.py").is_file(), "runtime": "independent SHA-256/SHA-512 research, differential/message-modification experiments, SAT/CNF, statistical analysis and exact benchmark; research-only, no miner auto-application"},
-            "rcsc": {"present": (ROOT/"research"/"rcsc"/"nexus_rcsc"/"nexus_rcsc"/"collector.py").is_file(), "runtime": "read-only Bitcoin block collection, header SHA256d/PoW verification, full TXID Merkle reconstruction, fee extraction, SQLite persistence and chronological holdout research"}
+            "rcsc": {"present": (ROOT/"research"/"rcsc"/"nexus_rcsc"/"nexus_rcsc"/"collector.py").is_file(), "runtime": "read-only Bitcoin block collection, header SHA256d/PoW verification, full TXID Merkle reconstruction, fee extraction, SQLite persistence and chronological holdout research"},
+            "edge_manager": {"present": (ROOT/"nexus_edge"/"gateway.py").is_file(), "runtime": "HMAC-authenticated node control plane, encrypted SQLite state, persistent anti-replay, opt-in HTTPS gateway and MQTTS uplink adapter; single-host pilot, physical-node and external network-server validation pending"}
         },
         "wallet_manager": {"present": True, "encrypted_local_evm_vault": True, "watch_only": True,
                            "local_wallet_search": True, "format_detection": True,
