@@ -18,15 +18,31 @@
  *   3 AVX2 x8   : 8 nonce-uri in paralel pe lane-uri SIMD + midstate + 3 runde precalculate + early exit
  *   4 AVX-512   : 16 nonce-uri in paralel (doar CPU cu AVX-512: Intel server/Xeon, AMD Zen4+)
  */
+#ifndef _WIN32
 #define _GNU_SOURCE
-#include <immintrin.h>
+#endif
 #include <errno.h>
-#include <pthread.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#if defined(_WIN32)
+#define WIN32_LEAN_AND_MEAN
+#define NOMINMAX
+#include <windows.h>
+#include <intrin.h>
+#else
+#include <immintrin.h>
+#include <pthread.h>
+#endif
+
+#if defined(_WIN32)
+#define NEXUS_EXPORT __declspec(dllexport)
+#else
+#define NEXUS_EXPORT __attribute__((visibility("default")))
+#endif
+
 
 typedef uint32_t u32;
 typedef uint64_t u64;
@@ -46,7 +62,21 @@ static const u32 IV[8] = {0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a,
 
 #define ROR(x, n) (((x) >> (n)) | ((x) << (32 - (n))))
 #define BS S32(x)
-static inline u32 bswap32(u32 x) { return __builtin_bswap32(x); }
+static inline u32 bswap32(u32 x) {
+#if defined(_MSC_VER)
+    return (u32)_byteswap_ulong((unsigned long)x);
+#else
+    return __builtin_bswap32(x);
+#endif
+}
+static inline unsigned ctz32(u32 x) {
+#if defined(_MSC_VER)
+    unsigned long index = 0;
+    return _BitScanForward(&index, (unsigned long)x) ? (unsigned)index : 32u;
+#else
+    return x ? (unsigned)__builtin_ctz(x) : 32u;
+#endif
+}
 static inline u32 S0(u32 x) { return ROR(x, 2) ^ ROR(x, 13) ^ ROR(x, 22); }
 static inline u32 S1(u32 x) { return ROR(x, 6) ^ ROR(x, 11) ^ ROR(x, 25); }
 static inline u32 s0(u32 x) { return ROR(x, 7) ^ ROR(x, 18) ^ (x >> 3); }
@@ -222,6 +252,7 @@ static void scan_v2(const Job *j, u64 start, u64 count, Result *r) {
     }
 }
 
+#if !defined(_MSC_VER)
 /* ---------- AVX2, 8 nonce-uri in paralel ---------- */
 #define V __m256i
 #define VADD _mm256_add_epi32
@@ -289,7 +320,7 @@ static void scan_v3(const Job *j, u64 start, u64 count, Result *r) {
         V m = _mm256_cmpeq_epi32(VADD(e, VSET1(IV[7])), zero);
         int mask = _mm256_movemask_ps(_mm256_castsi256_ps(m));
         while (mask) {
-            int l = __builtin_ctz(mask);
+            int l = (int)ctz32((u32)mask);
             mask &= mask - 1;
             r->candidates++;
             if (verify_nonce(j, (u32)(n + l))) { r->found = 1; r->nonce = (u32)(n + l); }
@@ -370,26 +401,56 @@ static void scan_v4(const Job *j, u64 start, u64 count, Result *r) {
     u64 tail_start = start + ((count / 16) * 16);
     if (tail_start < end) scan_v1(j, tail_start, end - tail_start, r);
 }
+#else
+/* MSVC first-stage backend: scalar/midstate code is native; SIMD remains disabled
+ * until separately compiled ISA translation units are added and CPUID-tested. */
+static void scan_v3(const Job *j, u64 start, u64 count, Result *r) {
+    scan_v1(j, start, count, r);
+}
+static void scan_v4(const Job *j, u64 start, u64 count, Result *r) {
+    scan_v1(j, start, count, r);
+}
+#endif
 
 typedef void (*scan_fn)(const Job *, u64, u64, Result *);
 static scan_fn VARIANTS[5] = {scan_v0, scan_v1, scan_v2, scan_v3, scan_v4};
 static const char *NAMES[5] = {"0 naiv (2x SHA complet)", "1 midstate", "2 midstate + early exit", "3 AVX2 x8 + precalc + early", "4 AVX-512 x16 (daca CPU-ul il are)"};
 
 typedef struct { const Job *j; u64 start, count; int v; Result res; } Task;
+#if defined(_WIN32)
+static DWORD WINAPI worker(LPVOID p) {
+    Task *t = (Task *)p;
+    VARIANTS[t->v](t->j, t->start, t->count, &t->res);
+    return 0;
+}
+#else
 static void *worker(void *p) {
     Task *t = (Task *)p;
     VARIANTS[t->v](t->j, t->start, t->count, &t->res);
     return NULL;
 }
+#endif
 
 static double now(void) {
+#if defined(_WIN32)
+    LARGE_INTEGER counter, frequency;
+    if (!QueryPerformanceFrequency(&frequency) || frequency.QuadPart <= 0)
+        return 0.0;
+    QueryPerformanceCounter(&counter);
+    return (double)counter.QuadPart / (double)frequency.QuadPart;
+#else
     struct timespec ts;
     clock_gettime(CLOCK_MONOTONIC, &ts);
     return ts.tv_sec + ts.tv_nsec * 1e-9;
+#endif
 }
 
 static double run(const Job *j, int v, int threads, u64 start, u64 total, Result *out) {
+#if defined(_WIN32)
+    HANDLE th[256];
+#else
     pthread_t th[256];
+#endif
     Task tk[256];
     int launched[256] = {0};
     u64 base = total / (u64)threads;
@@ -399,15 +460,32 @@ static double run(const Job *j, int v, int threads, u64 start, u64 total, Result
     memset(out, 0, sizeof *out);
     for (int i = 0; i < threads; i++) {
         u64 count = base + ((u64)i < rem ? 1ULL : 0ULL);
-        tk[i] = (Task){j, start + offset, count, v, {0, 0, 0}};
+        tk[i].j = j;
+        tk[i].start = start + offset;
+        tk[i].count = count;
+        tk[i].v = v;
+        memset(&tk[i].res, 0, sizeof(tk[i].res));
         offset += count;
         if (count == 0) continue;
+#if defined(_WIN32)
+        th[i] = CreateThread(NULL, 0, worker, &tk[i], 0, NULL);
+        if (th[i]) launched[i] = 1;
+        else worker(&tk[i]); /* fallback sigur: nu pierdem segmentul daca CreateThread esueaza */
+#else
         int rc = pthread_create(&th[i], NULL, worker, &tk[i]);
         if (rc == 0) launched[i] = 1;
         else worker(&tk[i]); /* fallback sigur: nu pierdem segmentul daca pthread_create esueaza */
+#endif
     }
     for (int i = 0; i < threads; i++) {
+#if defined(_WIN32)
+        if (launched[i]) {
+            WaitForSingleObject(th[i], INFINITE);
+            CloseHandle(th[i]);
+        }
+#else
         if (launched[i]) pthread_join(th[i], NULL);
+#endif
         out->candidates += tk[i].res.candidates;
         if (tk[i].res.found) { out->found = 1; out->nonce = tk[i].res.nonce; }
     }
@@ -416,7 +494,9 @@ static double run(const Job *j, int v, int threads, u64 start, u64 total, Result
 }
 
 static int cpu_has_avx2(void) {
-#if defined(__GNUC__) || defined(__clang__)
+#if defined(_MSC_VER)
+    return 0; /* MSVC build currently compiles the portable scalar backends only. */
+#elif defined(__GNUC__) || defined(__clang__)
     __builtin_cpu_init();
     return __builtin_cpu_supports("avx2");
 #else
@@ -424,7 +504,9 @@ static int cpu_has_avx2(void) {
 #endif
 }
 static int cpu_has_avx512(void) {
-#if defined(__GNUC__) || defined(__clang__)
+#if defined(_MSC_VER)
+    return 0; /* AVX-512 remains a separately validated compiler backend. */
+#elif defined(__GNUC__) || defined(__clang__)
     __builtin_cpu_init();
     return __builtin_cpu_supports("avx512f");
 #else
@@ -433,14 +515,14 @@ static int cpu_has_avx512(void) {
 }
 
 /* API C ABI pentru integrarea NEXUS/Stratum. header=80 bytes; target=32 bytes BE. */
-int nexus_variant_supported(int variant) {
+NEXUS_EXPORT int nexus_variant_supported(int variant) {
     if (variant < 0 || variant > 4) return 0;
     if (variant == 3) return cpu_has_avx2();
     if (variant == 4) return cpu_has_avx512();
     return 1;
 }
 
-int nexus_scan_range(const u8 *header, const u8 *target_be, u32 start_nonce,
+NEXUS_EXPORT int nexus_scan_range(const u8 *header, const u8 *target_be, u32 start_nonce,
                      u64 count, int variant, int threads, u32 *nonce_out,
                      u64 *checked_out, double *hashrate_mhs_out) {
     if (!header || !target_be || !nonce_out || !checked_out || !hashrate_mhs_out) return -1;
