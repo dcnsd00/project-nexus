@@ -280,3 +280,28 @@ def test_edge_runtime_adapter_keeps_manager_in_memory_without_storage_key(tmp_pa
 
     adapter.stop()
     adapter.shutdown()
+
+def test_edge_master_and_standalone_gateway_resolve_the_same_database_path(tmp_path, monkeypatch):
+    from cryptography.fernet import Fernet
+    from modules.nexus_runtime import EdgeServiceAdapter
+    from nexus_edge.gateway import create_edge_manager_from_env
+
+    database = tmp_path / "shared-edge" / "edge_state.sqlite3"
+    monkeypatch.setenv("NEXUS_EDGE_DATABASE", str(database))
+    monkeypatch.setenv(
+        "NEXUS_EDGE_STORAGE_KEY", Fernet.generate_key().decode("ascii")
+    )
+
+    adapter = EdgeServiceAdapter()
+    adapter.initialize()
+    adapter.start()
+    master_manager = adapter.service.manager
+
+    gateway_manager = create_edge_manager_from_env(dict(__import__("os").environ))
+
+    assert master_manager.snapshot()["mode"] == "sqlite_persistent"
+    assert master_manager._store.database == database.resolve()
+    assert gateway_manager._store.database == master_manager._store.database
+
+    adapter.stop()
+    adapter.shutdown()
