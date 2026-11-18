@@ -123,3 +123,18 @@ def test_master_starts_and_reports_the_local_runtime_graph():
         edge = next(row for row in registry["modules"] if row["id"] == "edge_manager")
         assert edge["runtime_registered"] is True
         assert edge["operational_verified"] is False
+
+
+def test_unified_operator_snapshot_is_read_only_and_reports_evidence_boundaries():
+    with TestClient(app) as client:
+        response = client.get("/api/nexus/operator")
+        assert response.status_code == 200
+        body = response.json()
+        assert body["product"] == "NEXUS"
+        assert body["safety"]["read_only"] is True
+        assert body["safety"]["starts_or_stops_miners"] is False
+        assert body["execution_model"]["services_share_master_process"] is True
+        assert body["execution_model"]["individual_service_pids"].startswith("not_applicable")
+        assert body["evidence_policy"]["missing_values"].startswith("reported_as_unavailable")
+        assert body["summary"]["services_total"] >= 1
+        assert isinstance(body["services"], list)

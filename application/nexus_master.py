@@ -1719,3 +1719,96 @@ def mining_compatibility_matrix():
     return nexus_compatibility_matrix(
         ROOT / "mining" / "pools.json", nexus_backend_catalog()
     )
+
+
+# NEXUS unified operator snapshot: read-only aggregation of measured subsystem state.
+@app.get("/api/nexus/operator")
+def nexus_operator_snapshot():
+    """Return one read-only operational snapshot with explicit evidence boundaries."""
+    from datetime import datetime, timezone
+
+    def capture(fn):
+        try:
+            return {"status": "available", "data": fn()}
+        except Exception as exc:
+            return {"status": "unavailable", "error": type(exc).__name__}
+
+    runtime = capture(nexus_runtime_status)
+    modules = capture(nexus_module_registry)
+    module_health = capture(nexus_module_registry_health)
+    telemetry = capture(lambda: nexus_runtime_telemetry(history=30))
+    mining = capture(mining_status)
+    mining_processes_report = capture(mining_processes)
+    mining_diagnostics_report = capture(mining_diagnostics)
+    readiness = capture(nexus_readiness)
+    transports = capture(edge_transport_status)
+    gateway = capture(edge_gateway_status)
+
+    runtime_data = runtime.get("data") or {}
+    telemetry_data = telemetry.get("data") or {}
+    mining_data = mining.get("data") or {}
+    module_data = modules.get("data") or {}
+    service_rows = runtime_data.get("services") or []
+    shared_pid = os.getpid()
+
+    # Services execute inside MASTER today. Do not invent isolated service PIDs.
+    services = [{
+        **row,
+        "execution_model": "in_process",
+        "shared_master_pid": shared_pid,
+        "service_pid": None,
+        "per_service_resource_usage": "not_instrumented",
+    } for row in service_rows]
+
+    sections = {
+        "runtime": runtime,
+        "modules": modules,
+        "module_health": module_health,
+        "host_telemetry": telemetry,
+        "mining": mining,
+        "mining_processes": mining_processes_report,
+        "mining_diagnostics": mining_diagnostics_report,
+        "blockchain_readiness": readiness,
+        "edge_transports": transports,
+        "edge_gateway": gateway,
+    }
+    unavailable_sections = [name for name, item in sections.items()
+                            if item.get("status") != "available"]
+    runtime_ready = runtime_data.get("system_ready") is True
+    overall = "operational_local" if runtime_ready and not unavailable_sections else "degraded_or_incomplete"
+    return {
+        "product": "NEXUS",
+        "report_version": "1.0",
+        "generated_at_utc": datetime.now(timezone.utc).isoformat(),
+        "overall_state": overall,
+        "summary": {
+            "runtime_ready": runtime_ready,
+            "services_running": runtime_data.get("running", 0),
+            "services_total": runtime_data.get("total", 0),
+            "modules_total": module_data.get("total", 0),
+            "mining_status": mining_data.get("status", "unavailable"),
+            "unavailable_sections": unavailable_sections,
+        },
+        "execution_model": {
+            "master_pid": shared_pid,
+            "services_share_master_process": True,
+            "individual_service_pids": "not_applicable_in_current_in_process_runtime",
+            "per_service_cpu_ram": "not_instrumented",
+        },
+        "services": services,
+        "sections": sections,
+        "evidence_policy": {
+            "host_cpu_ram_disk_network_gpu": "measured_local_when_available",
+            "mining_processes": "detected_from_local_process_table; miner_api_metrics_are_separate",
+            "blockchain": "tool_readiness_only_unless_node_connection_is_explicitly_reported",
+            "provider_connectivity": "not_inferred_from_source_or_configuration",
+            "external_hardware": "not_verified_without_agent_or_hardware_telemetry",
+            "missing_values": "reported_as_unavailable_or_null; never estimated",
+        },
+        "safety": {
+            "read_only": True,
+            "starts_or_stops_miners": False,
+            "wallet_unlock_or_transactions": False,
+            "public_chain_writes_enabled": False,
+        },
+    }

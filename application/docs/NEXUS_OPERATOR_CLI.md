@@ -29,9 +29,24 @@ python .\nexus_cli.py all --url http://127.0.0.1:8766
 - `modules`: registrul modulelor și sumarul integrării.
 - `telemetry`: CPU/RAM/disk/network/GPU și istoricul disponibil.
 - `mining`: status miner, hardware detectat, procese și diagnostic.
-- `edge`: starea serviciilor EDGE, transport MQTTS și gateway HTTPS.
+- `edge`: starea serviciilor EDGE, transport MQTTS și gateway HTTPS.\n- `operator`: raport consolidat read-only pentru runtime, module, host telemetry, mining, blockchain readiness și EDGE.
 - `all`: toate endpoint-urile read-only de mai sus.
 
 Ieșirea este JSON pentru a putea fi arhivată și procesată automat. Codul de
 ieșire este 0 când toate endpoint-urile răspund și 2 când cel puțin unul eșuează.
 Implicit, API-ul este accesat numai prin loopback: `127.0.0.1:8765`.
+
+
+## Raport operațional unificat
+
+Endpoint-ul read-only `GET /api/nexus/operator` agregă starea runtime-ului,
+registrul modulelor, telemetria host, statusul mining, procesele detectate,
+diagnosticele, readiness blockchain și EDGE. Dashboard-ul afișează raportul și
+îl actualizează la 5 secunde; CLI-ul îl expune prin
+`python .\\nexus_cli.py operator`.
+
+**Limite explicite:** serviciile rulează în prezent în procesul MASTER și
+împart PID-ul acestuia. Raportul nu inventează PID-uri sau CPU/RAM per serviciu.
+Telemetria GPU depinde de `nvidia-smi`; datele minerului, pool-ului și ale
+blockchain-ului rămân distincte și sunt marcate indisponibile dacă nu există
+o sursă live verificată. Raportul nu pornește procese și nu modifică wallet-uri.

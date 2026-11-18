@@ -85,3 +85,17 @@ def test_cli_all_uses_only_read_only_get_endpoints(monkeypatch):
     assert result["failed_endpoints"] == 0
     assert len(requested) >= 10
     assert set(requested) == {"GET"}
+
+
+def test_cli_operator_command_reads_unified_snapshot(monkeypatch):
+    requested = []
+
+    def fake_urlopen(request, timeout):
+        requested.append((request.full_url, request.get_method()))
+        return FakeResponse({"overall_state": "operational_local"})
+
+    monkeypatch.setattr(nexus_cli, "urlopen", fake_urlopen)
+    result = nexus_cli.collect("operator")
+
+    assert result["successful_endpoints"] == 1
+    assert requested == [("http://127.0.0.1:8765/api/nexus/operator", "GET")]
