@@ -40,6 +40,9 @@ def _compile_native() -> Path | None:
         return None
     system = platform.system().lower()
     requested_compiler = os.environ.get("NEXUS_NATIVE_COMPILER", "auto").strip().lower()
+    if requested_compiler not in {"auto", "msvc", "gcc", "clang"}:
+        _LOAD_ERROR = f"Unsupported NEXUS_NATIVE_COMPILER value: {requested_compiler}"
+        return None
     msvc = shutil.which("cl.exe") or shutil.which("cl") if system == "windows" else None
     if requested_compiler == "msvc":
         if not msvc:
@@ -60,7 +63,10 @@ def _compile_native() -> Path | None:
     build_dir = Path(os.environ.get("NEXUS_NATIVE_BUILD_DIR", str(Path(__file__).resolve().parent / "native" / "build")))
     build_dir.mkdir(parents=True, exist_ok=True)
     output = build_dir / _library_filename()
-    if output.is_file() and output.stat().st_mtime >= source.stat().st_mtime:
+    # Explicit compiler requests must never reuse a DLL built by a different
+    # toolchain under the same filename. Auto mode may reuse a fresh artifact.
+    if (requested_compiler == "auto" and output.is_file()
+            and output.stat().st_mtime >= source.stat().st_mtime):
         return output
     system = platform.system().lower()
     if system == "windows" and msvc:
