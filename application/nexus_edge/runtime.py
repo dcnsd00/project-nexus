@@ -83,12 +83,27 @@ class EdgeTransportRuntime:
 
     def status(self) -> dict[str, Any]:
         with self._lock:
-            active = self._bridge is not None and bool(getattr(self._bridge, "started", False))
+            bridge = self._bridge
+            started = bridge is not None and bool(getattr(bridge, "started", False))
+            connected = bridge is not None and bool(
+                getattr(bridge, "connected", started)
+            )
             return {
-                "mqtts": "active" if active else ("enabled_start_failed" if self._error else ("enabled_not_started" if self.enabled() else "disabled_by_default")),
+                "mqtts": "active" if connected else (
+                    "enabled_start_failed" if self._error else (
+                        "enabled_connecting_or_disconnected" if started else (
+                            "enabled_not_started" if self.enabled() else "disabled_by_default"
+                        )
+                    )
+                ),
                 "enabled": self.enabled(),
-                "connected": active,
+                "started": started,
+                "connected": connected,
                 "accepted_uplinks_buffered": len(self._received),
+                "rejected_uplinks": int(getattr(bridge, "rejected_messages", 0)),
+                "last_message_error_type": getattr(
+                    bridge, "last_message_error_type", None
+                ),
                 "last_error_type": self._error,
                 "wallet_access_enabled": False,
                 "miner_autostart_enabled": False,
