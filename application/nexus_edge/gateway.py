@@ -91,9 +91,10 @@ def create_edge_app(manager: EdgeManager | None = None, *,
         return {
             "network_paths": transport_matrix(),
             "https_gateway": "active_in_this_process",
-            "mqtts": "adapter_available_opt_in_not_started",
-            "lorawan_webhook": "authenticated_ingress_available_network_server_not_configured",
-            "iot_webhook": "authenticated_ingress_available_device_adapter_not_configured",
+            "https_uplink": "authenticated_persisted_telemetry_ingress",
+            "mqtts": "adapter_available_opt_in_not_started_persists_authenticated_uplinks",
+            "lorawan_webhook": "authenticated_persisted_ingress_provider_adapter_not_configured",
+            "iot_webhook": "authenticated_persisted_ingress_device_adapter_not_configured",
             "lan_wan_mobile_data": "same_https_api_over_ip_when_routing_tls_and_firewall_are_configured",
         }
 
