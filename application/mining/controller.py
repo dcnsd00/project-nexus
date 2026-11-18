@@ -182,12 +182,34 @@ def _metrics() -> dict:
                 proc=psutil.Process(pid); mi=proc.memory_info(); proc_stats={'cpu_percent':proc.cpu_percent(interval=0),'memory_mb':round(mi.rss/1048576,1)}
             except (psutil.NoSuchProcess,psutil.AccessDenied): pass
     except Exception: pass
+    hashrate_source='miner_api' if rate is not None else None
     if rate is None and _state.get('status') in ('running','starting'):
         for line in reversed(read_log(100)):
-            m=re.search(r'(?:speed|hashrate|hash rate)[^0-9]{0,30}([0-9]+(?:\.[0-9]+)?)\s*([kKmMgGtT]?)\s*(?:H/s|h/s|hash/s)',line,re.I)
+            m=re.search(r'(?:speed|hashrate|hash rate)[^0-9]{0,30}([0-9]+(?:\\.[0-9]+)?)\\s*([kKmMgGtT]?)\\s*(?:H/s|h/s|hash/s)',line,re.I)
             if m:
-                rate=float(m.group(1))*{'':1,'k':1e3,'m':1e6,'g':1e9,'t':1e12}[m.group(2).lower()]; break
-    return {'api_connected':api_ok,'hashrate_hs':rate,'hashrate_display':_format_rate(rate),'accepted_shares':accepted,'rejected_shares':rejected,'gpu':gpu,'system':cpu,'miner_process':proc_stats,'raw_api':raw,'pool_reported_coin_mined':None,'pool_reported_payout':None,'earnings_source':'not_connected'}
+                rate=float(m.group(1))*{'':1,'k':1e3,'m':1e6,'g':1e9,'t':1e12}[m.group(2).lower()]
+                hashrate_source='miner_log'
+                break
+    sampled_at=time.time()
+    api_state=('not_supported' if not api_url else ('connected' if api_ok else 'unreachable_or_invalid'))
+    return {
+        'schema_version':1,
+        'sampled_at':sampled_at,
+        'miner_id':_state.get('miner_id'),
+        'miner_name':_state.get('miner_name'),
+        'miner_api':{'url':api_url,'status':api_state,'connected':api_ok,'checked_at':sampled_at if api_url else None},
+        # A local miner API response does not prove the upstream pool session is healthy.
+        'pool_connection':{'status':'unknown','evidence':None,'checked_at':None},
+        'api_connected':api_ok,
+        'hashrate_hs':rate,
+        'hashrate_display':_format_rate(rate),
+        'hashrate_source':hashrate_source,
+        'accepted_shares':accepted,
+        'rejected_shares':rejected,
+        'shares_source':'miner_api' if raw and (accepted is not None or rejected is not None) else None,
+        'gpu':gpu,'system':cpu,'miner_process':proc_stats,'raw_api':raw,
+        'pool_reported_coin_mined':None,'pool_reported_payout':None,'earnings_source':'not_connected'
+    }
 
 
 def _num(v):
