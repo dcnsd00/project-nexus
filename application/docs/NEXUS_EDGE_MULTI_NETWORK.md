@@ -31,6 +31,8 @@ and IoT webhook uplinks are validated and persisted in the SQLite
 `edge_telemetry` ledger with event IDs and canonical payload digests. The
 MQTTS runtime keeps only event metadata in its bounded in-memory diagnostics
 queue. Telemetry history is available through the operator API and dashboard.
+The SQLite ledger retains the newest 10,000 events by default and prunes
+older rows in bounded batches; anti-replay sequence state is retained separately.
 It is not yet automatically routed into Mining, Earnings Intelligence,
 Research Hub, or device inventory. Provider-specific LoRaWAN Network Server
 integration, IoT vendor adapters, payload decoders, device-side downlink
