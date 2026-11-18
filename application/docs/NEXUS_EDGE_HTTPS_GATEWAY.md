@@ -24,6 +24,12 @@ for remote access; do not bind directly to a public interface during this pilot.
 - `NEXUS_EDGE_DATABASE`: optional SQLite path; defaults to
   `./data/db/edge_state.sqlite3`.
 
+The standalone Uvicorn entrypoint and the NEXUS MASTER-mounted gateway are
+alternative launch modes. Do not run both simultaneously against the same
+`NEXUS_EDGE_DATABASE`: the current SQLite store is a single-process scheduler
+and does not provide cross-process task-claim coordination or shared in-memory
+manager state.
+
 ## Endpoints
 - `GET /v1/edge/health`: read-only service status.
 - `POST /v1/edge/nodes/provision`: operator-authenticated one-time node secret provisioning.
