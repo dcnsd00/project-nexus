@@ -158,6 +158,44 @@ class SQLiteEdgeStore:
             })
         return {"nodes": nodes, "tasks": tasks}
 
+    def rotate_encryption_key(self, new_key: bytes) -> dict[str, int]:
+        """Atomically re-encrypt every stored node secret with a new Fernet key.
+
+        Call only while all NEXUS EDGE processes using this database are stopped.
+        The new key is held in memory only and is never written to SQLite.
+        """
+        if not isinstance(new_key, bytes):
+            raise TypeError("new_key must be Fernet key bytes")
+        new_fernet = Fernet(new_key)
+        with closing(self._connect()) as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            try:
+                rows = connection.execute(
+                    "SELECT node_id, secret_ciphertext FROM edge_nodes ORDER BY node_id"
+                ).fetchall()
+                replacements = []
+                for node_id, ciphertext in rows:
+                    try:
+                        plaintext = self._fernet.decrypt(bytes(ciphertext))
+                    except InvalidToken as exc:
+                        raise RuntimeError(
+                            f"cannot decrypt EDGE credential for node {node_id}; "
+                            "current key is incorrect or database data is damaged"
+                        ) from exc
+                    replacements.append(
+                        (new_fernet.encrypt(plaintext), node_id)
+                    )
+                connection.executemany(
+                    "UPDATE edge_nodes SET secret_ciphertext = ? WHERE node_id = ?",
+                    replacements,
+                )
+                connection.commit()
+            except Exception:
+                connection.rollback()
+                raise
+        self._fernet = new_fernet
+        return {"nodes_reencrypted": len(replacements)}
+
     def save_state(
         self,
         *,
