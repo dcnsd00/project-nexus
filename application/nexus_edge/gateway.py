@@ -14,7 +14,7 @@ from typing import Any
 from fastapi import APIRouter, FastAPI, Header, HTTPException, Query
 from pydantic import BaseModel, Field
 
-from .manager import EdgeError, EdgeManager, sign_message
+from .manager import EdgeError, EdgeManager, EdgePersistenceError, sign_message
 from .replay_guard import SQLiteReplayGuard
 from .sqlite_store import SQLiteEdgeStore
 from .transports import transport_matrix
@@ -188,13 +188,20 @@ def create_edge_app(manager: EdgeManager | None = None, *,
     def uplink(node_id: str, network: str, body: NodeEnvelope):
         if network not in {"https", "lorawan", "iot"}:
             raise HTTPException(status_code=404, detail="unsupported uplink network")
-        authenticate(node_id, f"{network}.uplink", body)
         try:
-            event = edge.record_telemetry(
-                node_id, body.payload, transport=network
+            event = edge.authenticate_and_record_telemetry(
+                node_id,
+                f"{network}.uplink",
+                body.timestamp,
+                body.sequence,
+                body.payload,
+                body.signature,
+                transport=network,
             )
-        except EdgeError as exc:
+        except EdgePersistenceError as exc:
             raise HTTPException(status_code=503, detail=str(exc)) from exc
+        except EdgeError as exc:
+            raise HTTPException(status_code=401, detail=str(exc)) from exc
         return {
             "accepted": True,
             "node_id": node_id,
