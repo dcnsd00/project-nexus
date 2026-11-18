@@ -26,6 +26,14 @@ The broker connection itself must authenticate with a username/password pair
 or a client certificate/key pair. TLS certificate verification is not
 disabled. Anonymous broker sessions are rejected by configuration validation.
 
+To opt in, set `NEXUS_EDGE_MQTT_ENABLED=true` and
+`NEXUS_EDGE_MQTT_HOST`; the default port is 8883. Configure either
+`NEXUS_EDGE_MQTT_USERNAME` plus `NEXUS_EDGE_MQTT_PASSWORD`, or both
+`NEXUS_EDGE_MQTT_CERT` and `NEXUS_EDGE_MQTT_KEY` for client-certificate
+authentication. Optional settings are `NEXUS_EDGE_MQTT_CA`,
+`NEXUS_EDGE_MQTT_CLIENT_ID`, and `NEXUS_EDGE_MQTT_TOPIC_PREFIX`.
+Install `paho-mqtt>=2,<3` in the runtime environment.
+
 **Current ingress boundary:** authenticated HTTPS, MQTTS, LoRaWAN-bridge,
 and IoT webhook uplinks are validated and persisted in the SQLite
 `edge_telemetry` ledger with event IDs and canonical payload digests. The
