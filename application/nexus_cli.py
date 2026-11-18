@@ -44,6 +44,7 @@ COMMAND_ENDPOINTS: dict[str, tuple[str, ...]] = {
         "/api/edge/gateway",
     ),
     "operator": ("/api/nexus/operator",),
+    "blockchain": ("/api/blockchain/nodes/bitcoin", "/api/blockchain/nodes/evm"),
 }
 
 
@@ -86,7 +87,7 @@ def _endpoints(command: str, history: int) -> tuple[str, ...]:
     if command == "all":
         return tuple(dict.fromkeys(
             path
-            for group in ("status", "modules", "mining", "edge", "operator")
+            for group in ("status", "modules", "mining", "edge", "blockchain", "operator")
             for path in COMMAND_ENDPOINTS[group]
         )) + (f"/api/nexus/telemetry?history={history}",)
     return COMMAND_ENDPOINTS[command]
@@ -119,7 +120,7 @@ def main(argv: list[str] | None = None) -> int:
         description="NEXUS operator CLI — read-only status and telemetry"
     )
     parser.add_argument(
-        "command", choices=("status", "modules", "telemetry", "mining", "edge", "operator", "all")
+        "command", choices=("status", "modules", "telemetry", "mining", "edge", "blockchain", "operator", "all")
     )
     parser.add_argument("--url", default=DEFAULT_BASE_URL,
                         help=f"MASTER API base URL (default: {DEFAULT_BASE_URL})")

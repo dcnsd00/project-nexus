@@ -67,3 +67,30 @@ per serviciu rămân explicit neimplementate deoarece serviciile nu rulează în
 sunt pornite și endpoint-urile raportului au răspuns. Nu înseamnă că toate
 modulele au trecut verificări funcționale independente. Registrul păstrează
 `system_operational_verified=false` până la teste funcționale dedicate.
+
+
+## Blockchain telemetry
+
+Raportul `operator` și comanda `blockchain` expun separat două adaptoare
+read-only:
+
+- Bitcoin Core: `GET /api/blockchain/nodes/bitcoin`. Folosește RPC loopback
+  și cookie sau user/parolă configurate local. Exemplu de variabile:
+  `NEXUS_BITCOIN_RPC_URL=http://127.0.0.1:8332` și
+  `NEXUS_BITCOIN_RPC_COOKIE_FILE=C:\\Users\\<user>\\AppData\\Roaming\\Bitcoin\\.cookie`.
+  Pentru regtest, portul implicit este de regulă 18443.
+- EVM: `GET /api/blockchain/nodes/evm`. Configurează explicit
+  `NEXUS_EVM_RPC_URL` cu endpoint HTTPS de la furnizorul RPC. Sunt apelate
+  numai metode JSON-RPC read-only. Host-ul este afișat fără path sau chei.
+
+Exemplu PowerShell pentru sesiunea curentă:
+
+```powershell
+$env:NEXUS_EVM_RPC_URL = "https://<rpc-provider>/<project-key>"
+python .\\nexus_cli.py blockchain
+python .\\nexus_cli.py operator
+```
+
+Nu introduce chei RPC în capturi de ecran, loguri partajate sau commit-uri.
+NEXUS nu expune URL-ul complet în raport. Un endpoint configurat nu este
+considerat conectat până când apelurile JSON-RPC reușesc.

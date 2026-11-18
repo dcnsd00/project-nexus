@@ -99,3 +99,21 @@ def test_cli_operator_command_reads_unified_snapshot(monkeypatch):
 
     assert result["successful_endpoints"] == 1
     assert requested == [("http://127.0.0.1:8765/api/nexus/operator", "GET")]
+
+
+
+def test_cli_blockchain_command_reads_bitcoin_and_evm_status(monkeypatch):
+    requested = []
+
+    def fake_urlopen(request, timeout):
+        requested.append((request.full_url, request.get_method()))
+        return FakeResponse({"rpc": {"status": "not_configured"}})
+
+    monkeypatch.setattr(nexus_cli, "urlopen", fake_urlopen)
+    result = nexus_cli.collect("blockchain")
+
+    assert result["successful_endpoints"] == 2
+    assert requested == [
+        ("http://127.0.0.1:8765/api/blockchain/nodes/bitcoin", "GET"),
+        ("http://127.0.0.1:8765/api/blockchain/nodes/evm", "GET"),
+    ]
