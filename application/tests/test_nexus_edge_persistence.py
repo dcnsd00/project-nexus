@@ -130,6 +130,51 @@ class EdgePersistenceInvariantTests(unittest.TestCase):
 
         self.assertEqual(sum(accepted), 1)
 
+    def test_storage_key_rotation_reencrypts_node_secrets(self):
+        old_key = self.key
+        new_key = Fernet.generate_key()
+        store = SQLiteEdgeStore(self.database, encryption_key=old_key)
+        manager = EdgeManager(
+            clock=self.clock,
+            replay_guard=SQLiteReplayGuard(self.database),
+            store=store,
+        )
+        manager.register_node(self.node_id, ["telemetry"], self.secret)
+
+        result = store.rotate_encryption_key(new_key)
+        self.assertEqual(result, {"nodes_reencrypted": 1})
+        restored = SQLiteEdgeStore(
+            self.database, encryption_key=new_key
+        ).load_state()
+        self.assertEqual(restored["nodes"][0]["secret"], self.secret)
+
+        with self.assertRaisesRegex(RuntimeError, "cannot decrypt EDGE credential"):
+            SQLiteEdgeStore(
+                self.database, encryption_key=old_key
+            ).load_state()
+
+    def test_failed_storage_key_rotation_leaves_database_unchanged(self):
+        old_key = self.key
+        store = SQLiteEdgeStore(self.database, encryption_key=old_key)
+        store.save_state(nodes=[{
+            "node_id": self.node_id,
+            "capabilities": ["telemetry"],
+            "secret": self.secret,
+            "max_parallel": 1,
+            "last_seen": None,
+        }], tasks=[])
+
+        wrong_store = SQLiteEdgeStore(
+            self.database, encryption_key=Fernet.generate_key()
+        )
+        with self.assertRaisesRegex(RuntimeError, "current key is incorrect"):
+            wrong_store.rotate_encryption_key(Fernet.generate_key())
+
+        restored = SQLiteEdgeStore(
+            self.database, encryption_key=old_key
+        ).load_state()
+        self.assertEqual(restored["nodes"][0]["secret"], self.secret)
+
     def test_manager_reconciles_memory_after_persistence_failure(self):
         store = SQLiteEdgeStore(self.database, encryption_key=self.key)
         manager = EdgeManager(
