@@ -50,7 +50,7 @@ def test_mqtt_bridge_uses_tls_and_subscribes_to_node_uplink():
 
 def test_mqtt_bridge_contains_callback_errors_and_records_rejection():
     bridge = MQTTBridge(
-        MQTTConfig(host="broker.example", client_id="nexus-test"),
+        MQTTConfig(host="broker.example", client_id="nexus-test", username="nexus", password="test-password"),
         lambda topic, body: (_ for _ in ()).throw(ValueError("bad signature")),
         client_factory=lambda **kwargs: FakeClient(),
     )
@@ -70,7 +70,7 @@ def test_mqtt_bridge_cleans_up_when_connection_start_fails():
 
     client = BrokenClient()
     bridge = MQTTBridge(
-        MQTTConfig(host="broker.example", client_id="nexus-test"),
+        MQTTConfig(host="broker.example", client_id="nexus-test", username="nexus", password="test-password"),
         lambda topic, body: None,
         client_factory=lambda **kwargs: client,
     )
@@ -90,7 +90,7 @@ def test_mqtt_bridge_does_not_report_broker_rejection_as_connected():
 
     client = RejectedClient()
     bridge = MQTTBridge(
-        MQTTConfig(host="broker.example", client_id="nexus-test"),
+        MQTTConfig(host="broker.example", client_id="nexus-test", username="nexus", password="test-password"),
         lambda topic, body: None,
         client_factory=lambda **kwargs: client,
     )
