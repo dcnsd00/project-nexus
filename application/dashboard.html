@@ -100,7 +100,10 @@ async function pollTelemetry(){
   drawResourceChart(h);
  }catch(e){$('telemetryMeta').textContent='Telemetrie indisponibilă: '+e.message;}
 }
-async function pollOperatorReport(){try{const d=await api('/api/nexus/operator');$('operatorReport').textContent=JSON.stringify(d,null,2);$('operatorReportMeta').textContent='Stare: '+d.overall_state+' · servicii: '+d.summary.services_running+'/'+d.summary.services_total+' · secțiuni indisponibile: '+d.summary.unavailable_sections.length+' · UTC: '+d.generated_at_utc;}catch(e){$('operatorReportMeta').textContent='Raport indisponibil: '+e.message;}}\n$('refreshOperatorReport')?.addEventListener('click',pollOperatorReport);\n\nfunction drawResourceChart(history){
+async function pollOperatorReport(){try{const d=await api('/api/nexus/operator');$('operatorReport').textContent=JSON.stringify(d,null,2);$('operatorReportMeta').textContent='Stare: '+d.overall_state+' · servicii: '+d.summary.services_running+'/'+d.summary.services_total+' · secțiuni indisponibile: '+d.summary.unavailable_sections.length+' · UTC: '+d.generated_at_utc;}catch(e){$('operatorReportMeta').textContent='Raport indisponibil: '+e.message;}}
+$('refreshOperatorReport')?.addEventListener('click',pollOperatorReport);
+
+function drawResourceChart(history){
  const canvas=$('resourceChart');if(!canvas||!history?.length)return;
  const width=Math.max(320,canvas.clientWidth||640),height=180,ratio=window.devicePixelRatio||1;
  canvas.width=width*ratio;canvas.height=height*ratio;const ctx=canvas.getContext('2d');ctx.setTransform(ratio,0,0,ratio,0,0);
