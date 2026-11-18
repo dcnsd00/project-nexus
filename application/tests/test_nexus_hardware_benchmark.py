@@ -105,7 +105,7 @@ def test_profile_aggregates_exact_work_and_stops_at_sensor_limit(monkeypatch):
         "thermal_state": "at_or_above_sensor_high_threshold",
     })
     telemetry = FakeTelemetry([before, after])
-    clock = iter([0.0, 0.1, 0.3])
+    clock = iter([0.0, 0.1, 0.3, 0.31])
     monkeypatch.setattr(benchmark.time, "perf_counter", lambda: next(clock))
     calls = []
 
@@ -118,14 +118,15 @@ def test_profile_aggregates_exact_work_and_stops_at_sensor_limit(monkeypatch):
         }
 
     monkeypatch.setattr(benchmark, "scan_nonce_range_native", fake_scan)
-    monkeypatch.setattr(benchmark, "_thermal_limit_reached", lambda data: False)
     result = benchmark._profile(
         variant=1, threads=2, seconds=0.25,
         batch_hashes=1000, telemetry=telemetry,
     )
-    assert result["state"] == "completed"
+    assert result["state"] == "stopped_thermal_threshold"
+    assert result["thermal_stop"] is True
     assert result["hashes_checked"] == 1000
     assert result["throughput_hashes_per_second"] > 0
     assert result["native_rate_median_mh_s"] == 5.0
     assert result["variant"] == "scalar_midstate"
+    assert result["telemetry_after"]["temperatures"]["sensors"][0]["temperature_c"] == 90.0
     assert calls == [(100_000, 1000, 1, 2)]
