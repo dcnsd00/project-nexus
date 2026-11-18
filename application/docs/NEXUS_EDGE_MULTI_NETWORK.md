@@ -68,13 +68,12 @@ NEXUS MASTER validates `NEXUS_DEPLOYMENT_MODE`, `NEXUS_SERVER_COUNT`,
 reported by `GET /api/edge/topology`, the `nexus_cli.py edge` command, and the
 unified operator snapshot.
 
-This is a configuration guard, not a high-availability implementation.
-Primary/standby requires exactly two servers and a declared shared/replicated
-state backend. Active-active additionally requires declared distributed task
-claims. NEXUS does not provision the database, replication, leader election,
-fencing, or failover through this validator; those remain operational
-implementation and validation gates. The reported field
-`operational_failover_verified` therefore remains false.
+Only single-server mode is currently supported by the runtime. Primary/standby
+and active-active declarations fail closed, even when their prerequisite
+settings are present, because the shared database adapter, distributed atomic
+claims, leader/fencing, replication, and failover orchestration are not
+implemented. The topology endpoint reports `operational_failover_verified=false`;
+a declaration is never represented as an operational cluster.
 
 ## Security and rollout gates
 No WAN listener, MQTT broker, LoRaWAN Network Server or hardware is assumed
