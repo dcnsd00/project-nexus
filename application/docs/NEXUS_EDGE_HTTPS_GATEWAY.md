@@ -40,6 +40,7 @@ manager state.
 - `GET /v1/edge/health`: read-only service status.
 - `POST /v1/edge/nodes/provision`: operator-authenticated one-time node secret provisioning.
 - `POST /v1/edge/nodes/{node_id}/rotate-secret`: operator-authenticated one-time credential rotation.
+- `POST /v1/edge/nodes/{node_id}/revoke`: operator-authenticated node revocation and unfinished-task recovery.
 - `POST /v1/edge/tasks`: operator-authenticated task submission.
 - `POST /v1/edge/nodes/{node_id}/heartbeat`: signed node heartbeat.
 - `POST /v1/edge/nodes/{node_id}/claim`: signed, sequence-protected task claim.
@@ -52,7 +53,10 @@ sequences. Provisioning and rotation responses return a node secret once;
 operators must transfer it to the device through a separate authenticated
 channel. Rotation invalidates the previous secret immediately and preserves
 the monotonic sequence counter; the response reports the minimum next sequence
-the device must use.
+the device must use. Revocation removes the node credential, requeues its
+unfinished tasks (or expires overdue tasks), and retains the replay counter.
+Re-provisioning the same node ID therefore starts at the next unused sequence,
+not at one.
 
 The HTTPS gateway and optional MQTTS runtime are mounted from NEXUS
 MASTER using the same LifecycleManager-owned `EdgeManager` instance. Both
