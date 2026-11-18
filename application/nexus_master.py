@@ -148,7 +148,12 @@ def edge_telemetry_status(limit: int = 100):
     if manager is None:
         return {"state": "not_started", "events": []}
     try:
-        return {"state": "available", "events": manager.telemetry(limit=limit)}
+        events = manager.telemetry(limit=limit)
+        # The master status API is unauthenticated; expose event metadata only.
+        # Raw telemetry payloads remain behind the operator-authenticated EDGE API.
+        for event in events:
+            event.pop("payload", None)
+        return {"state": "available", "events": events}
     except Exception as exc:
         raise HTTPException(status_code=400, detail=type(exc).__name__) from exc
 
