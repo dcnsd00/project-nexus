@@ -121,7 +121,7 @@ class EdgePersistenceInvariantTests(unittest.TestCase):
                 sign_message(self.secret, old_message),
             )
 
-    def test_store_migrates_existing_schema_version_one_to_two(self):
+    def test_store_migrates_existing_schema_version_one_to_three(self):
         store = SQLiteEdgeStore(self.database, encryption_key=self.key)
         with sqlite3.connect(self.database) as connection:
             connection.execute(
