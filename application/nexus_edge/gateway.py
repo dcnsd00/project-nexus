@@ -248,13 +248,18 @@ def create_edge_app(manager: EdgeManager | None = None, *,
 
     @router.post("/nodes/{node_id}/tasks/{task_id}/complete")
     def complete(node_id: str, task_id: str, body: NodeEnvelope):
-        required = {"task_id", "result", "result_signature"}
+        required = {"task_id", "result", "assignment_nonce", "result_signature"}
         if set(body.payload) != required or body.payload.get("task_id") != task_id:
-            raise HTTPException(status_code=400, detail="signed payload must contain task_id, result, and result_signature")
+            raise HTTPException(
+                status_code=400,
+                detail="signed payload must contain task_id, result, assignment_nonce, and result_signature",
+            )
         authenticate(node_id, "complete_task", body)
         try:
-            return edge.complete_task(node_id, task_id, body.payload["result"],
-                                      body.payload["result_signature"])
+            return edge.complete_task(
+                node_id, task_id, body.payload["result"],
+                body.payload["assignment_nonce"], body.payload["result_signature"],
+            )
         except EdgeError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
 
