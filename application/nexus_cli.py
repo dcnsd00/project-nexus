@@ -45,6 +45,7 @@ COMMAND_ENDPOINTS: dict[str, tuple[str, ...]] = {
         "/api/edge/topology",
         "/api/edge/nodes",
         "/api/edge/tasks",
+        "/api/edge/telemetry",
     ),
     "operator": ("/api/nexus/operator",),
     "blockchain": ("/api/blockchain/nodes/bitcoin", "/api/blockchain/nodes/evm"),
