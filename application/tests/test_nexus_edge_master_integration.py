@@ -139,7 +139,7 @@ def test_master_end_to_end_shared_manager_https_and_mqtts_telemetry(monkeypatch,
         manager = runtime.get_service_instance("edge_manager").service.manager
         assert gateway_runtime._mounted_app.state.edge_manager is manager
         assert transport_runtime._manager is manager
-        assert transport_runtime.status()["mqtts"] == "connected"
+        assert transport_runtime.status()["mqtts"] == "active"
 
         provisioned = client.post(
             "/edge/v1/edge/nodes/provision",
