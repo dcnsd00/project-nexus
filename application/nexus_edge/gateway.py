@@ -65,6 +65,11 @@ def create_edge_app(manager: EdgeManager | None = None, *,
     if not token or len(token) < 32:
         raise RuntimeError("NEXUS_EDGE_PROVISIONING_TOKEN must contain at least 32 characters")
     edge = manager or create_edge_manager_from_env(dict(values))
+    if edge.snapshot().get("mode") != "sqlite_persistent":
+        raise RuntimeError(
+            "HTTPS EDGE gateway requires encrypted sqlite_persistent state; "
+            "configure NEXUS_EDGE_STORAGE_KEY"
+        )
     app = FastAPI(title="NEXUS EDGE Gateway", version="1.0.0")
     router = APIRouter(prefix="/v1/edge", tags=["NEXUS EDGE"])
 
