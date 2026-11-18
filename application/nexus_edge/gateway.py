@@ -117,7 +117,7 @@ def create_edge_app(manager: EdgeManager | None = None, *,
 
     @router.get("/telemetry")
     def list_telemetry(
-        limit: int = Query(default=100, ge=1, le=1000, strict=True),
+        limit: int = Query(default=100, ge=1, le=1000),
         authorization: str | None = Header(default=None),
     ):
         require_operator(authorization)
