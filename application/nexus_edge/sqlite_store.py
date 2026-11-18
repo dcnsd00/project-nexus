@@ -18,7 +18,7 @@ from cryptography.fernet import Fernet, InvalidToken
 class SQLiteEdgeStore:
     """Atomic SQLite persistence for EDGE nodes, tasks, leases and results."""
 
-    SCHEMA_VERSION = 1
+    SCHEMA_VERSION = 2
 
     def __init__(
         self,
@@ -79,6 +79,16 @@ class SQLiteEdgeStore:
                         ON edge_tasks(state, deadline);
                     CREATE INDEX IF NOT EXISTS idx_edge_tasks_node_lease
                         ON edge_tasks(node_id, lease_until);
+                    CREATE TABLE IF NOT EXISTS edge_telemetry (
+                        event_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        node_id TEXT NOT NULL,
+                        received_at REAL NOT NULL,
+                        transport TEXT NOT NULL,
+                        payload_json TEXT NOT NULL,
+                        payload_sha256 TEXT NOT NULL
+                    );
+                    CREATE INDEX IF NOT EXISTS idx_edge_telemetry_node_received
+                        ON edge_telemetry(node_id, received_at DESC);
                 """)
                 connection.execute("""
                     INSERT INTO nexus_edge_schema(component, version)
@@ -157,6 +167,67 @@ class SQLiteEdgeStore:
                 "error": error,
             })
         return {"nodes": nodes, "tasks": tasks}
+
+    def append_telemetry(
+        self,
+        *,
+        node_id: str,
+        received_at: float,
+        transport: str,
+        payload: dict[str, Any],
+    ) -> dict[str, Any]:
+        """Persist one authenticated telemetry event and its canonical digest."""
+        if not isinstance(node_id, str) or not node_id.strip():
+            raise ValueError("node_id must be a non-empty string")
+        if not isinstance(transport, str) or not transport.strip():
+            raise ValueError("transport must be a non-empty string")
+        payload_json = self._json(payload)
+        digest = hashlib.sha256(payload_json.encode("utf-8")).hexdigest()
+        with closing(self._connect()) as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            try:
+                cursor = connection.execute("""
+                    INSERT INTO edge_telemetry(
+                        node_id, received_at, transport, payload_json, payload_sha256
+                    ) VALUES (?, ?, ?, ?, ?)
+                """, (node_id, float(received_at), transport, payload_json, digest))
+                event_id = int(cursor.lastrowid)
+                connection.commit()
+            except Exception:
+                connection.rollback()
+                raise
+        return {
+            "event_id": event_id,
+            "node_id": node_id,
+            "received_at": float(received_at),
+            "transport": transport,
+            "payload_sha256": digest,
+        }
+
+    def list_telemetry(self, *, limit: int = 100) -> list[dict[str, Any]]:
+        if not isinstance(limit, int) or isinstance(limit, bool) or not 1 <= limit <= 1000:
+            raise ValueError("telemetry limit must be an integer between 1 and 1000")
+        with closing(self._connect()) as connection:
+            rows = connection.execute("""
+                SELECT event_id, node_id, received_at, transport,
+                       payload_json, payload_sha256
+                FROM edge_telemetry
+                ORDER BY event_id DESC LIMIT ?
+            """, (limit,)).fetchall()
+        return [{
+            "event_id": int(row[0]),
+            "node_id": row[1],
+            "received_at": float(row[2]),
+            "transport": row[3],
+            "payload": json.loads(row[4]),
+            "payload_sha256": row[5],
+        } for row in rows]
+
+    def telemetry_count(self) -> int:
+        with closing(self._connect()) as connection:
+            return int(connection.execute(
+                "SELECT COUNT(*) FROM edge_telemetry"
+            ).fetchone()[0])
 
     def rotate_encryption_key(self, new_key: bytes) -> dict[str, int]:
         """Atomically re-encrypt every stored node secret with a new Fernet key.
