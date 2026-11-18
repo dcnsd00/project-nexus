@@ -93,6 +93,10 @@ def test_edge_runtime_reuses_shared_durable_manager_and_authenticates_uplinks(
 
     assert runtime.status()["connected"] is True
     assert runtime.status()["accepted_uplinks_buffered"] == 1
+    history = manager.telemetry(limit=10)
+    assert len(history) == 1
+    assert history[0]["transport"] == "mqtts"
+    assert history[0]["payload"] == payload
     runtime.stop()
     assert created[0].started is False and created[0].stops == 1
 
