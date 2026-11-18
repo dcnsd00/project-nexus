@@ -113,6 +113,23 @@ def test_critical_service_blocked_by_failed_optional_dependency_aborts_startup()
     assert "core:stop" in events
 
 
+def test_get_service_instance_requires_running_service():
+    events = []
+    instance = Dummy(events, "shared")
+    manager = LifecycleManager()
+    manager.register(ServiceSpec("shared", lambda: instance))
+
+    with pytest.raises(LifecycleError, match="service is not running"):
+        manager.get_service_instance("shared")
+
+    manager.start_all()
+    assert manager.get_service_instance("shared") is instance
+    manager.stop_all()
+
+    with pytest.raises(LifecycleError, match="service is not running"):
+        manager.get_service_instance("shared")
+
+
 def test_lifecycle_snapshot_reports_measured_startup_and_uptime():
     import os
 
