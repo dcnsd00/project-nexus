@@ -267,3 +267,24 @@ def test_gateway_persists_authenticated_https_uplink_and_exposes_history(tmp_pat
     )
     assert history.status_code == 200
     assert history.json()["events"][0]["payload"] == payload
+
+def test_gateway_persists_generic_lorawan_and_iot_webhook_uplinks(tmp_path):
+    manager = _manager(tmp_path)
+    client = TestClient(create_edge_app(manager, provisioning_token="p" * 40))
+    node_id = "esp32-node-08"
+    secret = b"w" * 32
+    manager.register_node(node_id, ["telemetry"], secret)
+
+    for sequence, network in enumerate(("lorawan", "iot"), start=1):
+        payload = {"sensor": network, "reading": sequence}
+        envelope = _envelope(
+            secret, node_id, f"{network}.uplink", sequence, payload
+        )
+        response = client.post(
+            f"/v1/edge/nodes/{node_id}/uplink/{network}", json=envelope
+        )
+        assert response.status_code == 200
+        assert response.json()["event"]["transport"] == network
+
+    history = manager.telemetry(limit=10)
+    assert [event["transport"] for event in history] == ["iot", "lorawan"]
