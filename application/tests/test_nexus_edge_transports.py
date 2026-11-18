@@ -62,6 +62,27 @@ def test_mqtt_bridge_contains_callback_errors_and_records_rejection():
     bridge.stop()
 
 
+def test_mqtt_bridge_records_subscription_failure_as_disconnected():
+    class BrokenSubscribeClient(FakeClient):
+        def subscribe(self, *args, **kwargs):
+            raise OSError("subscription failed")
+
+    client = BrokenSubscribeClient()
+    bridge = MQTTBridge(
+        MQTTConfig(
+            host="broker.example", client_id="nexus-test",
+            username="nexus", password="test-password",
+        ),
+        lambda topic, body: None,
+        client_factory=lambda **kwargs: client,
+    )
+    bridge.start()
+    assert bridge.started is True
+    assert bridge.connected is False
+    assert bridge.last_message_error_type == "OSError"
+    bridge.stop()
+
+
 def test_mqtt_bridge_cleans_up_when_connection_start_fails():
     class BrokenClient(FakeClient):
         def connect(self, *args):
