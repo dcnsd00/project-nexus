@@ -11,13 +11,15 @@ Status: **Host-side EDGE control plane is integrated into NEXUS MASTER as an opt
 - HTTPS and MQTTS adapters receive that same instance; they do not create parallel managers when started by NEXUS MASTER.
 - `NEXUS_EDGE_DATABASE` overrides the database path. Otherwise the canonical NEXUS data-path service resolves it.
 - The replay guard and state store must use the same SQLite database. The runtime reports `sqlite_persistent` only when both are durable and share the same path.
+- NEXUS MASTER creates one shared EDGE manager and passes it to the HTTPS/MQTTS adapters; this is verified by host-side runtime integration tests. Run the SQLite-backed service as one NEXUS process/worker only. Multiple independent manager processes sharing this database are not validated or supported.
 
 ## Implemented host-side capabilities
 
 ### Control plane and task lifecycle
 
 - Node registration with safe unique IDs, declared capabilities, per-node HMAC secrets and bounded parallelism.
-- Signed heartbeats with finite timestamps, clock-skew limits and strictly increasing per-node sequences.
+- Signed protocol-v1 heartbeats with finite timestamps, clock-skew limits and strictly increasing per-node sequences.
+- `protocol_version: 1` is included in the canonical JSON covered by HMAC-SHA256 for heartbeat, node-request, task-result and telemetry envelopes. HTTPS and MQTT reject missing, boolean or unsupported versions.
 - Capability-based FIFO task assignment.
 - Task states: `QUEUED → ASSIGNED → RUNNING → SUCCEEDED`, with deadline expiry and lease requeue.
 - Signed task results and SHA-256 result fingerprints.
@@ -29,7 +31,7 @@ Status: **Host-side EDGE control plane is integrated into NEXUS MASTER as an opt
 ### Persistence and security
 
 - `SQLiteReplayGuard` persists the highest accepted sequence per node.
-- `SQLiteEdgeStore` persists nodes, tasks, leases, results and telemetry. Schema migrations are versioned through v3.
+- `SQLiteEdgeStore` persists nodes, tasks, leases, results and telemetry. Schema migrations are versioned through v4.
 - Node HMAC secrets are encrypted at rest with a stable operator-provisioned Fernet key.
 - Storage-key rotation is implemented as an offline, atomic re-encryption utility:
   `python -m nexus_edge.rotate_storage_key`.
@@ -76,7 +78,9 @@ These are not represented as completed merely because host endpoints exist:
 - **IoT vendor adapters:** the generic signed webhook ingress exists; vendor-specific authentication and payload decoders remain deployment-specific.
 - **Physical validation:** pairing, reconnect behavior, power-loss recovery, radio range, device-side sequence persistence and downlink behavior require hardware-in-the-loop tests.
 - **Public deployment hardening:** TLS termination, rate limiting, firewall rules, backup/restore and monitoring must be verified in the target environment.
-- **CI evidence:** source and tests have been updated on the active branch, but a green GitHub Actions result has not been confirmed in this review. Do not report the suite as PASS until the run is visible and successful.
+- **CI evidence (2026-11-19, active HEAD `5bd6133e4eeeb2629a7641a45fa528d29f2af07b`):** Linux full suite 624 passed, 1 warning, 10 subtests passed; Windows compatibility 623 passed, 1 skipped, 1 warning, 10 subtests passed; Windows frozen desktop build, executable self-test, installer validation and artifact upload all succeeded. GitHub Actions runs: [NEXUS CI 44492144115](https://github.com/dcnsd00/project-nexus/actions/runs/44492144115), [Windows Desktop Package 44492144055](https://github.com/dcnsd00/project-nexus/actions/runs/44492144055).
+- These are hosted-runner results. The desktop installer test used `-NoLaunch`; it did not verify interactive desktop UI startup on the user's laptop. No physical ESP32-C5, real broker, provider-specific LoRaWAN/IoT or live public ingress validation is claimed.
+- **Branch integration:** this feature branch is 291 commits ahead and 0 behind `integration/source-import-safe-0.10.25`; it has not yet been merged into that integration branch. `main` remains untouched.
 
 ## Verification suite
 
