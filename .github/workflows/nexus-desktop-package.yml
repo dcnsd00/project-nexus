@@ -1,0 +1,126 @@
+name: NEXUS Windows Desktop Package
+
+on:
+  push:
+    branches: ["feature/edge-replay-protection-sqlite-v1"]
+    paths:
+      - "application/**"
+      - ".github/workflows/nexus-desktop-package.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  windows-frozen-desktop:
+    runs-on: windows-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Python 3.12 x64
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          architecture: "x64"
+          cache: "pip"
+          cache-dependency-path: |
+            application/requirements.txt
+            application/requirements-desktop.txt
+      - name: Configure MSVC x64
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+      - name: Install NEXUS runtime and packaging dependencies
+        shell: pwsh
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r application/requirements.txt -r application/requirements-desktop.txt
+          python -m pip install pytest pyinstaller
+          if ($LASTEXITCODE -ne 0) { throw "NEXUS desktop dependencies failed." }
+      - name: Validate one-click package source
+        shell: pwsh
+        run: |
+          python -m compileall -q application
+          if ($LASTEXITCODE -ne 0) { throw "Python compileall failed." }
+          python -m pytest -q application/tests/test_desktop_packaging.py
+          if ($LASTEXITCODE -ne 0) { throw "Desktop packaging source tests failed." }
+          python application/tools_check_dashboard_js.py application
+          if ($LASTEXITCODE -ne 0) { throw "Dashboard JavaScript validation failed." }
+      - name: Build frozen NEXUS desktop executable
+        shell: pwsh
+        run: |
+          Push-Location application
+          try {
+            python -m PyInstaller --noconfirm --clean packaging\NEXUS_DESKTOP.spec
+            if ($LASTEXITCODE -ne 0) { throw "PyInstaller failed." }
+          } finally {
+            Pop-Location
+          }
+          $Exe = "application\dist\NEXUS\NEXUS.exe"
+          if (-not (Test-Path $Exe)) { throw "Frozen NEXUS.exe missing." }
+          if (-not (Test-Path "application\dist\NEXUS\_internal")) { throw "PyInstaller _internal runtime missing." }
+      - name: Test the actual frozen executable
+        shell: pwsh
+        run: |
+          $Exe = (Resolve-Path "application\dist\NEXUS\NEXUS.exe").Path
+          Write-Host "Running packaged application: $Exe --self-test"
+          $p = Start-Process -FilePath $Exe -ArgumentList "--self-test" -WorkingDirectory (Split-Path $Exe) -Wait -PassThru
+          if ($p.ExitCode -ne 0) { throw "Packaged NEXUS self-test failed with exit code $($p.ExitCode)." }
+          Write-Host "Frozen executable API + dashboard self-test: PASS"
+      - name: Assemble one-click ZIP and SHA-256 manifest
+        shell: pwsh
+        run: |
+          $Package = Join-Path $env:RUNNER_TEMP "NEXUS_MASTER_0.10.26_WINDOWS"
+          New-Item -ItemType Directory -Force -Path $Package | Out-Null
+          Copy-Item "application\dist\NEXUS" (Join-Path $Package "dist\NEXUS") -Recurse -Force
+          Copy-Item "application\VERSION.json" (Join-Path $Package "VERSION.json")
+          Copy-Item "application\INSTALL_NEXUS.bat" $Package
+          Copy-Item "application\INSTALL_NEXUS_ONECLICK.ps1" $Package
+          @'
+NEXUS MASTER 0.10.26 — WINDOWS DESKTOP
+=======================================
+
+INSTALARE:
+1. Despachetează întregul ZIP într-un folder local.
+2. Dublu-click pe INSTALL_NEXUS.bat.
+3. Instalatorul verifică integritatea fișierelor, verifică/instalează Microsoft WebView2 Runtime, instalează NEXUS, creează scurtături și rulează testul aplicației.
+4. NEXUS MASTER pornește automat. Scurtătura rămâne pe Desktop și în Start Menu.
+
+CERINȚE:
+- Windows 10/11 x64.
+- Conexiune la Internet numai pentru instalarea WebView2 dacă lipsește.
+- Nu este necesară instalarea separată a Python sau rularea comenzilor PowerShell de către utilizator.
+
+IMPORTANT:
+- Aplicația desktop folosește WebView2 și motorul local FastAPI pe 127.0.0.1.
+- Datele existente din folderul instalat nu sunt șterse la actualizare.
+- Instalarea nu pornește mineri, nu conectează pool-uri și nu deblochează wallet-uri.
+- Minerii externi, driverele GPU, pool-urile și conturile necesită configurare separată și validare individuală.
+- Pentru suport și cod sursă: https://github.com/dcnsd00/project-nexus
+'@ | Set-Content -Path (Join-Path $Package "README_INSTALL_RO.txt") -Encoding UTF8
+          $BuildRoot = (Resolve-Path (Join-Path $Package "dist\NEXUS")).Path
+          $Files = Get-ChildItem $BuildRoot -File -Recurse | ForEach-Object {
+            [PSCustomObject]@{
+              path = $_.FullName.Substring($BuildRoot.Length + 1).Replace('\','/')
+              sha256 = (Get-FileHash -Algorithm SHA256 -Path $_.FullName).Hash.ToLowerInvariant()
+            }
+          }
+          $Version = Get-Content (Join-Path $Package "VERSION.json") -Raw | ConvertFrom-Json
+          [PSCustomObject]@{
+            product = "NEXUS MASTER"
+            version = $Version.version
+            source_commit = "${{ github.sha }}"
+            files = @($Files)
+          } | ConvertTo-Json -Depth 6 | Set-Content -Path (Join-Path $Package "NEXUS_PACKAGE_MANIFEST.json") -Encoding UTF8
+          $Zip = Join-Path $env:RUNNER_TEMP "NEXUS_MASTER_0.10.26_WINDOWS_INSTALLER.zip"
+          Compress-Archive -Path (Join-Path $Package "*") -DestinationPath $Zip -CompressionLevel Optimal -Force
+          Get-Item $Zip | Select-Object FullName,Length | Format-List
+          "NEXUS_PACKAGE_ZIP=$Zip" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+      - name: Upload one-click Windows installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: NEXUS_MASTER_0.10.26_WINDOWS_INSTALLER
+          path: ${{ env.NEXUS_PACKAGE_ZIP }}
+          if-no-files-found: error
+          retention-days: 30
