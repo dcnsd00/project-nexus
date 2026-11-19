@@ -55,6 +55,9 @@ class EdgeGatewayRuntime:
                 lock.release()
             raise
         if snapshot.get("mode") != "sqlite_persistent":
+            runtime_lock = getattr(edge_manager, "_runtime_lock", None)
+            if runtime_lock is not None:
+                runtime_lock.release()
             raise RuntimeError(
                 "online EDGE gateway requires the shared sqlite_persistent manager; "
                 "configure NEXUS_EDGE_STORAGE_KEY"

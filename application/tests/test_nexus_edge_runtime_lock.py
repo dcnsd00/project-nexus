@@ -147,3 +147,19 @@ def test_gateway_runtime_releases_owned_lock_when_mount_fails(tmp_path):
 
     replacement = create_edge_manager_from_env(env)
     replacement._runtime_lock.release()
+
+
+def test_key_rotation_refuses_to_run_while_edge_runtime_is_active(tmp_path):
+    from nexus_edge.rotate_storage_key import main as rotate_key_main
+    from nexus_edge.sqlite_store import SQLiteEdgeStore
+
+    database = tmp_path / "edge.sqlite3"
+    key = Fernet.generate_key()
+    SQLiteEdgeStore(database, encryption_key=key)
+    lock = EdgeRuntimeLock(database).acquire()
+    try:
+        with pytest.raises(SystemExit) as raised:
+            rotate_key_main(["--database", str(database)])
+        assert raised.value.code == 2
+    finally:
+        lock.release()
