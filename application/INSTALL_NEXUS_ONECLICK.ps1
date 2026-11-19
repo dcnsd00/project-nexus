@@ -72,9 +72,16 @@ try {
     $startMenu = Join-Path $env:APPDATA 'Microsoft\Windows\Start Menu\Programs\NEXUS'
     New-Item -ItemType Directory -Force -Path $target,$startMenu | Out-Null
 
-    # Close the old desktop shell before replacing binaries. Do not delete data,
-    # databases, wallet vaults, configuration, or user-created files.
-    Get-Process -Name 'NEXUS' -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+    # Close the old desktop shell gracefully before replacing binaries.
+    # Never delete data, databases, wallet vaults, configuration, or user files.
+    $runningApps = @(Get-Process -Name 'NEXUS' -ErrorAction SilentlyContinue)
+    foreach ($app in $runningApps) {
+        try { [void]$app.CloseMainWindow() } catch {}
+        if (-not $app.WaitForExit(10000)) {
+            Write-Warning 'NEXUS did not close within 10 seconds; stopping the old desktop process to complete the update.'
+            Stop-Process -Id $app.Id -Force -ErrorAction SilentlyContinue
+        }
+    }
     Copy-Item -Path (Join-Path $source '*') -Destination $target -Recurse -Force
     $installedExe = Join-Path $target 'NEXUS.exe'
     if (-not (Test-Path $installedExe)) { throw 'NEXUS.exe was not copied to the installation directory.' }
