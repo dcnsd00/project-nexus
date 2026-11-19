@@ -1,5 +1,5 @@
 [CmdletBinding()]
-param()
+param([switch]$NoLaunch)
 
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
@@ -98,10 +98,14 @@ try {
     if ($test.ExitCode -ne 0) { throw "Packaged NEXUS self-test failed with exit code $($test.ExitCode)." }
 
     Write-Host 'NEXUS desktop installation completed successfully.' -ForegroundColor Green
-    Write-Host 'Starting NEXUS MASTER...'
-    Start-Process -FilePath $installedExe -WorkingDirectory $target
     Write-Host "Installed at: $target"
     Write-Host 'Existing local data was preserved. No miner or wallet was started or unlocked.'
+    if (-not $NoLaunch) {
+        Write-Host 'Starting NEXUS MASTER desktop...'
+        Start-Process -FilePath $installedExe -WorkingDirectory $target
+    } else {
+        Write-Host 'NoLaunch requested: packaged install and smoke test passed; desktop UI launch skipped.'
+    }
 }
 catch {
     Write-Host ("INSTALLATION ERROR: " + $_.Exception.Message) -ForegroundColor Red
