@@ -1,3 +1,16 @@
+> **Current verified state — 2026-11-19.** The historical entries below are snapshots from earlier dates; this block is the authoritative current status.
+>
+> - Canonical repository: `dcnsd00/project-nexus`.
+> - Active implementation branch: `feature/edge-replay-protection-sqlite-v1`.
+> - Current HEAD: `5bd6133e4eeeb2629a7641a45fa528d29f2af07b`.
+> - Integration target: `integration/source-import-safe-0.10.25`, HEAD `30210464088ff51c32cabda90ae56b6a9ce20bc8`. The active branch is a clean fast-forward descendant, 291 commits ahead and 0 behind at this check. The branch has not yet been merged into the integration target.
+> - `main` remains unchanged at `529072b777d010ac47711dd6c821b30fef7ecdf9`; it is not the target of this feature integration.
+> - EDGE host-side implementation on this branch includes durable SQLite schema v4, encrypted per-node HMAC secrets, persisted anti-replay, lease/task/result recovery, node provisioning/rotation/revocation, HMAC-SHA256 protocol v1, opt-in HTTPS and MQTTS adapters, atomic/idempotent telemetry ingestion, shared-manager runtime integration and operator inventory.
+> - CI for HEAD: run [44492144115](https://github.com/dcnsd00/project-nexus/actions/runs/44492144115) — Linux full test job **624 passed, 1 warning, 10 subtests passed**; Windows compatibility **623 passed, 1 skipped, 1 warning, 10 subtests passed**. Run [44492144055](https://github.com/dcnsd00/project-nexus/actions/runs/44492144055) — frozen desktop build, executable self-test, installer smoke/installation validation and artifact upload **SUCCESS**.
+> - Windows CI validates a hosted runner, not the user's laptop. The installer test ran with desktop UI launch skipped. No physical ESP32-C5, real MQTT broker, provider-specific LoRaWAN/IoT, public TLS ingress or payout validation is claimed.
+> - SQLite deployment is a single-host pilot. Multi-server primary/standby and active-active are intentionally unsupported. A multi-worker / multiple independent manager process using the same SQLite file has not been validated and must not be enabled.
+> - No PR from this branch to the integration target was open at this status capture. Do not restart completed EDGE work; resume from the next open hardening/integration gate recorded in `docs/PROJECT_CONTINUITY.md`.
+
 # NEXUS — repository status
 
 Updated: 2026-11-17
