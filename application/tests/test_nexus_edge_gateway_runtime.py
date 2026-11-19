@@ -89,3 +89,51 @@ def test_gateway_runtime_fails_closed_without_operator_token():
     else:
         raise AssertionError("gateway must fail closed without operator token")
     assert runtime.status()["gateway"] == "enabled_not_started"
+
+
+
+def test_gateway_runtime_does_not_release_injected_manager_lock_on_mount_failure(tmp_path):
+    import pytest
+    from nexus_edge.gateway import create_edge_manager_from_env
+
+    env = {
+        "NEXUS_EDGE_GATEWAY_ENABLED": "true",
+        "NEXUS_EDGE_PROVISIONING_TOKEN": "p" * 40,
+        "NEXUS_EDGE_STORAGE_KEY": Fernet.generate_key().decode("ascii"),
+        "NEXUS_EDGE_DATABASE": str(tmp_path / "edge.sqlite3"),
+    }
+    manager = create_edge_manager_from_env(env)
+
+    def fail_mount(**kwargs):
+        raise RuntimeError("simulated mount failure")
+
+    runtime = EdgeGatewayRuntime(env=env, app_factory=fail_mount)
+    try:
+        with pytest.raises(RuntimeError, match="simulated mount failure"):
+            runtime.start(FastAPI(), manager)
+        with pytest.raises(RuntimeError, match="already in use by another process"):
+            create_edge_manager_from_env(env)
+    finally:
+        manager._runtime_lock.release()
+
+
+def test_gateway_runtime_does_not_release_injected_manager_lock_on_mode_rejection(tmp_path):
+    import pytest
+    from nexus_edge.gateway import create_edge_manager_from_env
+
+    env = {
+        "NEXUS_EDGE_GATEWAY_ENABLED": "true",
+        "NEXUS_EDGE_PROVISIONING_TOKEN": "p" * 40,
+        "NEXUS_EDGE_STORAGE_KEY": Fernet.generate_key().decode("ascii"),
+        "NEXUS_EDGE_DATABASE": str(tmp_path / "edge.sqlite3"),
+    }
+    manager = create_edge_manager_from_env(env)
+    manager.snapshot = lambda: {"mode": "in_memory_pilot"}
+    runtime = EdgeGatewayRuntime(env=env, app_factory=_gateway_factory)
+    try:
+        with pytest.raises(RuntimeError, match="sqlite_persistent"):
+            runtime.start(FastAPI(), manager)
+        with pytest.raises(RuntimeError, match="already in use by another process"):
+            create_edge_manager_from_env(env)
+    finally:
+        manager._runtime_lock.release()
