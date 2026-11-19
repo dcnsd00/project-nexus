@@ -161,7 +161,7 @@
     "decrypts": false,
     "modifies": false
   },
-  "updated": "2026-11-12",
+  "updated": "2026-11-19",
   "wallet_recovery": {
     "search_api": "/api/wallet/recovery/search",
     "bitcoin_core_inspect_api": "/api/wallet/recovery/bitcoin-core/inspect",
@@ -301,9 +301,26 @@
     "network_binding": "127.0.0.1 only"
   },
   "desktop_validation": {
-    "github_actions_windows_build": "pending",
-    "packaged_executable_self_test": "pending",
-    "real_user_windows_install": "not yet performed",
-    "real_user_webview_launch": "not yet performed"
+    "github_actions_windows_build": "passed on GitHub Actions Windows runner; workflow run 44563431095",
+    "packaged_executable_self_test": "passed; NEXUS.exe --self-test returned exit code 0",
+    "one_click_installer_validation": "passed on GitHub Actions Windows runner with -NoLaunch; manifest SHA-256 checks and packaged smoke test completed",
+    "real_user_windows_install": "pending; not run on the user's laptop",
+    "real_user_webview_launch": "pending; packaged GUI was not launched interactively on the user's laptop"
+  },
+  "github_ci": {
+    "commit": "3f9d9c3f7f867dad936b198631254751946330be",
+    "windows_python_tests": "635 passed, 1 skipped; 10 subtests passed",
+    "linux_python_tests": "636 passed; 10 subtests passed",
+    "multi_miner_x": "17 passed",
+    "crypto_fieldstation": "12 passed",
+    "wallet": "15 passed",
+    "wallet_v05": "7 passed",
+    "sha2_independent": "13 tests, 1 skipped",
+    "native_sha256d_benchmark": {
+      "workflow_run_id": 44571108152,
+      "linux_runner": "15 profiles passed; best measured AVX-512 x16, 4 threads: 26.701224 MH/s",
+      "windows_runner": "9 profiles passed; best measured scalar midstate early-exit, 4 threads: 1.307934 MH/s",
+      "note": "GitHub-hosted runner measurements only; not representative of the user's laptop. Windows runner exposed only scalar native variants."
+    }
   }
 }
