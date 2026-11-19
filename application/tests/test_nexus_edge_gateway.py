@@ -164,6 +164,7 @@ def test_gateway_completes_task_only_with_claimed_assignment_nonce(tmp_path):
     result = {"verified": True, "answer": 42}
     result_message = {
         "kind": "task_result",
+        "protocol_version": 1,
         "node_id": node_id,
         "task_id": task["task_id"],
         "assignment_nonce": assignment_nonce,
