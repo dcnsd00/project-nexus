@@ -70,6 +70,11 @@ jobs:
           $p = Start-Process -FilePath $Exe -ArgumentList "--self-test" -WorkingDirectory (Split-Path $Exe) -Wait -PassThru
           if ($p.ExitCode -ne 0) { throw "Packaged NEXUS self-test failed with exit code $($p.ExitCode)." }
           Write-Host "Frozen executable API + dashboard self-test: PASS"
+      - name: Remove smoke-test runtime data from distributable
+        shell: pwsh
+        run: |
+          $RuntimeData = "application\\dist\\NEXUS\\data"
+          if (Test-Path $RuntimeData) { Remove-Item $RuntimeData -Recurse -Force }
       - name: Assemble one-click ZIP and SHA-256 manifest
         shell: pwsh
         run: |
