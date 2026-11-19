@@ -90,7 +90,7 @@ def create_edge_app(manager: EdgeManager | None = None, *,
     app = FastAPI(title="NEXUS EDGE Gateway", version="1.0.0")
     runtime_lock = getattr(edge, "_runtime_lock", None)
     if runtime_lock is not None:
-        app.add_event_handler("shutdown", runtime_lock.release)
+        app.router.on_shutdown.append(runtime_lock.release)
     router = APIRouter(prefix="/v1/edge", tags=["NEXUS EDGE"])
 
     def require_operator(authorization: str | None) -> None:
