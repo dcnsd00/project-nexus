@@ -1,22 +1,32 @@
-# NEXUS MASTER 0.10.25 — Pachet Windows
+# NEXUS MASTER 0.10.26 — Windows desktop package
 
-Pachetul sursă este destinat Windows 10/11 x64. Build-ul PyInstaller și validarea Edge WebView2 trebuie executate pe Windows; nu se declară executabil Windows validat dintr-un mediu Linux.
+## End-user installation
 
-## Instalare Python desktop
-1. Instalează Python 3.11+ x64 cu Python Launcher (`py`).
-2. Instalează Microsoft Edge WebView2 Runtime dacă nu este deja prezent.
-3. Deschide PowerShell în directorul proiectului și rulează:
-   `powershell -ExecutionPolicy Bypass -File .\INSTALL_NEXUS_WINDOWS.ps1`
-4. Installerul creează `.venv`, instalează dependențele, verifică importul FastAPI/Uvicorn/pywebview/NEXUS și creează shortcut-uri Desktop și Start Menu.
+The supported delivery is the generated `NEXUS_MASTER_0.10.26_WINDOWS_INSTALLER.zip` artifact from the **NEXUS Windows Desktop Package** workflow.
 
-## Build executabil standalone (onedir)
-1. Rulează `BUILD_NEXUS_WINDOWS.ps1` pe Windows 10/11 x64.
-2. Rulează din nou `INSTALL_NEXUS_WINDOWS.ps1`; dacă `dist\NEXUS\NEXUS.exe` există, acesta este instalat în `%LOCALAPPDATA%\Programs\NEXUS`.
-3. Păstrează întregul director `dist\NEXUS`, inclusiv `_internal`, lângă executabil.
+1. Extract the ZIP.
+2. Double-click `INSTALL_NEXUS.bat`.
+3. The installer validates the SHA-256 manifest, checks Microsoft Edge WebView2 Runtime and installs the signed Microsoft bootstrapper only if missing.
+4. It copies the frozen desktop application to `%LOCALAPPDATA%\Programs\NEXUS`, creates Desktop and Start Menu shortcuts, and runs `NEXUS.exe --self-test`.
+5. If the smoke test passes, NEXUS MASTER starts automatically.
 
-## Limite de validare
-- Instalarea dependențelor nu instalează XMRig/SRBMiner/T-Rex sau alte executabile de mining.
-- Nu importă și nu creează seed-uri sau chei de wallet.
-- NEXUS Desktop trebuie să rămână pe `127.0.0.1`; nu expune API-ul pe interfața publică.
-- Testele locale/mock nu demonstrează conectarea la pool public, share acceptat, payout, stabilitate termică sau profitabilitate.
-- Backend-ul nativ SHA-256d și RandomX necesită build/validare Windows separate.
+No separately installed Python, Visual Studio, PowerShell commands, or source-tree setup is required for end users. Internet is needed only if WebView2 Runtime is missing.
+
+The installer does not delete user data directories, does not start miners, does not connect pools, and does not unlock wallets.
+
+## Build and package validation
+
+The Windows package workflow:
+- builds on a clean Windows x64 runner with Python 3.12 and MSVC;
+- compiles Python sources and validates dashboard JavaScript;
+- runs desktop package source tests;
+- creates the PyInstaller onedir application, including the bundled Python runtime and application resources;
+- launches the actual frozen executable in self-test mode, exercising the FastAPI lifespan, master manifest and desktop dashboard route;
+- generates SHA-256 checksums for all frozen runtime files;
+- assembles and uploads the one-click installer ZIP as a GitHub Actions artifact.
+
+The custom desktop UI is the NEXUS Control Center, served locally inside Microsoft Edge WebView2. It has navigation, dedicated operational sections, live status and interactive controls; it is not an Excel workbook or a spreadsheet-style interface.
+
+## Validation boundary
+
+A successful Windows CI package build and frozen executable self-test validate the packaged application code and API/dashboard startup. They do not replace a physical first-run check on the user's laptop. WebView2 is checked by the installer, while actual GPU telemetry, device thermals, external miner binaries, pool authorization and live payouts remain hardware/provider-specific checks.
