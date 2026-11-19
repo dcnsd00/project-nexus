@@ -35,9 +35,11 @@ jobs:
         shell: pwsh
         run: |
           python -m pip install --upgrade pip
+          if ($LASTEXITCODE -ne 0) { throw "pip upgrade failed." }
           python -m pip install -r application/requirements.txt -r application/requirements-desktop.txt
-          python -m pip install pytest pyinstaller
           if ($LASTEXITCODE -ne 0) { throw "NEXUS desktop dependencies failed." }
+          python -m pip install pytest pyinstaller
+          if ($LASTEXITCODE -ne 0) { throw "PyInstaller dependencies failed." }
       - name: Validate one-click package source
         shell: pwsh
         run: |
@@ -72,46 +74,40 @@ jobs:
         shell: pwsh
         run: |
           $Package = Join-Path $env:RUNNER_TEMP "NEXUS_MASTER_0.10.26_WINDOWS"
-          New-Item -ItemType Directory -Force -Path $Package,(Join-Path $Package "dist") | Out-Null
-          Copy-Item "application\dist\NEXUS" (Join-Path $Package "dist\NEXUS") -Recurse -Force
+          $PackageDist = Join-Path $Package "dist"
+          New-Item -ItemType Directory -Force -Path $PackageDist | Out-Null
+          Copy-Item "application\dist\NEXUS" (Join-Path $PackageDist "NEXUS") -Recurse -Force
           Copy-Item "application\VERSION.json" (Join-Path $Package "VERSION.json")
           Copy-Item "application\INSTALL_NEXUS.bat" $Package
           Copy-Item "application\INSTALL_NEXUS_ONECLICK.ps1" $Package
-          @'
-NEXUS MASTER 0.10.26 — WINDOWS DESKTOP
-=======================================
-
-INSTALARE:
-1. Despachetează întregul ZIP într-un folder local.
-2. Dublu-click pe INSTALL_NEXUS.bat.
-3. Instalatorul verifică integritatea fișierelor, verifică/instalează Microsoft WebView2 Runtime, instalează NEXUS, creează scurtături și rulează testul aplicației.
-4. NEXUS MASTER pornește automat. Scurtătura rămâne pe Desktop și în Start Menu.
-
-CERINȚE:
-- Windows 10/11 x64.
-- Conexiune la Internet numai pentru instalarea WebView2 dacă lipsește.
-- Nu este necesară instalarea separată a Python sau rularea comenzilor PowerShell de către utilizator.
-
-IMPORTANT:
-- Aplicația desktop folosește WebView2 și motorul local FastAPI pe 127.0.0.1.
-- Datele existente din folderul instalat nu sunt șterse la actualizare.
-- Instalarea nu pornește mineri, nu conectează pool-uri și nu deblochează wallet-uri.
-- Minerii externi, driverele GPU, pool-urile și conturile necesită configurare separată și validare individuală.
-- Pentru suport și cod sursă: https://github.com/dcnsd00/project-nexus
-'@ | Set-Content -Path (Join-Path $Package "README_INSTALL_RO.txt") -Encoding UTF8
+          $Readme = @(
+            "NEXUS MASTER 0.10.26 — WINDOWS DESKTOP",
+            " ",
+            "INSTALARE:",
+            "1. Despachetează întregul ZIP.",
+            "2. Dublu-click pe INSTALL_NEXUS.bat.",
+            "3. Instalatorul verifică fișierele, WebView2, instalează NEXUS și rulează testul aplicației.",
+            "4. Aplicația pornește automat și creează scurtături pe Desktop și în Start Menu.",
+            " ",
+            "Windows 10/11 x64. Nu este necesar Python sau Visual Studio.",
+            "Internetul este folosit numai dacă lipsește Microsoft WebView2 Runtime.",
+            "Instalarea nu pornește mineri, nu conectează pool-uri și nu deblochează wallet-uri.",
+            "Cod sursă: https://github.com/dcnsd00/project-nexus"
+          )
+          $Readme | Set-Content -Path (Join-Path $Package "README_INSTALL_RO.txt") -Encoding UTF8
           $BuildRoot = (Resolve-Path (Join-Path $Package "dist\NEXUS")).Path
-          $Files = Get-ChildItem $BuildRoot -File -Recurse | ForEach-Object {
+          $Files = @(Get-ChildItem $BuildRoot -File -Recurse | ForEach-Object {
             [PSCustomObject]@{
               path = $_.FullName.Substring($BuildRoot.Length + 1).Replace('\','/')
               sha256 = (Get-FileHash -Algorithm SHA256 -Path $_.FullName).Hash.ToLowerInvariant()
             }
-          }
+          })
           $Version = Get-Content (Join-Path $Package "VERSION.json") -Raw | ConvertFrom-Json
           [PSCustomObject]@{
             product = "NEXUS MASTER"
             version = $Version.version
             source_commit = "${{ github.sha }}"
-            files = @($Files)
+            files = $Files
           } | ConvertTo-Json -Depth 6 | Set-Content -Path (Join-Path $Package "NEXUS_PACKAGE_MANIFEST.json") -Encoding UTF8
           $Zip = Join-Path $env:RUNNER_TEMP "NEXUS_MASTER_0.10.26_WINDOWS_INSTALLER.zip"
           Compress-Archive -Path (Join-Path $Package "*") -DestinationPath $Zip -CompressionLevel Optimal -Force
