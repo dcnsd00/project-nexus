@@ -3,7 +3,7 @@
 from PyInstaller.utils.hooks import collect_submodules
 from pathlib import Path
 
-ROOT = Path(SPECPATH).parent.parent
+ROOT = Path(SPECPATH).parent
 hidden = []
 for package in (
     'webview', 'uvicorn', 'uvicorn.logging', 'app', 'modules', 'mining',
