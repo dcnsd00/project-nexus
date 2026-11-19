@@ -129,8 +129,8 @@ def test_bzminer_profile_is_limited_to_gpu_algorithms_with_known_mapping():
     assert 'RandomX' not in bz['algorithms']
 
 
-def test_version_endpoint_is_updated_to_0108():
+def test_version_endpoint_matches_current_desktop_release():
     with TestClient(__import__('nexus_master').app) as c:
         r = c.get('/api/nexus/master')
     assert r.status_code == 200
-    assert r.json()['version'] == '0.10.25'
+    assert r.json()['version'] == '0.10.26'
