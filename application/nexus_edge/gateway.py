@@ -75,7 +75,8 @@ def create_edge_app(manager: EdgeManager | None = None, *,
     token = provisioning_token if provisioning_token is not None else values.get("NEXUS_EDGE_PROVISIONING_TOKEN")
     if not token or len(token) < 32:
         raise RuntimeError("NEXUS_EDGE_PROVISIONING_TOKEN must contain at least 32 characters")
-    edge = manager or create_edge_manager_from_env(dict(values))
+    owns_manager = manager is None
+    edge = manager if manager is not None else create_edge_manager_from_env(dict(values))
     try:
         if edge.snapshot().get("mode") != "sqlite_persistent":
             raise RuntimeError(
@@ -83,13 +84,14 @@ def create_edge_app(manager: EdgeManager | None = None, *,
                 "configure NEXUS_EDGE_STORAGE_KEY"
             )
     except Exception:
-        runtime_lock = getattr(edge, "_runtime_lock", None)
-        if runtime_lock is not None:
-            runtime_lock.release()
+        if owns_manager:
+            runtime_lock = getattr(edge, "_runtime_lock", None)
+            if runtime_lock is not None:
+                runtime_lock.release()
         raise
     app = FastAPI(title="NEXUS EDGE Gateway", version="1.0.0")
     runtime_lock = getattr(edge, "_runtime_lock", None)
-    if runtime_lock is not None:
+    if owns_manager and runtime_lock is not None:
         app.router.on_shutdown.append(runtime_lock.release)
     router = APIRouter(prefix="/v1/edge", tags=["NEXUS EDGE"])
 
