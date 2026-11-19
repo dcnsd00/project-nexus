@@ -1,3 +1,64 @@
+# Current continuation checkpoint — 2026-11-19
+
+This section supersedes earlier branch/version/test snapshots below. Retain the older entries as historical evidence; do not treat them as current instructions.
+
+## Canonical working state
+
+- Repository: `dcnsd00/project-nexus`
+- Active branch: `feature/edge-replay-protection-sqlite-v1`
+- HEAD: `5bd6133e4eeeb2629a7641a45fa528d29f2af07b`
+- Integration target: `integration/source-import-safe-0.10.25`, HEAD `30210464088ff51c32cabda90ae56b6a9ce20bc8`.
+- Active branch compared with integration target: `ahead`, 291 commits ahead, 0 behind; 73 changed files in the GitHub comparison. Review and integrate through a pull request; do not merge into `main`.
+- `main` HEAD: `529072b777d010ac47711dd6c821b30fef7ecdf9`, untouched by this work. Active branch compared with main: 441 commits ahead, 0 behind.
+- No pull request from this active branch to the integration target existed at this checkpoint.
+
+## Last completed implementation increment
+
+- Added explicit EDGE protocol version 1 to canonical HMAC-signed heartbeat, node-request, task-result and telemetry messages.
+- HTTPS envelope requires strict integer version 1; missing, bool and unsupported versions are rejected.
+- MQTT uplink requires the version field and rejects missing/unsupported versions before manager authentication.
+- Updated signed-message fixtures across manager, persistence, runtime, SQLite store, transport and master integration tests.
+- Added regression coverage for HTTPS and MQTT unsupported/missing version handling.
+- Commits: `288dfa2f9f2c63ab82f5577ea4dfb1cf710c9b96` (implementation and broad fixture update), `19b05631844fd8ed9f514856df11d30f1d0370a8` (HTTPS request fixture correction), `5bd6133e4eeeb2629a7641a45fa528d29f2af07b` (task-result fixture correction).
+
+## Verified CI evidence for the current HEAD
+
+- [NEXUS CI run 44492144115](https://github.com/dcnsd00/project-nexus/actions/runs/44492144115): source detection PASS; Linux Python suite **624 passed, 1 warning, 10 subtests passed**; Windows compatibility **623 passed, 1 skipped, 1 warning, 10 subtests passed**. The specialist suites also passed (module 17, filesystem 12, wallet 15, wallet v05 7).
+- [NEXUS Windows Desktop Package run 44492144055](https://github.com/dcnsd00/project-nexus/actions/runs/44492144055): compile/package checks PASS; 3 desktop packaging tests passed; PyInstaller build succeeded; frozen executable `--self-test` passed; one-click installer installation/smoke test passed; artifact `NEXUS_MASTER_0.10.26_WINDOWS_INSTALLER`, artifact ID `14513826094`, uploaded successfully.
+- Installer validation used `-NoLaunch`: the desktop UI was not interactively launched on a user's device. Hosted CI is not a substitute for Windows 11 laptop or physical hardware validation.
+
+## EDGE implementation inventory at this checkpoint
+
+- Host-side source is implemented and CI-tested: shared LifecycleManager adapter, shared manager injection, scheduler/task leases/results, SQLite store schema v4, encrypted node secrets, offline key rotation, persistent replay guard, authenticated/idempotent telemetry, operator APIs, opt-in HTTPS gateway and MQTTS bridge, deployment-topology guard (single-server SQLite only), dashboard/CLI status surfaces.
+- Runtime integration tests verify the same manager is used by NEXUS MASTER and the HTTP/MQTT adapters; external network adapters remain opt-in and fail closed without durable encryption and operator credentials.
+- SQLite deployment is a single-host pilot. Multi-server primary/standby and active-active modes are deliberately rejected. Multiple independent manager processes/workers sharing a single SQLite DB have not been validated; do not deploy that topology.
+- Not externally validated: ESP32-C5 firmware/sequence persistence, physical NM-CYD-C5 board revision and pinout, HIL power-loss/reconnect/range tests, real MQTT broker/TLS certificates, provider-specific ChirpStack/The Things Stack and IoT vendor adapters, public TLS/rate-limit/firewall/backup restore drill, user laptop GUI launch.
+
+## Historical branch reconciliation
+
+- `feature/edge-persistence-protocol-v1` contains an earlier storage/keyring proposal and protocol document; do not merge the branch wholesale. Its protocol-version requirement has been ported to the current implementation. Its older persistence module is superseded by `application/nexus_edge/sqlite_store.py` (schema v4, Fernet-encrypted credentials, tasks, telemetry and replay sequence storage).
+- `feature/nexus-edge-foundation` contains the original package under repository-root `nexus_edge/`; the maintained implementation is now `application/nexus_edge/` with master integration tests. Do not reintroduce duplicate root-level modules.
+- `feature/core-lifecycle-isolation-registry-uniqueness` was merged by PR #3 into the integration line; preserve the lifecycle/registry changes already present in the source baseline.
+- Historical `integration/import-0.10.25` and `integration/nexus-master-0.10.25` branches are not current working branches. Do not merge/delete them without checking current heads and unique commits first.
+
+## Next engineering steps — resume here, not from step 1
+
+1. Recheck current active HEAD and CI before any write. The current code/test increment is complete and green; do not redo it.
+2. Complete a focused concurrency review for SQLite snapshot persistence. The runtime is a single-manager/single-process design; add an explicit process-level guard or preserve the one-process deployment constraint with tests before claiming multi-worker safety.
+3. Reconcile/repair only evidence-backed defects from that review; run GitHub CI again after any code change.
+4. Review the 73-file/7,884-addition/198-deletion delta against `integration/source-import-safe-0.10.25`, open a pull request to that integration target, and resolve all CI/review issues. Do not target `main` and do not perform a blind merge.
+5. After integration, separately plan and validate physical ESP32-C5 firmware, broker/vendor connectors, TLS deployment hardening and the user's Windows 11 runtime/UI.
+6. At every checkpoint, update this section's HEAD, CI run IDs/results, open PR, unresolved gates and exact next action. Keep the historical log below intact.
+
+## Status vocabulary
+
+- `IMPLEMENTED`: source exists and behavior is coded.
+- `CI-TESTED`: named hosted CI jobs passed on the exact commit.
+- `RUNTIME-INTEGRATED`: shared NEXUS runtime/contract tests verify the connection.
+- `EXTERNALLY-VALIDATED`: confirmed against user's Windows device, physical node, live broker/provider or public deployment. Do not upgrade to this label from hosted CI alone.
+
+---
+
 # NEXUS project continuity ledger
 
 Last refreshed: 2026-11-15
