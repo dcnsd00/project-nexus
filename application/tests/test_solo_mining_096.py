@@ -38,4 +38,4 @@ def test_solo_config_accepts_catalog_solo_pool_without_starting_process():
 
 
 def test_version_is_0104():
-    assert client.get('/api/nexus/master').json()['version'] == '0.10.25'
+    assert client.get('/api/nexus/master').json()['version'] == '0.10.26'
