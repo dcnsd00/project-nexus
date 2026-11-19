@@ -74,15 +74,37 @@ else:
 
 def test_standalone_gateway_manager_lock_is_released_on_app_shutdown(tmp_path):
     env = _env(tmp_path)
-    manager = create_edge_manager_from_env(env)
+    app = create_edge_app(
+        provisioning_token=env["NEXUS_EDGE_PROVISIONING_TOKEN"], env=env
+    )
+    manager = app.state.edge_manager
     with pytest.raises(RuntimeError, match="already in use by another process"):
         create_edge_manager_from_env(env)
 
-    app = create_edge_app(manager, provisioning_token=env["NEXUS_EDGE_PROVISIONING_TOKEN"], env=env)
     with TestClient(app) as client:
         response = client.get("/v1/edge/health")
         assert response.status_code == 200
 
+    replacement = create_edge_manager_from_env(env)
+    replacement._runtime_lock.release()
+
+
+def test_injected_gateway_manager_lock_remains_owned_by_caller_on_app_shutdown(tmp_path):
+    env = _env(tmp_path)
+    manager = create_edge_manager_from_env(env)
+    app = create_edge_app(
+        manager, provisioning_token=env["NEXUS_EDGE_PROVISIONING_TOKEN"], env=env
+    )
+
+    with TestClient(app) as client:
+        response = client.get("/v1/edge/health")
+        assert response.status_code == 200
+
+    # The app was given a lifecycle-owned manager and must not release its lock.
+    with pytest.raises(RuntimeError, match="already in use by another process"):
+        create_edge_manager_from_env(env)
+
+    manager._runtime_lock.release()
     replacement = create_edge_manager_from_env(env)
     replacement._runtime_lock.release()
 
