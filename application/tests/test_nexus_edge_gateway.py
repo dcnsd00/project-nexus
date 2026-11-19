@@ -24,6 +24,7 @@ def _envelope(secret, node_id, action, seq, payload=None, timestamp=None):
     payload = payload or {}
     message = {
         "kind": "node_request",
+        "protocol_version": 1,
         "action": action,
         "node_id": node_id,
         "timestamp": timestamp,
