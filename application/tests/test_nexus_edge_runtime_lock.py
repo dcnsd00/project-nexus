@@ -185,3 +185,18 @@ def test_key_rotation_refuses_to_run_while_edge_runtime_is_active(tmp_path):
         assert raised.value.code == 2
     finally:
         lock.release()
+
+
+def test_create_edge_app_preserves_injected_manager_lock_when_validation_fails(tmp_path):
+    env = _env(tmp_path)
+    manager = create_edge_manager_from_env(env)
+    manager.snapshot = lambda: (_ for _ in ()).throw(RuntimeError("snapshot failure"))
+
+    with pytest.raises(RuntimeError, match="snapshot failure"):
+        create_edge_app(
+            manager, provisioning_token=env["NEXUS_EDGE_PROVISIONING_TOKEN"], env=env
+        )
+
+    with pytest.raises(RuntimeError, match="already in use by another process"):
+        create_edge_manager_from_env(env)
+    manager._runtime_lock.release()
