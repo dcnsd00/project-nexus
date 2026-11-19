@@ -36,8 +36,10 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           if ($LASTEXITCODE -ne 0) { throw "pip upgrade failed." }
-          python -m pip install -r application/requirements.txt -r application/requirements-edge.txt -r application/requirements-research.txt -r application/requirements-desktop.txt
-          if ($LASTEXITCODE -ne 0) { throw "NEXUS core, EDGE, research and desktop dependencies failed." }
+          python -m pip install -r application/requirements.txt -r application/requirements-edge.txt -r application/requirements-desktop.txt
+          if ($LASTEXITCODE -ne 0) { throw "NEXUS core, EDGE and desktop dependencies failed." }
+          python -m pip install z3-solver
+          if ($LASTEXITCODE -ne 0) { throw "NEXUS Z3 research backend installation failed." }
           python -m pip install pytest pyinstaller
           if ($LASTEXITCODE -ne 0) { throw "PyInstaller dependencies failed." }
       - name: Validate one-click package source
