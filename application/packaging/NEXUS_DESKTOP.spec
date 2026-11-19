@@ -27,6 +27,7 @@ datas = [
     (str(ROOT/'docs'), 'docs'),
     (str(ROOT/'VERSION.json'), '.'),
     (str(ROOT/'README_RO.md'), '.'),
+    (str(ROOT/'START_NEXUS_DESKTOP.pyw'), '.'),
 ]
 a = Analysis(
     [str(ROOT/'START_NEXUS_DESKTOP.pyw')],
