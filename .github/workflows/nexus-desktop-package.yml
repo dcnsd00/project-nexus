@@ -72,7 +72,7 @@ jobs:
         shell: pwsh
         run: |
           $Package = Join-Path $env:RUNNER_TEMP "NEXUS_MASTER_0.10.26_WINDOWS"
-          New-Item -ItemType Directory -Force -Path $Package | Out-Null
+          New-Item -ItemType Directory -Force -Path $Package,(Join-Path $Package "dist") | Out-Null
           Copy-Item "application\dist\NEXUS" (Join-Path $Package "dist\NEXUS") -Recurse -Force
           Copy-Item "application\VERSION.json" (Join-Path $Package "VERSION.json")
           Copy-Item "application\INSTALL_NEXUS.bat" $Package
