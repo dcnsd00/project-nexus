@@ -137,3 +137,26 @@ def test_gateway_runtime_does_not_release_injected_manager_lock_on_mode_rejectio
             create_edge_manager_from_env(env)
     finally:
         manager._runtime_lock.release()
+
+
+
+def test_gateway_runtime_does_not_release_injected_manager_lock_on_snapshot_failure(tmp_path):
+    import pytest
+    from nexus_edge.gateway import create_edge_manager_from_env
+
+    env = {
+        "NEXUS_EDGE_GATEWAY_ENABLED": "true",
+        "NEXUS_EDGE_PROVISIONING_TOKEN": "p" * 40,
+        "NEXUS_EDGE_STORAGE_KEY": Fernet.generate_key().decode("ascii"),
+        "NEXUS_EDGE_DATABASE": str(tmp_path / "edge.sqlite3"),
+    }
+    manager = create_edge_manager_from_env(env)
+    manager.snapshot = lambda: (_ for _ in ()).throw(RuntimeError("snapshot failure"))
+    runtime = EdgeGatewayRuntime(env=env, app_factory=_gateway_factory)
+    try:
+        with pytest.raises(RuntimeError, match="snapshot failure"):
+            runtime.start(FastAPI(), manager)
+        with pytest.raises(RuntimeError, match="already in use by another process"):
+            create_edge_manager_from_env(env)
+    finally:
+        manager._runtime_lock.release()
