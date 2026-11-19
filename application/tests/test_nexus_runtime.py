@@ -299,14 +299,19 @@ def test_edge_master_and_standalone_gateway_resolve_the_same_database_path(tmp_p
     adapter.start()
     master_manager = adapter.service.manager
 
-    gateway_manager = create_edge_manager_from_env(dict(__import__("os").environ))
-
     assert master_manager.snapshot()["mode"] == "sqlite_persistent"
     assert master_manager._store.database == database.resolve()
-    assert gateway_manager._store.database == master_manager._store.database
 
+    # The standalone factory may own this DB only after the MASTER runtime
+    # releases its process lock. While MASTER runs, its adapters must reuse
+    # master_manager rather than opening a second manager for the same file.
     adapter.stop()
     adapter.shutdown()
+    gateway_manager = create_edge_manager_from_env(dict(__import__("os").environ))
+    try:
+        assert gateway_manager._store.database == master_manager._store.database
+    finally:
+        gateway_manager._runtime_lock.release()
 
 
 def test_edge_runtime_adapter_holds_exclusive_database_lock(tmp_path, monkeypatch):
