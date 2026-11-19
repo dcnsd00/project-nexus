@@ -50,14 +50,18 @@ class EdgeGatewayRuntime:
                     edge_manager = create_edge_manager_from_env(dict(self._env))
             snapshot = edge_manager.snapshot()
         except Exception:
-            lock = getattr(edge_manager, "_runtime_lock", None)
-            if lock is not None:
-                lock.release()
+            # A manager injected by NEXUS MASTER is lifecycle-owned. This
+            # adapter must never release its process-wide database lock.
+            if created_here:
+                lock = getattr(edge_manager, "_runtime_lock", None)
+                if lock is not None:
+                    lock.release()
             raise
         if snapshot.get("mode") != "sqlite_persistent":
-            runtime_lock = getattr(edge_manager, "_runtime_lock", None)
-            if runtime_lock is not None:
-                runtime_lock.release()
+            if created_here:
+                runtime_lock = getattr(edge_manager, "_runtime_lock", None)
+                if runtime_lock is not None:
+                    runtime_lock.release()
             raise RuntimeError(
                 "online EDGE gateway requires the shared sqlite_persistent manager; "
                 "configure NEXUS_EDGE_STORAGE_KEY"
@@ -72,9 +76,10 @@ class EdgeGatewayRuntime:
                                       env=dict(self._env))
             host_app.mount(self._mount_path, gateway_app, name="nexus-edge-gateway")
         except Exception:
-            lock = getattr(edge_manager, "_runtime_lock", None)
-            if lock is not None:
-                lock.release()
+            if created_here:
+                lock = getattr(edge_manager, "_runtime_lock", None)
+                if lock is not None:
+                    lock.release()
             raise
         self._host_app = host_app
         self._mounted_app = gateway_app
