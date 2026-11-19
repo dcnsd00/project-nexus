@@ -1,0 +1,85 @@
+name: NEXUS Full CPU Benchmark
+
+on:
+  push:
+    branches: ["feature/edge-replay-protection-sqlite-v1"]
+    paths:
+      - "application/mining/**"
+      - "application/tools/nexus_hardware_benchmark.py"
+      - "application/modules/runtime_telemetry.py"
+      - ".github/workflows/nexus-full-benchmark.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  cpu-benchmark:
+    name: CPU benchmark (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12 x64
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          architecture: "x64"
+
+      - name: Configure MSVC x64
+        if: runner.os == 'Windows'
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
+      - name: Install NEXUS runtime dependencies
+        shell: bash
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r application/requirements.txt
+
+      - name: Run native SHA-256d CPU benchmark
+        shell: bash
+        env:
+          NEXUS_NATIVE_COMPILER: ${{ runner.os == 'Windows' && 'msvc' || 'gcc' }}
+        run: |
+          mkdir -p benchmark-results
+          python application/tools/nexus_hardware_benchmark.py --seconds-per-profile 2 --batch-hashes 100000 --threads 1,2,4 --output benchmark-results/nexus-hardware-benchmark.json
+
+      - name: Validate benchmark report
+        shell: bash
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          path = Path("benchmark-results/nexus-hardware-benchmark.json")
+          report = json.loads(path.read_text(encoding="utf-8"))
+          profiles = report.get("profiles") or []
+          if report.get("state") != "completed":
+              raise SystemExit(f"Benchmark did not complete: {report.get('state')}")
+          if not profiles:
+              raise SystemExit("No native SHA-256d benchmark profiles were measured.")
+          failed = [p for p in profiles if p.get("state") != "completed" or p.get("hashes_checked", 0) <= 0 or p.get("throughput_hashes_per_second", 0) <= 0]
+          if failed:
+              raise SystemExit(f"Invalid benchmark profiles: {failed}")
+          print(f"Host: {report.get('host')}")
+          print(f"Native variants: {report.get('native_sha256d', {}).get('variants')}")
+          print(f"Completed profiles: {len(profiles)}")
+          for p in profiles:
+              print(f"{p['variant']} / {p['threads']} threads: {p['throughput_mh_per_second']} MH/s ({p['hashes_checked']} hashes)")
+          print("NEXUS_CPU_BENCHMARK_VALIDATED")
+          PY
+
+      - name: Upload benchmark report
+        uses: actions/upload-artifact@v4
+        with:
+          name: nexus-cpu-benchmark-${{ runner.os }}
+          path: benchmark-results/nexus-hardware-benchmark.json
+          if-no-files-found: error
+          retention-days: 30
