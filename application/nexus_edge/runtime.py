@@ -35,62 +35,76 @@ class EdgeTransportRuntime:
             if self._bridge is not None:
                 return
             edge_manager = manager
-            if edge_manager is None:
-                if self._manager_factory is None:
-                    from .gateway import create_edge_manager_from_env
-                    manager_factory = create_edge_manager_from_env
-                else:
-                    manager_factory = self._manager_factory
-                edge_manager = manager_factory()
-            snapshot = edge_manager.snapshot()
-            if snapshot.get("mode") != "sqlite_persistent":
-                raise RuntimeError(
-                    "MQTTS requires the shared sqlite_persistent EDGE manager; "
-                    "configure NEXUS_EDGE_STORAGE_KEY"
-                )
-            if self._bridge_factory is None:
-                from .transports import MQTTBridge, mqtt_config_from_env
-                bridge_factory = MQTTBridge
-                config = mqtt_config_from_env(dict(self._env))
-            else:
-                bridge_factory = self._bridge_factory
-                from .transports import mqtt_config_from_env
-                config = mqtt_config_from_env(dict(self._env))
-            from .manager import EdgePersistenceError
-            from .transports import RetryableTransportError, authenticate_mqtt_uplink
-
-            def on_message(topic: str, body: dict[str, Any]) -> None:
-                try:
-                    accepted = authenticate_mqtt_uplink(
-                        edge_manager, topic, body, topic_prefix=config.topic_prefix
+            created_here = edge_manager is None
+            try:
+                if edge_manager is None:
+                    if self._manager_factory is None:
+                        from .gateway import create_edge_manager_from_env
+                        manager_factory = create_edge_manager_from_env
+                    else:
+                        manager_factory = self._manager_factory
+                    edge_manager = manager_factory()
+                snapshot = edge_manager.snapshot()
+                if snapshot.get("mode") != "sqlite_persistent":
+                    raise RuntimeError(
+                        "MQTTS requires the shared sqlite_persistent EDGE manager; "
+                        "configure NEXUS_EDGE_STORAGE_KEY"
                     )
-                except EdgePersistenceError as exc:
-                    raise RetryableTransportError(
-                        "telemetry persistence failed; broker retry required"
-                    ) from exc
-                event = accepted["event"]
-                with self._lock:
-                    self._received.append({
-                        "accepted": True,
-                        "node_id": event["node_id"],
-                        "event_id": event["event_id"],
-                        "transport": event["transport"],
-                        "payload_sha256": event["payload_sha256"],
-                        "duplicate": event["duplicate"],
-                    })
+                if self._bridge_factory is None:
+                    from .transports import MQTTBridge, mqtt_config_from_env
+                    bridge_factory = MQTTBridge
+                else:
+                    bridge_factory = self._bridge_factory
+                    from .transports import mqtt_config_from_env
+                config = mqtt_config_from_env(dict(self._env))
+                from .manager import EdgePersistenceError
+                from .transports import RetryableTransportError, authenticate_mqtt_uplink
 
-            bridge = bridge_factory(config, on_message)
-            bridge.start()
+                def on_message(topic: str, body: dict[str, Any]) -> None:
+                    try:
+                        accepted = authenticate_mqtt_uplink(
+                            edge_manager, topic, body, topic_prefix=config.topic_prefix
+                        )
+                    except EdgePersistenceError as exc:
+                        raise RetryableTransportError(
+                            "telemetry persistence failed; broker retry required"
+                        ) from exc
+                    event = accepted["event"]
+                    with self._lock:
+                        self._received.append({
+                            "accepted": True,
+                            "node_id": event["node_id"],
+                            "event_id": event["event_id"],
+                            "transport": event["transport"],
+                            "payload_sha256": event["payload_sha256"],
+                            "duplicate": event["duplicate"],
+                        })
+
+                bridge = bridge_factory(config, on_message)
+                bridge.start()
+            except Exception:
+                runtime_lock = getattr(edge_manager, "_runtime_lock", None)
+                if created_here and runtime_lock is not None:
+                    runtime_lock.release()
+                raise
             self._manager = edge_manager
+            self._owns_manager = created_here
             self._bridge = bridge
             self._error = None
 
     def stop(self) -> None:
         with self._lock:
             bridge, self._bridge = self._bridge, None
-            self._manager = None
-        if bridge is not None:
-            bridge.stop()
+            manager, self._manager = self._manager, None
+            owns_manager, self._owns_manager = self._owns_manager, False
+        try:
+            if bridge is not None:
+                bridge.stop()
+        finally:
+            if owns_manager and manager is not None:
+                runtime_lock = getattr(manager, "_runtime_lock", None)
+                if runtime_lock is not None:
+                    runtime_lock.release()
 
     def set_start_error(self, error_type: str) -> None:
         with self._lock:

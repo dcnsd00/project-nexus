@@ -307,3 +307,23 @@ def test_edge_master_and_standalone_gateway_resolve_the_same_database_path(tmp_p
 
     adapter.stop()
     adapter.shutdown()
+
+
+def test_edge_runtime_adapter_holds_exclusive_database_lock(tmp_path, monkeypatch):
+    from cryptography.fernet import Fernet
+    import pytest
+    from modules.nexus_runtime import EdgeServiceAdapter
+
+    database = tmp_path / "edge.sqlite3"
+    monkeypatch.setenv("NEXUS_EDGE_DATABASE", str(database))
+    monkeypatch.setenv("NEXUS_EDGE_STORAGE_KEY", Fernet.generate_key().decode("ascii"))
+
+    first = EdgeServiceAdapter()
+    first.initialize()
+    second = EdgeServiceAdapter()
+    with pytest.raises(RuntimeError, match="already in use by another process"):
+        second.initialize()
+
+    first.shutdown()
+    second.initialize()
+    second.shutdown()

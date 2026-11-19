@@ -59,6 +59,7 @@ class EdgeServiceAdapter:
     def __init__(self):
         self.service: Any = None
         self.persistence_configured = False
+        self.runtime_lock: Any = None
 
     def initialize(self) -> None:
         module = importlib.import_module("nexus_edge.service")
@@ -66,18 +67,27 @@ class EdgeServiceAdapter:
         from nexus_edge.replay_guard import SQLiteReplayGuard
 
         database = edge_database_path(os.environ)
-        replay_store = SQLiteReplayGuard(database)
-        storage_key = os.environ.get("NEXUS_EDGE_STORAGE_KEY")
-        edge_store = None
-        if storage_key:
-            from nexus_edge.sqlite_store import SQLiteEdgeStore
-            # Fernet keys are URL-safe base64 strings. Never generate or persist
-            # a key here: operators must provision a stable secret out-of-band.
-            edge_store = SQLiteEdgeStore(database, encryption_key=storage_key.encode("ascii"))
-            self.persistence_configured = True
-        self.service = module.EdgeService(
-            replay_guard=replay_store, store=edge_store
-        )
+        from nexus_edge.runtime_lock import EdgeRuntimeLock
+
+        runtime_lock = EdgeRuntimeLock(database)
+        runtime_lock.acquire()
+        try:
+            replay_store = SQLiteReplayGuard(database)
+            storage_key = os.environ.get("NEXUS_EDGE_STORAGE_KEY")
+            edge_store = None
+            if storage_key:
+                from nexus_edge.sqlite_store import SQLiteEdgeStore
+                # Fernet keys are URL-safe base64 strings. Never generate or persist
+                # a key here: operators must provision a stable secret out-of-band.
+                edge_store = SQLiteEdgeStore(database, encryption_key=storage_key.encode("ascii"))
+                self.persistence_configured = True
+            self.service = module.EdgeService(
+                replay_guard=replay_store, store=edge_store
+            )
+            self.runtime_lock = runtime_lock
+        except Exception:
+            runtime_lock.release()
+            raise
 
     def start(self) -> None:
         if self.service is None:
@@ -95,9 +105,14 @@ class EdgeServiceAdapter:
             self.service.stop()
 
     def shutdown(self) -> None:
-        if self.service is not None:
-            self.service.shutdown()
-        self.service = None
+        try:
+            if self.service is not None:
+                self.service.shutdown()
+            self.service = None
+        finally:
+            if self.runtime_lock is not None:
+                self.runtime_lock.release()
+                self.runtime_lock = None
 
 
 class WalletReadOnlyAdapter:

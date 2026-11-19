@@ -48,14 +48,24 @@ def create_edge_manager_from_env(env: dict[str, str] | None = None) -> EdgeManag
     if not key:
         raise RuntimeError("NEXUS_EDGE_STORAGE_KEY is required for online EDGE gateway")
     from .config import edge_database_path
+    from .runtime_lock import EdgeRuntimeLock
+
     database = edge_database_path(values)
+    runtime_lock = EdgeRuntimeLock(database)
+    runtime_lock.acquire()
     try:
-        key_bytes = key.encode("ascii")
-    except UnicodeEncodeError as exc:
-        raise RuntimeError("NEXUS_EDGE_STORAGE_KEY must be a Fernet URL-safe base64 key") from exc
-    store = SQLiteEdgeStore(database, encryption_key=key_bytes)
-    replay = SQLiteReplayGuard(database)
-    return EdgeManager(store=store, replay_guard=replay)
+        try:
+            key_bytes = key.encode("ascii")
+        except UnicodeEncodeError as exc:
+            raise RuntimeError("NEXUS_EDGE_STORAGE_KEY must be a Fernet URL-safe base64 key") from exc
+        store = SQLiteEdgeStore(database, encryption_key=key_bytes)
+        replay = SQLiteReplayGuard(database)
+        manager = EdgeManager(store=store, replay_guard=replay)
+        manager._runtime_lock = runtime_lock
+        return manager
+    except Exception:
+        runtime_lock.release()
+        raise
 
 
 def create_edge_app(manager: EdgeManager | None = None, *,
@@ -66,12 +76,21 @@ def create_edge_app(manager: EdgeManager | None = None, *,
     if not token or len(token) < 32:
         raise RuntimeError("NEXUS_EDGE_PROVISIONING_TOKEN must contain at least 32 characters")
     edge = manager or create_edge_manager_from_env(dict(values))
-    if edge.snapshot().get("mode") != "sqlite_persistent":
-        raise RuntimeError(
-            "HTTPS EDGE gateway requires encrypted sqlite_persistent state; "
-            "configure NEXUS_EDGE_STORAGE_KEY"
-        )
+    try:
+        if edge.snapshot().get("mode") != "sqlite_persistent":
+            raise RuntimeError(
+                "HTTPS EDGE gateway requires encrypted sqlite_persistent state; "
+                "configure NEXUS_EDGE_STORAGE_KEY"
+            )
+    except Exception:
+        runtime_lock = getattr(edge, "_runtime_lock", None)
+        if runtime_lock is not None:
+            runtime_lock.release()
+        raise
     app = FastAPI(title="NEXUS EDGE Gateway", version="1.0.0")
+    runtime_lock = getattr(edge, "_runtime_lock", None)
+    if runtime_lock is not None:
+        app.add_event_handler("shutdown", runtime_lock.release)
     router = APIRouter(prefix="/v1/edge", tags=["NEXUS EDGE"])
 
     def require_operator(authorization: str | None) -> None:
