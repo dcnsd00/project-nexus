@@ -31,6 +31,7 @@ def _envelope(secret, node_id, action, seq, payload=None, timestamp=None):
         "payload": payload,
     }
     return {
+        "protocol_version": 1,
         "timestamp": timestamp,
         "sequence": seq,
         "payload": payload,
@@ -353,3 +354,23 @@ def test_gateway_persists_generic_lorawan_and_iot_webhook_uplinks(tmp_path):
 
     history = manager.telemetry(limit=10)
     assert [event["transport"] for event in history] == ["iot", "lorawan"]
+
+
+def test_gateway_rejects_missing_or_unsupported_protocol_version(tmp_path):
+    manager = _manager(tmp_path)
+    client = TestClient(create_edge_app(manager, provisioning_token="p" * 40))
+    node_id = "esp32-node-version-01"
+    secret = b"v" * 32
+    manager.register_node(node_id, ["telemetry"], secret)
+
+    missing = _envelope(secret, node_id, "heartbeat", 1)
+    missing.pop("protocol_version")
+    assert client.post(f"/v1/edge/nodes/{node_id}/heartbeat", json=missing).status_code == 422
+
+    unsupported = _envelope(secret, node_id, "heartbeat", 1)
+    unsupported["protocol_version"] = 2
+    assert client.post(f"/v1/edge/nodes/{node_id}/heartbeat", json=unsupported).status_code == 422
+
+    boolean_version = _envelope(secret, node_id, "heartbeat", 1)
+    boolean_version["protocol_version"] = True
+    assert client.post(f"/v1/edge/nodes/{node_id}/heartbeat", json=boolean_version).status_code == 422

@@ -303,7 +303,10 @@ def authenticate_mqtt_uplink(manager: Any, topic: str, body: dict[str, Any], *,
     match = re.fullmatch(pattern, topic)
     if not match:
         raise ValueError("unexpected NEXUS MQTT uplink topic")
-    required = {"timestamp", "sequence", "payload", "signature"}
+    required = {"protocol_version", "timestamp", "sequence", "payload", "signature"}
+    version = body.get("protocol_version")
+    if not isinstance(version, int) or isinstance(version, bool) or version != 1:
+        raise ValueError("unsupported NEXUS EDGE protocol version")
     if set(body) != required or not isinstance(body["payload"], dict):
         raise ValueError("invalid MQTT uplink envelope")
     node_id = match.group(1)

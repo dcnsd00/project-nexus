@@ -59,7 +59,7 @@ class EdgePersistenceInvariantTests(unittest.TestCase):
         manager.register_node(self.node_id, ["math.verify"], self.secret)
         timestamp = self.clock()
         message = {
-            "kind": "heartbeat",
+            "kind": "heartbeat", "protocol_version": 1,
             "node_id": self.node_id,
             "timestamp": timestamp,
             "sequence": 1,
@@ -84,7 +84,7 @@ class EdgePersistenceInvariantTests(unittest.TestCase):
         self.assertEqual(restarted.task_status(task["task_id"])["state"], "RUNNING")
         result = {"verified": True, "digest": "abc123"}
         signed_result = {
-            "kind": "task_result",
+            "kind": "task_result", "protocol_version": 1,
             "node_id": self.node_id,
             "task_id": task["task_id"],
             "assignment_nonce": assignment_nonce,
@@ -121,7 +121,7 @@ class EdgePersistenceInvariantTests(unittest.TestCase):
         self.assertEqual(restarted.next_node_sequence(self.node_id), 2)
         timestamp = self.clock()
         new_message = {
-            "kind": "heartbeat",
+            "kind": "heartbeat", "protocol_version": 1,
             "node_id": self.node_id,
             "timestamp": timestamp,
             "sequence": 2,
@@ -228,7 +228,7 @@ class EdgePersistenceInvariantTests(unittest.TestCase):
         payload = {"temperature_c": 21.75, "battery_pct": 94}
         timestamp = self.clock()
         message = {
-            "kind": "node_request",
+            "kind": "node_request", "protocol_version": 1,
             "action": "https.uplink",
             "node_id": self.node_id,
             "timestamp": timestamp,
@@ -289,7 +289,7 @@ class EdgePersistenceInvariantTests(unittest.TestCase):
         timestamp = self.clock()
         payload = {"temperature_c": 19.5}
         message = {
-            "kind": "node_request",
+            "kind": "node_request", "protocol_version": 1,
             "action": "mqtt.uplink",
             "node_id": self.node_id,
             "timestamp": timestamp,
@@ -318,7 +318,7 @@ class EdgePersistenceInvariantTests(unittest.TestCase):
         timestamp = self.clock()
         payload = {"temperature_c": 20.0}
         message = {
-            "kind": "node_request",
+            "kind": "node_request", "protocol_version": 1,
             "action": "https.uplink",
             "node_id": self.node_id,
             "timestamp": timestamp,

@@ -26,7 +26,7 @@ class EdgeManagerTests(unittest.TestCase):
     def beat(self):
         ts = self.clock()
         self.sequence += 1
-        msg = {"kind": "heartbeat", "node_id": "edge-c5-001", "timestamp": ts, "sequence": self.sequence}
+        msg = {"kind": "heartbeat", "protocol_version": 1, "node_id": "edge-c5-001", "timestamp": ts, "sequence": self.sequence}
         return self.manager.heartbeat("edge-c5-001", ts, self.sequence, sign_message(self.secret, msg))
 
     def test_authenticated_node_registration_and_heartbeat(self):
@@ -46,7 +46,7 @@ class EdgeManagerTests(unittest.TestCase):
 
     def test_rejects_replayed_heartbeat_sequence(self):
         with self.assertRaises(EdgeError):
-            self.manager.heartbeat("edge-c5-001", self.clock(), 1, sign_message(self.secret, {"kind": "heartbeat", "node_id": "edge-c5-001", "timestamp": self.clock(), "sequence": 1}))
+            self.manager.heartbeat("edge-c5-001", self.clock(), 1, sign_message(self.secret, {"kind": "heartbeat", "protocol_version": 1, "node_id": "edge-c5-001", "timestamp": self.clock(), "sequence": 1}))
 
 
     def test_rejects_non_numeric_and_non_finite_protocol_timestamps(self):
@@ -62,7 +62,7 @@ class EdgeManagerTests(unittest.TestCase):
         timestamp = self.clock()
         oversized = {"data": "x" * 256}
         message = {
-            "kind": "node_request", "action": "telemetry.push",
+            "kind": "node_request", "protocol_version": 1, "action": "telemetry.push",
             "node_id": "edge-c5-002", "timestamp": timestamp,
             "sequence": 2, "payload": oversized,
         }
@@ -81,7 +81,7 @@ class EdgeManagerTests(unittest.TestCase):
 
     def test_rejects_stale_heartbeat(self):
         old = self.clock() - 60
-        msg = {"kind": "heartbeat", "node_id": "edge-c5-001", "timestamp": old, "sequence": 2}
+        msg = {"kind": "heartbeat", "protocol_version": 1, "node_id": "edge-c5-001", "timestamp": old, "sequence": 2}
         with self.assertRaises(EdgeError):
             self.manager.heartbeat("edge-c5-001", old, 2, sign_message(self.secret, msg))
 
@@ -93,7 +93,7 @@ class EdgeManagerTests(unittest.TestCase):
         self.assertTrue(assignment_nonce)
         self.manager.start_task("edge-c5-001", task["task_id"])
         result = {"digest": "ba7816bf"}
-        msg = {"kind": "task_result", "node_id": "edge-c5-001",
+        msg = {"kind": "task_result", "protocol_version": 1, "node_id": "edge-c5-001",
                "task_id": task["task_id"], "assignment_nonce": assignment_nonce,
                "result": result}
         completed = self.manager.complete_task(
@@ -130,7 +130,7 @@ class EdgeManagerTests(unittest.TestCase):
 
         result = {"verified": True}
         stale_message = {
-            "kind": "task_result", "node_id": "edge-c5-001",
+            "kind": "task_result", "protocol_version": 1, "node_id": "edge-c5-001",
             "task_id": task["task_id"], "assignment_nonce": first_nonce,
             "result": result,
         }
@@ -150,7 +150,7 @@ class EdgeManagerTests(unittest.TestCase):
     def test_task_is_not_assigned_without_capability(self):
         self.manager.register_node("edge-data-002", ["telemetry"], b"x" * 32)
         ts = self.clock()
-        msg = {"kind": "heartbeat", "node_id": "edge-data-002", "timestamp": ts, "sequence": 1}
+        msg = {"kind": "heartbeat", "protocol_version": 1, "node_id": "edge-data-002", "timestamp": ts, "sequence": 1}
         self.manager.heartbeat("edge-data-002", ts, 1, sign_message(b"x" * 32, msg))
         self.manager.submit_task("math.verify", {"input": "x"}, ["math.verify"])
         self.assertIsNone(self.manager.claim_task("edge-data-002"))

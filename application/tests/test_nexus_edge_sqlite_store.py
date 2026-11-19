@@ -38,7 +38,7 @@ class SQLiteEdgeStoreTests(unittest.TestCase):
 
     def heartbeat(self, manager, sequence):
         timestamp = self.clock()
-        message = {"kind": "heartbeat", "node_id": "edge-c5-009",
+        message = {"kind": "heartbeat", "protocol_version": 1, "node_id": "edge-c5-009",
                    "timestamp": timestamp, "sequence": sequence}
         return manager.heartbeat("edge-c5-009", timestamp, sequence,
                                  sign_message(self.secret, message))
@@ -58,7 +58,7 @@ class SQLiteEdgeStoreTests(unittest.TestCase):
         self.assertEqual(restarted.task_status(task["task_id"])["state"], "RUNNING")
         self.heartbeat(restarted, 2)
         result = {"verified": True}
-        message = {"kind": "task_result", "node_id": "edge-c5-009",
+        message = {"kind": "task_result", "protocol_version": 1, "node_id": "edge-c5-009",
                    "task_id": task["task_id"],
                    "assignment_nonce": assignment_nonce, "result": result}
         completed = restarted.complete_task(
@@ -141,7 +141,7 @@ class SQLiteEdgeStoreTests(unittest.TestCase):
 
         restarted = self.manager()
         timestamp = self.clock()
-        message = {"kind": "heartbeat", "node_id": "edge-c5-009",
+        message = {"kind": "heartbeat", "protocol_version": 1, "node_id": "edge-c5-009",
                    "timestamp": timestamp, "sequence": 7}
         with self.assertRaisesRegex(Exception, "replayed|out-of-order"):
             restarted.heartbeat(

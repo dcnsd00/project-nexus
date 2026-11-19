@@ -231,9 +231,9 @@ def test_mqtt_uplink_requires_node_hmac_and_monotonic_sequence(tmp_path):
     manager.register_node("esp32-node-09",["telemetry"],secret)
     timestamp=int(time.time())
     payload={"temperature_c":23.5}
-    message={"kind":"node_request","action":"mqtt.uplink","node_id":"esp32-node-09",
+    message={"kind":"node_request", "protocol_version": 1,"action":"mqtt.uplink","node_id":"esp32-node-09",
              "timestamp":timestamp,"sequence":1,"payload":payload}
-    body={"timestamp":timestamp,"sequence":1,"payload":payload,
+    body={"protocol_version":1,"timestamp":timestamp,"sequence":1,"payload":payload,
           "signature":sign_message(secret,message)}
     topic="nexus/v1/nodes/esp32-node-09/up"
     accepted = authenticate_mqtt_uplink(manager, topic, body)
@@ -250,6 +250,7 @@ def test_mqtt_uplink_requires_node_hmac_and_monotonic_sequence(tmp_path):
     future_payload = {"temperature_c": 24.0}
     future_message = dict(message, sequence=3, payload=future_payload)
     future_body = {
+        "protocol_version": 1,
         "timestamp": timestamp,
         "sequence": 3,
         "payload": future_payload,
@@ -260,6 +261,7 @@ def test_mqtt_uplink_requires_node_hmac_and_monotonic_sequence(tmp_path):
     late_payload = {"temperature_c": 22.0}
     late_message = dict(message, sequence=2, payload=late_payload)
     late_body = {
+        "protocol_version": 1,
         "timestamp": timestamp,
         "sequence": 2,
         "payload": late_payload,
@@ -278,10 +280,10 @@ def test_mqtt_uplink_respects_configured_topic_prefix(tmp_path):
     manager.register_node(node_id, ["telemetry"], secret)
     timestamp = int(time.time())
     payload = {"temperature_c": 21.0}
-    message = {"kind": "node_request", "action": "mqtt.uplink",
+    message = {"kind": "node_request", "protocol_version": 1, "action": "mqtt.uplink",
                "node_id": node_id, "timestamp": timestamp,
                "sequence": 1, "payload": payload}
-    body = {"timestamp": timestamp, "sequence": 1, "payload": payload,
+    body = {"protocol_version": 1, "timestamp": timestamp, "sequence": 1, "payload": payload,
             "signature": sign_message(secret, message)}
     accepted = authenticate_mqtt_uplink(
         manager, "custom/edge/nodes/esp32-node-10/up", body,
@@ -302,3 +304,32 @@ def test_mqtt_uplink_rejects_unexpected_topic():
     from nexus_edge.transports import authenticate_mqtt_uplink
     with pytest.raises(ValueError,match="topic"):
         authenticate_mqtt_uplink(object(),"other/topic",{})
+
+
+def test_mqtt_uplink_rejects_missing_and_unsupported_protocol_version(tmp_path):
+    from nexus_edge.transports import authenticate_mqtt_uplink
+
+    manager = _durable_manager(tmp_path)
+    secret = b"q" * 32
+    node_id = "esp32-node-version-02"
+    manager.register_node(node_id, ["telemetry"], secret)
+    timestamp = int(time.time())
+    payload = {"temperature_c": 20.0}
+    message = {
+        "kind": "node_request", "protocol_version": 1, "action": "mqtt.uplink",
+        "node_id": node_id, "timestamp": timestamp, "sequence": 1, "payload": payload,
+    }
+    body = {
+        "protocol_version": 1, "timestamp": timestamp, "sequence": 1,
+        "payload": payload, "signature": sign_message(secret, message),
+    }
+    topic = f"nexus/v1/nodes/{node_id}/up"
+
+    missing = dict(body)
+    missing.pop("protocol_version")
+    with pytest.raises(ValueError, match="unsupported NEXUS EDGE protocol version"):
+        authenticate_mqtt_uplink(manager, topic, missing)
+
+    unsupported = dict(body, protocol_version=2)
+    with pytest.raises(ValueError, match="unsupported NEXUS EDGE protocol version"):
+        authenticate_mqtt_uplink(manager, topic, unsupported)

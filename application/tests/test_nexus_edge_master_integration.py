@@ -156,7 +156,7 @@ def test_master_end_to_end_shared_manager_https_and_mqtts_telemetry(monkeypatch,
         mqtt_payload = {"temperature_c": 20.5, "source": "mqtt"}
         mqtt_timestamp = int(time.time())
         mqtt_message = {
-            "kind": "node_request",
+            "kind": "node_request", "protocol_version": 1,
             "action": "mqtt.uplink",
             "node_id": node_id,
             "timestamp": mqtt_timestamp,
@@ -164,6 +164,7 @@ def test_master_end_to_end_shared_manager_https_and_mqtts_telemetry(monkeypatch,
             "payload": mqtt_payload,
         }
         mqtt_body = {
+            "protocol_version": 1,
             "timestamp": mqtt_timestamp,
             "sequence": 1,
             "payload": mqtt_payload,
@@ -176,7 +177,7 @@ def test_master_end_to_end_shared_manager_https_and_mqtts_telemetry(monkeypatch,
         https_payload = {"temperature_c": 21.0, "source": "https"}
         https_timestamp = int(time.time())
         https_message = {
-            "kind": "node_request",
+            "kind": "node_request", "protocol_version": 1,
             "action": "https.uplink",
             "node_id": node_id,
             "timestamp": https_timestamp,
@@ -186,6 +187,7 @@ def test_master_end_to_end_shared_manager_https_and_mqtts_telemetry(monkeypatch,
         https_response = client.post(
             f"/edge/v1/edge/nodes/{node_id}/uplink/https",
             json={
+                "protocol_version": 1,
                 "timestamp": https_timestamp,
                 "sequence": 2,
                 "payload": https_payload,

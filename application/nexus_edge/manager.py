@@ -1,8 +1,8 @@
-"""Small, transport-agnostic NEXUS EDGE control plane.
+"""Transport-agnostic NEXUS EDGE control plane.
 
-This first increment is an in-memory reference implementation. It deliberately
-does not open sockets, execute arbitrary commands, access wallets, or start
-miners. A transport adapter (MQTT/HTTPS) and durable store are separate layers.
+The manager supports an ephemeral test/pilot mode and an encrypted SQLite
+persistent mode. Network transports are separate, opt-in runtime adapters.
+It never executes arbitrary commands, accesses wallets, or starts miners.
 """
 from __future__ import annotations
 
@@ -18,6 +18,8 @@ from functools import wraps
 import uuid
 from dataclasses import dataclass, field
 from typing import Any, Callable
+
+EDGE_PROTOCOL_VERSION = 1
 
 from .replay_guard import MemoryReplayGuard, ReplayGuard
 
@@ -102,7 +104,7 @@ def _synchronized(method):
 
 
 class EdgeManager:
-    """In-memory scheduler, node registry, lease manager and result verifier."""
+    """Node registry, task scheduler, lease manager and result verifier."""
 
     def __init__(
         self,
@@ -207,7 +209,7 @@ class EdgeManager:
         timestamp_value = _validate_timestamp(timestamp)
         if abs(now - timestamp_value) > self.heartbeat_ttl_s:
             raise EdgeError("heartbeat timestamp outside allowed clock-skew window")
-        message = {"kind": "heartbeat", "node_id": node_id, "timestamp": timestamp, "sequence": sequence}
+        message = {"kind": "heartbeat", "protocol_version": EDGE_PROTOCOL_VERSION, "node_id": node_id, "timestamp": timestamp, "sequence": sequence}
         if not _verify(node.secret, message, signature):
             raise EdgeError("invalid heartbeat signature")
         try:
@@ -235,7 +237,7 @@ class EdgeManager:
             raise EdgeError("node request payload must be a JSON object")
         if len(_canonical(payload)) > self.max_payload_bytes:
             raise EdgeError("node request payload exceeds configured size limit")
-        message = {"kind": "node_request", "action": action, "node_id": node_id,
+        message = {"kind": "node_request", "protocol_version": EDGE_PROTOCOL_VERSION, "action": action, "node_id": node_id,
                    "timestamp": timestamp, "sequence": sequence, "payload": payload}
         if not _verify(node.secret, message, signature):
             raise EdgeError("invalid node request signature")
@@ -341,7 +343,7 @@ class EdgeManager:
             raise EdgeError("assignment nonce mismatch; stale worker result rejected")
         if len(_canonical(result)) > self.max_payload_bytes:
             raise EdgeError("task result exceeds configured size limit")
-        message = {"kind": "task_result", "node_id": node_id,
+        message = {"kind": "task_result", "protocol_version": EDGE_PROTOCOL_VERSION, "node_id": node_id,
                    "task_id": task_id, "assignment_nonce": assignment_nonce,
                    "result": result}
         if not _verify(node.secret, message, signature):
@@ -418,7 +420,7 @@ class EdgeManager:
         if action != expected_actions[transport]:
             raise EdgeError("telemetry action does not match its transport")
         message = {
-            "kind": "node_request",
+            "kind": "node_request", "protocol_version": EDGE_PROTOCOL_VERSION,
             "action": action,
             "node_id": node_id,
             "timestamp": timestamp,

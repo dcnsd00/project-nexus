@@ -34,6 +34,7 @@ class TaskRequest(BaseModel):
 
 
 class NodeEnvelope(BaseModel):
+    protocol_version: int = Field(ge=1, le=1, strict=True)
     timestamp: int = Field(strict=True)
     sequence: int = Field(ge=1, strict=True)
     payload: dict[str, Any] = Field(default_factory=dict)

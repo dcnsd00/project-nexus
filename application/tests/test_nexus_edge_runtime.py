@@ -76,7 +76,7 @@ def test_edge_runtime_reuses_shared_durable_manager_and_authenticates_uplinks(
     timestamp = int(time.time())
     payload = {"temperature_c": 21.5}
     signed = {
-        "kind": "node_request",
+        "kind": "node_request", "protocol_version": 1,
         "action": "mqtt.uplink",
         "node_id": node_id,
         "timestamp": timestamp,
@@ -84,6 +84,7 @@ def test_edge_runtime_reuses_shared_durable_manager_and_authenticates_uplinks(
         "payload": payload,
     }
     body = {
+        "protocol_version": 1,
         "timestamp": timestamp,
         "sequence": 1,
         "payload": payload,
