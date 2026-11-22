@@ -1,88 +1,60 @@
-# Current continuation checkpoint — 2026-11-22 (CORE, mining and GitHub opportunity review)
+# Current continuation checkpoint — 2026-11-22 (EDGE transport and Windows package audit)
 
-This section supersedes the prior 2026-11-22 checkpoints and the 2026-11-19 historical checkpoint below. Preserve older entries as historical evidence.
+This section supersedes prior 2026-11-22 checkpoints and the 2026-11-19 historical checkpoint below. Preserve older entries as historical evidence.
 
 ## Verified repository state
 
 - Repository: `dcnsd00/project-nexus`
 - Active branch: `feature/edge-replay-protection-sqlite-v1`
-- Verified pre-checkpoint HEAD: `52625a7288a8dde5c0b6c29a6106b92017c38749`.
-- Integration target: `integration/source-import-safe-0.10.25`, exact comparison base `30210464088ff51c32cabda90ae56b6a9ce20bc8`.
-- Latest comparison before this documentation commit: 309 commits ahead, 0 behind, 78 changed files. This supersedes earlier 307/73 and 308/73 notes; use this exact comparison as the current baseline.
-- No application source-code modifications were made during this stage. Only this continuity document is updated.
-- Open PR query returned no open PRs at the earlier checkpoint; recheck before any PR.
+- Verified pre-checkpoint HEAD: `f251d5d7d99ee89a8f7107f0e53bbcfa26371fd2`.
+- Integration target: `integration/source-import-safe-0.10.25`, exact base `30210464088ff51c32cabda90ae56b6a9ce20bc8`.
+- Latest comparison before this documentation commit: 310 commits ahead, 0 behind, 78 changed files.
+- No application source-code modifications were made during this stage. Only continuity documentation is updated.
+- CI evidence for application source HEAD `d5d84ef...`: NEXUS CI run `44607394324` and Windows package run `44607394143` succeeded. Later commits in this branch are documentation-only; no new CI run was returned for the documentation commits.
 
-## CORE and module integration audit
+## EDGE transport/gateway review
 
-Files reviewed: `application/modules/lifecycle_manager.py`, `module_registry.py`, `nexus_runtime.py`, `application/nexus_master.py`, `core/PROJECT-NEXUS-LOCAL/app/main.py`, relevant lifecycle/runtime tests.
+Files reviewed: `application/nexus_edge/transports.py`, `gateway.py`, `gateway_runtime.py`, `config.py`, `NEXUS_EDGE_HTTPS_GATEWAY.md`, `NEXUS_EDGE_MULTI_NETWORK.md`, and gateway/transport test suites.
 
-- LifecycleManager provides dependency ordering, startup rollback, optional-service isolation, and reverse shutdown.
-- Module Registry deliberately distinguishes source presence, route registration and runtime registration; it explicitly does not claim operational verification.
-- Runtime composition starts local read-only adapters. Wallet adapter does not unlock keys; MiningSupervisor adapter does not start workers; provider probes do not open live provider connections.
-- Crypto Engine self-tests SHA-256 and SHA-256d. These primitives are not a coin-specific PoW miner.
-- Runtime telemetry, Bitcoin node telemetry and EVM telemetry are exposed through separate API routes and are not LifecycleManager services; this is an integration surface to assess, not automatically a defect.
-- Desktop launcher binds Uvicorn to `127.0.0.1` and selects only loopback ports. The base FastAPI app contains task/note/agent/approval and additional API routes without visible authentication middleware in the inspected `main.py`; retain the local-only deployment assumption. Do not expose it on LAN/public interfaces without authentication/CSRF review.
+- HTTPS gateway is opt-in, requires a provisioning token of at least 32 characters and encrypted persistent SQLite state. Production guidance requires a TLS terminator.
+- Operator endpoints use Bearer token authentication with constant-time comparison. Node requests use HMAC authentication and monotonic sequence/replay protection.
+- MQTTS requires broker authentication, TLS certificate verification (`tls_insecure_set(False)`), bounded message sizes, and manual QoS acknowledgements. Retryable persistence errors are left unacknowledged for broker redelivery; duplicate telemetry is idempotent.
+- Public health and transport endpoints expose aggregate status only; inspected `EdgeManager.snapshot()` does not expose node secrets or telemetry payloads.
+- LoRaWAN is correctly described as a network-server/webhook bridge, not a transparent IP socket. Provider-specific LoRaWAN/IOT adapters and physical-node validation remain unimplemented.
+- No evidence-backed transport defect was identified in this static review. No live broker, TLS terminator, webhook provider or physical ESP32 was exercised.
 
-## Wallet and cryptographic security audit
+## Windows package/release audit
 
-- `CryptoSecurity` uses AES-256-GCM / ChaCha20-Poly1305, HKDF-SHA256 and Ed25519 from the `cryptography` package, with input-size and parameter checks.
-- `CryptoEngine` labels experimental composites as non-consensus and SHA-256d as Bitcoin-style double SHA-256; benchmark output is explicitly not PoW hashrate.
-- Wallet manager encrypts local keystore material using scrypt + AES-GCM and does not return private keys/WIF from unlock endpoints. Its response explicitly warns that the local wallet is not independently audited for material funds.
-- Wallet endpoints do not show a router-level authentication dependency in the inspected file; retain loopback-only deployment and audit browser-origin/CSRF exposure before network exposure.
+Files reviewed: `VERSION.json`, `START_NEXUS_DESKTOP.pyw`, `INSTALL_NEXUS_ONECLICK.ps1`, `INSTALL_NEXUS.bat`, legacy `INSTALL_NEXUS_WINDOWS.ps1`, PyInstaller spec, Windows package workflow, packaging tests and Romanian README.
 
-## Mining integration audit — design issue
+- Supported path is `INSTALL_NEXUS.bat` → `INSTALL_NEXUS_ONECLICK.ps1`; package is PyInstaller onedir with bundled Python and WebView2, desktop server bound to `127.0.0.1`.
+- One-click installer verifies package file SHA-256 values against the included manifest, checks the Microsoft WebView2 bootstrapper's Authenticode signature, runs the frozen executable self-test, and preserves the user's existing data directory.
+- SHA-256 manifest is an integrity check against accidental corruption; it is not a publisher signature over the NEXUS package itself.
+- The legacy `INSTALL_NEXUS_WINDOWS.ps1` still exists and hardcodes version `0.10.25`; it is not the supported route documented in `README_RO.md` and `packaging/README_WINDOWS_BUILD_RO.md`.
+- `VERSION.json` still points its `desktop_shell.installer` field at that legacy script, while the supported package uses `INSTALL_NEXUS.bat` / `INSTALL_NEXUS_ONECLICK.ps1`. This is a verified metadata inconsistency to correct.
+- `VERSION.json` and `README_RO.md` report Linux 636 / Windows 635 test counts tied to older CI commit `3f9d9c3...`; the later verified source-head CI `44607394324` reports Linux 624 / Windows 623. Treat the old counts as historical provenance, not current branch CI totals. Update release metadata/README with exact commit and run IDs after the next source CI.
+- Package CI used `-NoLaunch`: install and frozen API/dashboard self-test passed on a GitHub Windows runner, but the interactive WebView2 desktop was not launched on the user's Windows 11 laptop.
+- No source code was changed and no local Windows build was run in this stage.
 
-- There are two distinct process-control paths:
-  1. `mining.controller` launches and tracks a single direct miner process.
-  2. `HybridSupervisor` launches separate CPU/GPU worker processes with heartbeat, bounded shutdown and rollback support.
-- Both are reachable through separate API families: `/api/mining/start|stop` and `/api/mining/hybrid/*`.
-- Hybrid launch validation checks inventory, pool/algorithm/device compatibility and GPU resource state. No shared process-arbitration lock or mutual-exclusion check between the direct controller and HybridSupervisor was found in the inspected call paths. This is a potential duplicate/conflicting miner launch if both API families are used concurrently. No runtime collision was executed. Add a regression test and one shared process arbiter before unattended/automatic switching.
-- Backend discovery and capability registry are evaluation-only; discovered binaries do not prove accepted shares, profitability or live pool compatibility.
-- Automatic mining switching is disabled by default and requires explicit process-level opt-in plus verified source adapters.
+## Existing audit conclusions carried forward
 
-## Telemetry and EVM security review
-
-- Bitcoin node telemetry is explicitly loopback HTTP only and uses read-only RPC methods.
-- EVM telemetry requires HTTPS and rejects obvious local hostnames and literal non-global IP addresses.
-- DNS hostnames are not resolved and checked against private/link-local/reserved address ranges before the request. Because the endpoint is environment-configured, this is a configuration hardening gap rather than a demonstrated remote exploit. Add DNS resolution/address validation and verify the resolved destination before using this adapter outside a trusted local deployment.
-- Existing EVM tests cover HTTP, localhost, .local and literal loopback rejection, but not DNS names resolving to private addresses.
-- Runtime telemetry reports unavailable values rather than estimating them; NVIDIA metrics depend on `nvidia-smi`, and Windows temperature readings depend on LibreHardwareMonitor WMI when available.
-
-## External GitHub research — QuantumOrb and reusable code
-
-### QuantumOrb/QuantOrb
-
-- Repository inspected: `QuantumOrb/QuantOrb`, including `LICENSE`, `docs/architecture.md`, `docs/scoring.md`, `docs/guard.md`, `rules/index.js` and `chain/solana.js`.
-- The project is a Solana memecoin holder/risk scanner with holder distribution, wallet-link heuristics, first buyers, dev history, owner powers, liquidity and sell-impact scenarios. It is not a mining supervisor or a generic AI runtime.
-- Only selected rules, chain-layout readers, market calculations and bot messages are open; the architecture document says live scan orchestration, wallet-link discovery, launch feed, Radar, API/site, bot service/database and server configuration remain closed.
-- **License is not an open-source reuse license.** Its LICENSE permits viewing and running the published rules/examples but prohibits copying, modifying, merging, distributing or using any part in another product without prior written permission. Do not vendor or copy QuantumOrb code into NEXUS unless written permission is obtained. Its public documentation can inform a separately designed NEXUS feature, without copying code, wording, branding or its exact scoring model.
-- Source: `https://github.com/QuantumOrb/QuantOrb`.
-
-### Candidate repositories
-
-- `invisiblemonsters/token-launch-scan`: GitHub API reports MIT; last updated 2026-10-05; a compact Python snapshot combining GoPlus, honeypot.is, RugCheck and direct Solana RPC. It provides basic authorities, taxes, honeypot and holder-risk fields. It is a useful reference, not production-ready evidence: no test workflow was found at the inspected path, and its error/URL handling and source freshness need review before adoption. Source: `https://github.com/invisiblemonsters/token-launch-scan`.
-- `Hermes-Workbench/solana-top-holders-analysis`: MIT, last updated 2026-06-15. Python CLI with Decimal arithmetic, retries, SPL token-account owner aggregation, manual LP/vault exclusions and four focused tests. It uses `getTokenLargestAccounts`, which only returns a bounded largest-account sample; it does not provide complete historical holders, first buyers or wallet-cluster discovery. Candidate for a bounded Phase-1 holder-concentration adapter after input validation and tests. Source: `https://github.com/Hermes-Workbench/solana-top-holders-analysis`.
-- `0xfnzero/sol-parser-sdk-python`: README advertises MIT and version 0.11.0, with Yellowstone gRPC and Pump.fun/PumpSwap parsing; however GitHub API returned no declared license and the repository root has no LICENSE file. Do not reuse its code until licensing is confirmed. Its dependencies (grpcio, grpcio-tools, base58, python-dotenv) also make it a larger optional integration. Source: `https://github.com/0xfnzero/sol-parser-sdk-python`.
-- Official Solana indexing guidance says ordinary RPC methods such as `getSignaturesForAddress` and `getTransaction` suit low-volume verification, while production real-time ingestion generally needs a streaming/indexing provider such as Yellowstone gRPC, with parsing frameworks such as Carbon or Vixen. Source: `https://solana.com/docs/payments/accept-payments/indexing`.
-
-### Recommended NEXUS integration path
-
-- Do not create a parallel project and do not integrate QuantumOrb's restricted code.
-- Add a new optional, read-only Solana intelligence adapter inside the existing NEXUS application/module architecture, with source provenance, timestamps, missing-data states and no private-key or transaction-signing capability.
-- Phase 1: direct Solana JSON-RPC snapshot — validate mint address; read mint/freeze authority and supply; inspect largest token accounts; resolve owners; compute concentration with explicit limits and manually/protocol-verified pool exclusions. Label it a partial top-account sample, not a complete holder census.
-- Phase 2: optional external RugCheck/GoPlus data with response-schema validation, rate-limit handling, freshness and independent source labels.
-- Phase 3: only if live launch monitoring is required, evaluate a licensed Yellowstone gRPC parser/provider and a bounded event pipeline. Wallet clustering and first-buyer history require additional historical indexing; they are not delivered by the Phase-1 CLI.
-- Keep this module isolated from Mining, Wallet signing and CORE lifecycle-critical startup. Register it as an optional service and do not claim a token is safe solely from a numeric score.
+- CORE adapters are intentionally local/read-only; presence and runtime registration do not prove operational validation.
+- Wallet keys remain encrypted locally; wallet manager does not return private keys/WIF and is not approved for material funds without independent audit.
+- Mining has two separate process managers: direct `mining.controller` and `HybridSupervisor`. No shared arbitration check was found. Add a regression test and common arbiter before automatic switching.
+- EVM telemetry does not resolve DNS names to reject private/link-local/reserved destinations; add this hardening before non-local deployment.
+- QuantumOrb/QuantOrb is all-rights-reserved and must not be copied/merged into NEXUS without written permission. MIT candidate references and a read-only Solana intelligence integration plan are recorded in the preceding checkpoint.
 
 ## Exact next actions
 
-1. Continue the 78-file delta review by logical groups, beginning with EDGE gateway/transports and then packaging/versioning/workflows.
-2. Prepare a focused regression test for cross-path mining process arbitration; do not change execution paths until test design is agreed and behavior is verified.
-3. Review EVM DNS resolution and local API authentication assumptions; keep desktop service loopback-only.
-4. If proceeding with Solana intelligence, implement Phase 1 inside the existing NEXUS module structure using only compatible, licensed code or an independent implementation; no QuantumOrb code reuse.
-5. Recheck branch tip, integration base, PR list and CI immediately before preparing a PR to `integration/source-import-safe-0.10.25`. Do not target or merge into `main` without explicit approval.
-6. External validation still required: Windows 11 interactive launch, ESP32-C5 firmware/board/HIL, live MQTT/TLS and provider adapters, backup/restore.
-7. The user says a shared conversation was added to the NEXUS folder. The Library `/NEXUS` listing and searches by share ID / “QuantumOrb” did not identify a new conversation file. Ask for its exact filename if it remains unavailable; do not infer its contents.
+1. Finish review of the 78-file delta, focusing on remaining package/version/workflow changes and the complete `nexus_master.py` API surface.
+2. Correct the stale legacy installer/version metadata and stale CI provenance in a separate, narrowly scoped change; rerun CI and package workflow afterward.
+3. Add a focused test and shared arbitration design for the direct mining controller versus HybridSupervisor; do not enable unattended switching before it passes.
+4. Add EVM DNS/address validation before enabling EVM telemetry in less-trusted deployments.
+5. Recheck branch tip, integration base, PR list and CI immediately before PR preparation. Target `integration/source-import-safe-0.10.25` only; do not target or merge into `main` without explicit approval.
+6. External validation remains required: Windows 11 interactive launch, ESP32-C5 firmware/board/HIL, live MQTT/TLS and provider adapters, backup/restore.
+7. The shared conversation added to the NEXUS folder still was not identifiable by Library listing or searches for the share ID / “QuantumOrb”. Ask for the exact filename if it remains unavailable; do not infer its contents.
+
+---
 
 ---
 
