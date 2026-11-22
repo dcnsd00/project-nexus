@@ -1,61 +1,42 @@
-# Current continuation checkpoint — 2026-11-19
+# Current continuation checkpoint — 2026-11-22
 
-This section supersedes earlier branch/version/test snapshots below. Retain the older entries as historical evidence; do not treat them as current instructions.
+This section supersedes the 2026-11-19 checkpoint below. Preserve older entries as historical evidence.
 
-## Canonical working state
+## Verified repository state
 
 - Repository: `dcnsd00/project-nexus`
 - Active branch: `feature/edge-replay-protection-sqlite-v1`
-- HEAD: `5bd6133e4eeeb2629a7641a45fa528d29f2af07b`
-- Integration target: `integration/source-import-safe-0.10.25`, HEAD `30210464088ff51c32cabda90ae56b6a9ce20bc8`.
-- Active branch compared with integration target: `ahead`, 291 commits ahead, 0 behind; 73 changed files in the GitHub comparison. Review and integrate through a pull request; do not merge into `main`.
-- `main` HEAD: `529072b777d010ac47711dd6c821b30fef7ecdf9`, untouched by this work. Active branch compared with main: 441 commits ahead, 0 behind.
-- No pull request from this active branch to the integration target existed at this checkpoint.
+- Verified branch HEAD: `d5d84ef6ad1d934ccfb9467f811fe3e640f0cf2b`
+- HEAD commit: `docs(release): replace stale README with 0.10.26 package guidance` (2026-11-19T20:18:54Z); documentation-only change.
+- Parent: `6458947ef75695de3701a3a5bdf8bdbd8a1b25fa`.
+- Integration target: `integration/source-import-safe-0.10.25`, comparison base `30210464088ff51c32cabda90ae56b6a9ce20bc8`.
+- GitHub compare: active branch 307 commits ahead, 0 behind; 73 changed files. This is a review backlog, not approval to merge.
+- No open pull requests were returned by the repository open-PR query at this checkpoint.
+- No source-code modifications were made during this checkpoint.
 
-## Last completed implementation increment
+## CI evidence for verified HEAD
 
-- Added explicit EDGE protocol version 1 to canonical HMAC-signed heartbeat, node-request, task-result and telemetry messages.
-- HTTPS envelope requires strict integer version 1; missing, bool and unsupported versions are rejected.
-- MQTT uplink requires the version field and rejects missing/unsupported versions before manager authentication.
-- Updated signed-message fixtures across manager, persistence, runtime, SQLite store, transport and master integration tests.
-- Added regression coverage for HTTPS and MQTT unsupported/missing version handling.
-- Commits: `288dfa2f9f2c63ab82f5577ea4dfb1cf710c9b96` (implementation and broad fixture update), `19b05631844fd8ed9f514856df11d30f1d0370a8` (HTTPS request fixture correction), `5bd6133e4eeeb2629a7641a45fa528d29f2af07b` (task-result fixture correction).
+- NEXUS CI run [44607394324](https://github.com/dcnsd00/project-nexus/actions/runs/44607394324): `source-detection`, `python-tests`, and `windows-compatibility` jobs completed successfully.
+- Windows Desktop Package run [44607394143](https://github.com/dcnsd00/project-nexus/actions/runs/44607394143): `windows-frozen-desktop` completed successfully, including frozen executable self-test and one-click package assembly/upload steps.
+- These are hosted CI results. They do not prove interactive launch on the user's Windows 11 laptop, live pool/provider operation, or physical ESP32-C5 behavior.
 
-## Verified CI evidence for the current HEAD
+## EDGE focused concurrency/persistence review
 
-- [NEXUS CI run 44492144115](https://github.com/dcnsd00/project-nexus/actions/runs/44492144115): source detection PASS; Linux Python suite **624 passed, 1 warning, 10 subtests passed**; Windows compatibility **623 passed, 1 skipped, 1 warning, 10 subtests passed**. The specialist suites also passed (module 17, filesystem 12, wallet 15, wallet v05 7).
-- [NEXUS Windows Desktop Package run 44492144055](https://github.com/dcnsd00/project-nexus/actions/runs/44492144055): compile/package checks PASS; 3 desktop packaging tests passed; PyInstaller build succeeded; frozen executable `--self-test` passed; one-click installer installation/smoke test passed; artifact `NEXUS_MASTER_0.10.26_WINDOWS_INSTALLER`, artifact ID `14513826094`, uploaded successfully.
-- Installer validation used `-NoLaunch`: the desktop UI was not interactively launched on a user's device. Hosted CI is not a substitute for Windows 11 laptop or physical hardware validation.
+- Reviewed current `application/nexus_edge/manager.py`, `sqlite_store.py`, `replay_guard.py`, `runtime_lock.py`, and persistence/runtime-lock test suites.
+- In-process manager operations are serialized by the manager's `RLock`.
+- SQLite snapshot writes use `BEGIN IMMEDIATE` with commit/rollback. Failed snapshot persistence reloads the last committed DB snapshot into in-memory manager state; regression test `test_manager_reconciles_memory_after_persistence_failure` covers this. Store rollback is covered by `test_failed_snapshot_write_rolls_back_previous_state`.
+- Telemetry persistence advances the per-node sequence and appends the telemetry event in one SQLite write transaction. Concurrent replay acceptance has a dedicated atomicity test.
+- Standard runtime entry points inspected (MASTER adapter, gateway and MQTT runtime) acquire and own the cross-process `EdgeRuntimeLock`; tests cover process exclusion and lock lifecycle.
+- Deployment remains single-host / single-runtime per EDGE database. Direct low-level construction of `EdgeManager(store=...)` does not itself acquire the process lock; callers must use the guarded runtime factories. Do not claim general multi-process or multi-worker safety.
+- Review found no evidence-backed code defect requiring a patch at this stage. This was a static source/test review; no local test suite was executed during this checkpoint.
 
-## EDGE implementation inventory at this checkpoint
+## Exact next actions
 
-- Host-side source is implemented and CI-tested: shared LifecycleManager adapter, shared manager injection, scheduler/task leases/results, SQLite store schema v4, encrypted node secrets, offline key rotation, persistent replay guard, authenticated/idempotent telemetry, operator APIs, opt-in HTTPS gateway and MQTTS bridge, deployment-topology guard (single-server SQLite only), dashboard/CLI status surfaces.
-- Runtime integration tests verify the same manager is used by NEXUS MASTER and the HTTP/MQTT adapters; external network adapters remain opt-in and fail closed without durable encryption and operator credentials.
-- SQLite deployment is a single-host pilot. Multi-server primary/standby and active-active modes are deliberately rejected. Multiple independent manager processes/workers sharing a single SQLite DB have not been validated; do not deploy that topology.
-- Not externally validated: ESP32-C5 firmware/sequence persistence, physical NM-CYD-C5 board revision and pinout, HIL power-loss/reconnect/range tests, real MQTT broker/TLS certificates, provider-specific ChirpStack/The Things Stack and IoT vendor adapters, public TLS/rate-limit/firewall/backup restore drill, user laptop GUI launch.
-
-## Historical branch reconciliation
-
-- `feature/edge-persistence-protocol-v1` contains an earlier storage/keyring proposal and protocol document; do not merge the branch wholesale. Its protocol-version requirement has been ported to the current implementation. Its older persistence module is superseded by `application/nexus_edge/sqlite_store.py` (schema v4, Fernet-encrypted credentials, tasks, telemetry and replay sequence storage).
-- `feature/nexus-edge-foundation` contains the original package under repository-root `nexus_edge/`; the maintained implementation is now `application/nexus_edge/` with master integration tests. Do not reintroduce duplicate root-level modules.
-- `feature/core-lifecycle-isolation-registry-uniqueness` was merged by PR #3 into the integration line; preserve the lifecycle/registry changes already present in the source baseline.
-- Historical `integration/import-0.10.25` and `integration/nexus-master-0.10.25` branches are not current working branches. Do not merge/delete them without checking current heads and unique commits first.
-
-## Next engineering steps — resume here, not from step 1
-
-1. Recheck current active HEAD and CI before any write. The current code/test increment is complete and green; do not redo it.
-2. Complete a focused concurrency review for SQLite snapshot persistence. The runtime is a single-manager/single-process design; add an explicit process-level guard or preserve the one-process deployment constraint with tests before claiming multi-worker safety.
-3. Reconcile/repair only evidence-backed defects from that review; run GitHub CI again after any code change.
-4. Review the 73-file/7,884-addition/198-deletion delta against `integration/source-import-safe-0.10.25`, open a pull request to that integration target, and resolve all CI/review issues. Do not target `main` and do not perform a blind merge.
-5. After integration, separately plan and validate physical ESP32-C5 firmware, broker/vendor connectors, TLS deployment hardening and the user's Windows 11 runtime/UI.
-6. At every checkpoint, update this section's HEAD, CI run IDs/results, open PR, unresolved gates and exact next action. Keep the historical log below intact.
-
-## Status vocabulary
-
-- `IMPLEMENTED`: source exists and behavior is coded.
-- `CI-TESTED`: named hosted CI jobs passed on the exact commit.
-- `RUNTIME-INTEGRATED`: shared NEXUS runtime/contract tests verify the connection.
-- `EXTERNALLY-VALIDATED`: confirmed against user's Windows device, physical node, live broker/provider or public deployment. Do not upgrade to this label from hosted CI alone.
+1. Review the 73-file delta against `integration/source-import-safe-0.10.25` in logical groups, checking ownership, duplication, safety boundaries and test evidence.
+2. Confirm integration branch HEAD and CI again immediately before any PR.
+3. Prepare a PR to `integration/source-import-safe-0.10.25` only after the delta review; do not target or merge into `main` without explicit approval.
+4. Separately plan external validation: Windows 11 laptop launch, ESP32-C5 firmware/board/HIL, live MQTT/TLS and vendor adapters, deployment hardening and backup/restore.
+5. The user supplied a ChatGPT shared-conversation URL on 2026-11-22, but its content could not be fetched in this session. Do not infer its decisions; incorporate them only after the transcript/export is provided.
 
 ---
 
