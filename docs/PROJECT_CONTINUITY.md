@@ -1,42 +1,64 @@
-# Current continuation checkpoint — 2026-11-22
+# Current continuation checkpoint — 2026-11-22 (CORE + mining audit)
 
-This section supersedes the 2026-11-19 checkpoint below. Preserve older entries as historical evidence.
+This section supersedes the earlier 2026-11-22 EDGE-only checkpoint and the 2026-11-19 historical checkpoint below. Preserve older entries as historical evidence.
 
 ## Verified repository state
 
 - Repository: `dcnsd00/project-nexus`
 - Active branch: `feature/edge-replay-protection-sqlite-v1`
-- Verified branch HEAD: `d5d84ef6ad1d934ccfb9467f811fe3e640f0cf2b`
-- HEAD commit: `docs(release): replace stale README with 0.10.26 package guidance` (2026-11-19T20:18:54Z); documentation-only change.
-- Parent: `6458947ef75695de3701a3a5bdf8bdbd8a1b25fa`.
-- Integration target: `integration/source-import-safe-0.10.25`, comparison base `30210464088ff51c32cabda90ae56b6a9ce20bc8`.
-- GitHub compare: active branch 307 commits ahead, 0 behind; 73 changed files. This is a review backlog, not approval to merge.
-- No open pull requests were returned by the repository open-PR query at this checkpoint.
-- No source-code modifications were made during this checkpoint.
+- Verified pre-checkpoint HEAD: `532a200cbdee6c76b9639ec71fea71f64053d7cf` (the prior continuity-document update).
+- Previous source HEAD audited: `d5d84ef6ad1d934ccfb9467f811fe3e640f0cf2b`.
+- Integration target: `integration/source-import-safe-0.10.25`, base `30210464088ff51c32cabda90ae56b6a9ce20bc8`.
+- Compare measured before this checkpoint commit: 308 commits ahead, 0 behind, 73 changed files.
+- No application source-code modifications made during this stage. Only continuity documentation is being updated.
+- Open PR query returned no open PRs at the time of the previous checkpoint; recheck before creating any PR.
 
-## CI evidence for verified HEAD
+## CORE and module integration audit
 
-- NEXUS CI run [44607394324](https://github.com/dcnsd00/project-nexus/actions/runs/44607394324): `source-detection`, `python-tests`, and `windows-compatibility` jobs completed successfully.
-- Windows Desktop Package run [44607394143](https://github.com/dcnsd00/project-nexus/actions/runs/44607394143): `windows-frozen-desktop` completed successfully, including frozen executable self-test and one-click package assembly/upload steps.
-- These are hosted CI results. They do not prove interactive launch on the user's Windows 11 laptop, live pool/provider operation, or physical ESP32-C5 behavior.
+Files reviewed: `application/modules/lifecycle_manager.py`, `module_registry.py`, `nexus_runtime.py`, `application/nexus_master.py`, `core/PROJECT-NEXUS-LOCAL/app/main.py`, relevant lifecycle/runtime tests.
 
-## EDGE focused concurrency/persistence review
+- LifecycleManager provides dependency ordering, startup rollback, optional-service isolation, and reverse shutdown.
+- Module Registry deliberately distinguishes source presence, route registration and runtime registration; it explicitly does not claim operational verification.
+- Runtime composition starts local read-only adapters. Wallet adapter does not unlock keys; MiningSupervisor adapter does not start workers; provider probes do not open live provider connections.
+- Crypto Engine self-tests SHA-256 and SHA-256d. These primitives are not a coin-specific PoW miner.
+- Runtime telemetry, Bitcoin node telemetry and EVM telemetry are exposed through separate API routes and are not LifecycleManager services; this is an explicit integration surface to assess, not automatically a defect.
+- Desktop launcher binds Uvicorn to `127.0.0.1` and selects only loopback ports. The base FastAPI app itself contains task/note/agent/approval and additional API routes without visible authentication middleware in the inspected `main.py`; this is acceptable only under the documented local-only deployment assumption. Do not expose it on LAN/public interfaces without an authentication/CSRF review.
 
-- Reviewed current `application/nexus_edge/manager.py`, `sqlite_store.py`, `replay_guard.py`, `runtime_lock.py`, and persistence/runtime-lock test suites.
-- In-process manager operations are serialized by the manager's `RLock`.
-- SQLite snapshot writes use `BEGIN IMMEDIATE` with commit/rollback. Failed snapshot persistence reloads the last committed DB snapshot into in-memory manager state; regression test `test_manager_reconciles_memory_after_persistence_failure` covers this. Store rollback is covered by `test_failed_snapshot_write_rolls_back_previous_state`.
-- Telemetry persistence advances the per-node sequence and appends the telemetry event in one SQLite write transaction. Concurrent replay acceptance has a dedicated atomicity test.
-- Standard runtime entry points inspected (MASTER adapter, gateway and MQTT runtime) acquire and own the cross-process `EdgeRuntimeLock`; tests cover process exclusion and lock lifecycle.
-- Deployment remains single-host / single-runtime per EDGE database. Direct low-level construction of `EdgeManager(store=...)` does not itself acquire the process lock; callers must use the guarded runtime factories. Do not claim general multi-process or multi-worker safety.
-- Review found no evidence-backed code defect requiring a patch at this stage. This was a static source/test review; no local test suite was executed during this checkpoint.
+## Wallet and cryptographic security audit
+
+- `CryptoSecurity` uses AES-256-GCM / ChaCha20-Poly1305, HKDF-SHA256 and Ed25519 from the `cryptography` package, with input-size and parameter checks.
+- `CryptoEngine` labels experimental composites as non-consensus and SHA-256d as Bitcoin-style double SHA-256; benchmark output is explicitly not PoW hashrate.
+- Wallet manager encrypts local keystore material using scrypt + AES-GCM and does not return private keys/WIF from unlock endpoints. Its response explicitly warns that the local wallet is not independently audited for material funds.
+- Wallet endpoints do not show a router-level authentication dependency in the inspected file; retain loopback-only deployment and audit browser-origin/CSRF exposure before network exposure.
+
+## Mining integration audit — findings requiring design follow-up
+
+- There are two distinct process-control paths:
+  1. `mining.controller` launches and tracks a single direct miner process.
+  2. `HybridSupervisor` launches separate CPU/GPU worker processes with heartbeat, bounded shutdown and rollback support.
+- Both are reachable through separate API families: `/api/mining/start|stop` and `/api/mining/hybrid/*`.
+- The inspected hybrid launch validation checks inventory, pool/algorithm/device compatibility and GPU resource state. However, no shared process-arbitration lock or mutual-exclusion check between the direct controller and HybridSupervisor was found in the inspected call paths. This creates a potential duplicate/conflicting miner launch if both API families are used concurrently. Treat as a verified architectural gap to test and resolve before enabling unattended/automatic switching; no runtime collision was executed in this audit.
+- Backend discovery and capability registry are evaluation-only; discovered binaries do not prove accepted shares, profitability or live pool compatibility.
+- Automatic mining switching is disabled by default and requires explicit process-level opt-in plus verified source adapters.
+- No source code was changed and no local tests were run in this stage. Existing hosted CI evidence remains attached to the previously verified `d5d84ef...` commit, not to this documentation checkpoint.
+
+## EVM telemetry security note
+
+- `evm_node_telemetry._validate_endpoint` rejects non-HTTPS, embedded credentials, obvious local names and literal non-global IP addresses.
+- DNS hostnames are not resolved and checked against private/link-local/reserved address ranges before the request. Because the endpoint is environment-configured (not a request parameter), this is a configuration hardening gap rather than a demonstrated remote exploit. Add DNS resolution/address validation and pin/verify the resolved destination if this adapter is ever used in a less-trusted deployment.
+- Existing tests cover HTTP, localhost, .local and literal loopback rejection, not DNS names resolving to private addresses.
 
 ## Exact next actions
 
-1. Review the 73-file delta against `integration/source-import-safe-0.10.25` in logical groups, checking ownership, duplication, safety boundaries and test evidence.
-2. Confirm integration branch HEAD and CI again immediately before any PR.
-3. Prepare a PR to `integration/source-import-safe-0.10.25` only after the delta review; do not target or merge into `main` without explicit approval.
-4. Separately plan external validation: Windows 11 laptop launch, ESP32-C5 firmware/board/HIL, live MQTT/TLS and vendor adapters, deployment hardening and backup/restore.
-5. The user supplied a ChatGPT shared-conversation URL on 2026-11-22, but its content could not be fetched in this session. Do not infer its decisions; incorporate them only after the transcript/export is provided.
+1. Continue reviewing the remaining changed files in logical groups: mining launch safety and pool metadata; telemetry/security; EDGE transport and gateway; packaging/versioning/docs.
+2. Add a regression test for direct-controller versus HybridSupervisor mutual exclusion before changing either execution path.
+3. Review EVM DNS resolution policy and local API authentication assumptions; do not expose the desktop server beyond loopback.
+4. Confirm the current branch tip and integration base again before PR preparation.
+5. Review all 73 changed files and their tests; only then prepare a PR to `integration/source-import-safe-0.10.25`. Do not target or merge into `main` without explicit approval.
+6. External validation still required: Windows 11 interactive launch, ESP32-C5 firmware/board/HIL, live MQTT/TLS and provider adapters, backup/restore.
+7. The user says a shared conversation was added to the NEXUS folder. At the time of this check, `/NEXUS` Library listing did not contain a new conversation file and searches for its share ID / “QuantumOrb” did not identify it. Ask for the exact filename if it remains unavailable; do not infer its contents.
+
+---
 
 ---
 
