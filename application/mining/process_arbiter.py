@@ -11,6 +11,7 @@ while an orphaned miner is still alive.
 from __future__ import annotations
 
 import errno
+import hashlib
 import json
 import os
 import threading
@@ -48,6 +49,7 @@ class MiningProcessArbiter:
         ).resolve()
         self._file: BinaryIO | None = None
         self._owner: str | None = None
+        self._mutex_handle = None
         self._guard = threading.RLock()
 
     @property
@@ -67,24 +69,64 @@ class MiningProcessArbiter:
             handle.flush()
         handle.seek(0)
         if os.name == "nt":
-            import msvcrt
+            import ctypes
+            from ctypes import wintypes
 
-            msvcrt.locking(handle.fileno(), msvcrt.LK_NBLCK, 1)
+            kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+            kernel32.CreateMutexW.argtypes = (
+                wintypes.LPVOID, wintypes.BOOL, wintypes.LPCWSTR,
+            )
+            kernel32.CreateMutexW.restype = wintypes.HANDLE
+            kernel32.WaitForSingleObject.argtypes = (wintypes.HANDLE, wintypes.DWORD)
+            kernel32.WaitForSingleObject.restype = wintypes.DWORD
+            kernel32.CloseHandle.argtypes = (wintypes.HANDLE,)
+            kernel32.CloseHandle.restype = wintypes.BOOL
+
+            identity = hashlib.sha256(
+                str(self.path).casefold().encode("utf-8")
+            ).hexdigest()
+            mutex_name = "Local\\NEXUS_MINING_RUNTIME_" + identity
+            mutex_handle = kernel32.CreateMutexW(None, False, mutex_name)
+            if not mutex_handle:
+                raise ctypes.WinError(ctypes.get_last_error())
+
+            wait_result = kernel32.WaitForSingleObject(mutex_handle, 0)
+            if wait_result in (0x00000000, 0x00000080):  # WAIT_OBJECT_0 / WAIT_ABANDONED
+                self._mutex_handle = mutex_handle
+                return
+
+            kernel32.CloseHandle(mutex_handle)
+            if wait_result == 0x00000102:  # WAIT_TIMEOUT
+                raise BlockingIOError(errno.EAGAIN, "NEXUS mining runtime is already locked")
+            raise ctypes.WinError(ctypes.get_last_error())
         else:
             import fcntl
 
             fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
 
-    @staticmethod
-    def _unlock_os_file(handle: BinaryIO) -> None:
-        handle.seek(0)
+    def _unlock_os_file(self, handle: BinaryIO) -> None:
         if os.name == "nt":
-            import msvcrt
+            import ctypes
+            from ctypes import wintypes
 
-            msvcrt.locking(handle.fileno(), msvcrt.LK_UNLCK, 1)
+            mutex_handle = self._mutex_handle
+            if mutex_handle is None:
+                return
+            kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+            kernel32.ReleaseMutex.argtypes = (wintypes.HANDLE,)
+            kernel32.ReleaseMutex.restype = wintypes.BOOL
+            kernel32.CloseHandle.argtypes = (wintypes.HANDLE,)
+            kernel32.CloseHandle.restype = wintypes.BOOL
+            released = kernel32.ReleaseMutex(mutex_handle)
+            error_code = ctypes.get_last_error()
+            kernel32.CloseHandle(mutex_handle)
+            self._mutex_handle = None
+            if not released:
+                raise ctypes.WinError(error_code)
         else:
             import fcntl
 
+            handle.seek(0)
             fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
 
     @staticmethod
