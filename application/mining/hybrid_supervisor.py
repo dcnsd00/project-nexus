@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Any
 
 from modules.data_paths import data_path
+from mining.process_arbiter import MINING_PROCESS_ARBITER, process_is_alive
 
 
 _VALID_MODES = {'standard', 'development'}
@@ -27,6 +28,29 @@ class HybridSupervisor:
         self._mode_state = 'stopped'
         self._workers: dict[str, dict[str, Any]] = {}
         self._restart_policy = {'enabled': False, 'max_restarts': 0}
+        self._arbiter_owner = f'hybrid-supervisor:{os.getpid()}:{id(self)}'
+        self._arbiter_acquired = False
+        self._switching: set[str] = set()
+
+    def _sync_arbiter(self, release_when_idle: bool = True) -> None:
+        if not self._arbiter_acquired:
+            return
+        pids: set[int] = set()
+        for item in self._workers.values():
+            process = item.get('process')
+            if process is not None and process.poll() is None:
+                pids.add(int(process.pid))
+            try:
+                status_data = json.loads(item['status_path'].read_text(encoding='utf-8'))
+            except (OSError, ValueError, TypeError):
+                status_data = {}
+            child_pid = status_data.get('miner_pid')
+            if isinstance(child_pid, int) and process_is_alive(child_pid):
+                pids.add(child_pid)
+        MINING_PROCESS_ARBITER.update_processes(self._arbiter_owner, pids)
+        if release_when_idle and not pids and not self._switching:
+            MINING_PROCESS_ARBITER.release(self._arbiter_owner)
+            self._arbiter_acquired = False
 
     def active_mode(self) -> str | None:
         with self._lock:
@@ -56,6 +80,12 @@ class HybridSupervisor:
                     return result
             elif self._mode != mode:
                 return {'started': False, 'error': 'mode_conflict', 'active_mode': self._mode}
+            requested_engines = [engine for engine in ('cpu', 'gpu') if plan.get(engine) is not None]
+            if requested_engines and not self._arbiter_acquired:
+                if not MINING_PROCESS_ARBITER.acquire(self._arbiter_owner):
+                    return {'started': False, 'error': 'mining_runtime_busy',
+                            'message': 'O altă cale de minare NEXUS deține deja sesiunea acestui calculator.'}
+                self._arbiter_acquired = True
             if restart_policy is None:
                 self._restart_policy = {'enabled': False, 'max_restarts': 0}
             if restart_policy and restart_policy.get('enabled'):
@@ -76,6 +106,7 @@ class HybridSupervisor:
                     started.append(engine)
                 except Exception as exc:
                     errors[engine] = f'{type(exc).__name__}: {exc}'
+            self._sync_arbiter(release_when_idle=not bool(started))
             return {'started': bool(started), 'mode': self._mode, 'started_engines': started, 'errors': errors,
                     'restart_policy': dict(self._restart_policy)}
 
@@ -110,8 +141,9 @@ class HybridSupervisor:
         worker_log.close()
         self._workers[engine] = {'process': process, 'status_path': status_path, 'stop_path': stop_path,
                                  'request': req, 'runtime': runtime, 'started_at': time.time(), 'restart_count': restart_count}
+        self._sync_arbiter(release_when_idle=False)
 
-    def stop(self, engine: str | None = None) -> dict:
+    def stop(self, engine: str | None = None, *, release_lease: bool = True) -> dict:
         with self._lock:
             targets = [engine] if engine else list(self._workers)
             if any(x not in _VALID_ENGINES for x in targets):
@@ -158,6 +190,7 @@ class HybridSupervisor:
                 self._mode = None
                 self._mode_state = 'stopped'
                 self._workers = {}
+            self._sync_arbiter(release_when_idle=release_lease)
             return {'stopped': all(v == 'stopped' for v in results.values()), 'engines': results,
                     'active_mode': self._mode}
 
@@ -181,20 +214,23 @@ class HybridSupervisor:
             previous = self._workers.get(engine, {}).get('request')
             if previous is None:
                 return {'switched': False, 'error': 'no_active_worker_to_replace'}
-            self.stop(engine)
+            self._switching.add(engine)
+            self.stop(engine, release_lease=False)
             try:
                 self._launch(engine, request)
                 deadline = time.time() + max(2.0, min(float(startup_timeout), 30.0))
                 while time.time() < deadline:
                     state = self.status(read_only=True)['engines'][engine]['state']
                     if state == 'running':
+                        self._switching.discard(engine)
+                        self._sync_arbiter(release_when_idle=False)
                         return {'switched': True, 'engine': engine,
                                 'coin': request.get('coin'), 'algorithm': request.get('algorithm'),
                                 'rolled_back': False}
                     if state == 'failed':
                         break
                     time.sleep(.1)
-                self.stop(engine)
+                self.stop(engine, release_lease=False)
                 raise RuntimeError('candidate_worker_failed_startup')
             except Exception as exc:
                 rolled_back = False
@@ -211,6 +247,8 @@ class HybridSupervisor:
                         time.sleep(.1)
                 except Exception:
                     rolled_back = False
+                self._switching.discard(engine)
+                self._sync_arbiter(release_when_idle=True)
                 return {'switched': False, 'engine': engine,
                         'error': f'{type(exc).__name__}: {exc}', 'rolled_back': rolled_back}
 
@@ -224,7 +262,8 @@ class HybridSupervisor:
                 return {'switched': False, 'error': 'backend_unavailable'}
             previous = self._workers.get('gpu', {}).get('request')
             cpu_pid = self._workers.get('cpu', {}).get('process').pid if self._workers.get('cpu') else None
-            self.stop('gpu')
+            self._switching.add('gpu')
+            self.stop('gpu', release_lease=False)
             try:
                 self._launch('gpu', request)
                 deadline = time.time() + 4
@@ -235,6 +274,8 @@ class HybridSupervisor:
                         running_since = running_since or time.time()
                         if time.time() - running_since >= 1.5:
                             current_cpu = self._workers.get('cpu', {}).get('process').pid if self._workers.get('cpu') else None
+                            self._switching.discard('gpu')
+                            self._sync_arbiter(release_when_idle=False)
                             return {'switched': True, 'mode': self._mode, 'cpu_pid_unchanged': current_cpu == cpu_pid,
                                     'gpu_state': 'running'}
                     else:
@@ -242,7 +283,7 @@ class HybridSupervisor:
                     if state == 'failed':
                         break
                     time.sleep(.05)
-                self.stop('gpu')
+                self.stop('gpu', release_lease=False)
                 raise RuntimeError('candidate_gpu_worker_failed_to_start')
             except Exception as exc:
                 rolled_back = False
@@ -260,6 +301,8 @@ class HybridSupervisor:
                             time.sleep(.05)
                     except Exception:
                         pass
+                self._switching.discard('gpu')
+                self._sync_arbiter(release_when_idle=True)
                 return {'switched': False, 'error': f'{type(exc).__name__}: {exc}', 'rolled_back': rolled_back,
                         'cpu_pid_unchanged': (self._workers.get('cpu', {}).get('process').pid if self._workers.get('cpu') else None) == cpu_pid}
 
@@ -311,5 +354,6 @@ class HybridSupervisor:
                 mode_state = 'running'
             else:
                 mode_state = 'degraded'
+            self._sync_arbiter(release_when_idle=True)
             return {'mode': self._mode, 'mode_state': mode_state, 'engines': engines,
                     'restart_policy': dict(self._restart_policy)}
