@@ -11,7 +11,6 @@ while an orphaned miner is still alive.
 from __future__ import annotations
 
 import errno
-import ctypes
 import json
 import os
 import threading
@@ -49,7 +48,7 @@ class MiningProcessArbiter:
         ).resolve()
         self._file: BinaryIO | None = None
         self._owner: str | None = None
-        self._win_overlapped = None
+        self._win_locked = False
         self._guard = threading.RLock()
 
     @property
@@ -70,37 +69,14 @@ class MiningProcessArbiter:
         handle.seek(0)
         if os.name == "nt":
             import msvcrt
-            from ctypes import wintypes
 
-            class OVERLAPPED(ctypes.Structure):
-                _fields_ = [
-                    ("Internal", ctypes.c_size_t),
-                    ("InternalHigh", ctypes.c_size_t),
-                    ("Offset", wintypes.DWORD),
-                    ("OffsetHigh", wintypes.DWORD),
-                    ("hEvent", wintypes.HANDLE),
-                ]
-
-            kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
-            kernel32.LockFileEx.argtypes = (
-                wintypes.HANDLE, wintypes.DWORD, wintypes.DWORD,
-                wintypes.DWORD, wintypes.DWORD, ctypes.POINTER(OVERLAPPED),
-            )
-            kernel32.LockFileEx.restype = wintypes.BOOL
-
-            overlapped = OVERLAPPED()
-            os_handle = wintypes.HANDLE(msvcrt.get_osfhandle(handle.fileno()))
-            flags = 0x00000002 | 0x00000001  # EXCLUSIVE_LOCK | FAIL_IMMEDIATELY
-            locked = kernel32.LockFileEx(
-                os_handle, flags, 0, 1, 0, ctypes.byref(overlapped)
-            )
-            if not locked:
-                error_code = ctypes.get_last_error()
-                if error_code in (32, 33):  # sharing violation / lock violation
-                    raise BlockingIOError(errno.EAGAIN, "NEXUS mining runtime is already locked")
-                raise ctypes.WinError(error_code)
-            # Store the OVERLAPPED record for the matching UnlockFileEx call.
-            self._win_overlapped = (OVERLAPPED, overlapped)
+            try:
+                msvcrt.locking(handle.fileno(), msvcrt.LK_NBLCK, 1)
+            except OSError as exc:
+                if exc.errno in (errno.EACCES, errno.EAGAIN, errno.EDEADLK):
+                    raise BlockingIOError(errno.EAGAIN, "NEXUS mining runtime is already locked") from exc
+                raise
+            self._win_locked = True
         else:
             import fcntl
 
@@ -109,25 +85,12 @@ class MiningProcessArbiter:
     def _unlock_os_file(self, handle: BinaryIO) -> None:
         if os.name == "nt":
             import msvcrt
-            from ctypes import wintypes
 
-            if self._win_overlapped is None:
+            if not self._win_locked:
                 return
-            overlapped_type, overlapped = self._win_overlapped
-            kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
-            kernel32.UnlockFileEx.argtypes = (
-                wintypes.HANDLE, wintypes.DWORD, wintypes.DWORD,
-                wintypes.DWORD, ctypes.POINTER(overlapped_type),
-            )
-            kernel32.UnlockFileEx.restype = wintypes.BOOL
-            os_handle = wintypes.HANDLE(msvcrt.get_osfhandle(handle.fileno()))
-            unlocked = kernel32.UnlockFileEx(
-                os_handle, 0, 1, 0, ctypes.byref(overlapped)
-            )
-            error_code = ctypes.get_last_error()
-            self._win_overlapped = None
-            if not unlocked:
-                raise ctypes.WinError(error_code)
+            handle.seek(0)
+            msvcrt.locking(handle.fileno(), msvcrt.LK_UNLCK, 1)
+            self._win_locked = False
         else:
             import fcntl
 
