@@ -341,7 +341,16 @@ def test_bip39_checksum_and_one_missing_word_api_returns_only_missing_word():
         })
         assert checked.status_code == 200, checked.text
         assert checked.json()["mnemonic_checksum_valid"] is True
+        assert checked.json()["status"] == "CHECKSUM_VALID"
         assert checked.json()["seed_exported"] is False
+
+        invalid = c.post("/api/wallet/recovery/bip39/check", json={
+            "mnemonic": "abandon " * 12, "language": "english",
+            "owner_authorized": True
+        })
+        assert invalid.status_code == 200, invalid.text
+        assert invalid.json()["mnemonic_checksum_valid"] is False
+        assert invalid.json()["status"] == "CHECKSUM_INVALID"
 
         partial = " ".join(phrase.split()[:-1] + ["?"])
         recovered = c.post("/api/wallet/recovery/bip39/one-missing", json={
