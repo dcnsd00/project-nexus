@@ -157,7 +157,7 @@ jobs:
           $env:NEXUS_NATIVE_COMPILER = "msvc"
           Push-Location $Root
           try {
-            python -m pytest -q --disable-warnings --maxfail=1
+            python -m pytest -vv --full-trace --disable-warnings --maxfail=1
             if ($LASTEXITCODE -ne 0) { throw "NEXUS Windows test suite failed." }
           } finally {
             Pop-Location
