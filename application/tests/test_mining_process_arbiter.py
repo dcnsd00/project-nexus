@@ -1,8 +1,7 @@
 import json
+import json
 import multiprocessing
 import os
-import sys
-import time
 
 import pytest
 
@@ -114,6 +113,22 @@ def test_stale_lock_metadata_blocks_while_orphan_pid_is_alive(tmp_path):
     assert restarted.acquire("new-runtime") is False
 
 
+class _FakeHybridWorkerProcess:
+    def __init__(self, pid=987655):
+        self.pid = pid
+        self.returncode = None
+
+    def poll(self):
+        return self.returncode
+
+    def wait(self, timeout=None):
+        self.returncode = 0
+        return 0
+
+    def kill(self):
+        self.returncode = -9
+
+
 def test_direct_controller_and_hybrid_supervisor_are_mutually_exclusive(tmp_path, monkeypatch):
     from mining import controller as direct
     from mining import hybrid_supervisor as hybrid_module
@@ -128,43 +143,26 @@ def test_direct_controller_and_hybrid_supervisor_are_mutually_exclusive(tmp_path
         "accepted_shares": None, "rejected_shares": None, "gpu": {}, "system": {}, "raw_api": None,
     })
 
-    class _FakeHybridProcess:
-        def __init__(self):
-            self.pid = os.getpid()
-            self.returncode = None
+    supervisor = hybrid_module.HybridSupervisor(runtime_root=tmp_path / "hybrid-first")
 
-        def poll(self):
-            return self.returncode
-
-        def wait(self, timeout=None):
-            self.returncode = 0
-            return self.returncode
-
-        def terminate(self):
-            self.returncode = 0
-
-        def kill(self):
-            self.returncode = -9
-
-    def fake_hybrid_launch(instance, engine, request, restart_count=0):
-        runtime = instance.runtime_root / str(instance._mode) / engine
+    def fake_hybrid_launch(engine, request, restart_count=0):
+        runtime = tmp_path / "hybrid-first" / "standard" / engine
         runtime.mkdir(parents=True, exist_ok=True)
-        status_path, stop_path = runtime / "status.json", runtime / "stop"
-        process = _FakeHybridProcess()
-        status_path.write_text(json.dumps({
-            "engine": engine, "pid": process.pid, "state": "running",
-            "heartbeat_unix": time.time(), "miner_pid": None,
-        }), encoding="utf-8")
-        instance._workers[engine] = {
+        status_path = runtime / "status.json"
+        stop_path = runtime / "stop"
+        status_path.write_text(json.dumps({"state": "running", "pid": 987655}), encoding="utf-8")
+        process = _FakeHybridWorkerProcess()
+        supervisor._workers[engine] = {
             "process": process, "status_path": status_path, "stop_path": stop_path,
-            "request": dict(request), "runtime": runtime, "started_at": time.time(),
+            "request": dict(request), "runtime": runtime, "started_at": 1.0,
             "restart_count": restart_count,
         }
+        supervisor._sync_arbiter(release_when_idle=False)
 
-    monkeypatch.setattr(hybrid_module.HybridSupervisor, "_launch", fake_hybrid_launch)
-    supervisor = hybrid_module.HybridSupervisor(runtime_root=tmp_path / "hybrid-first")
-    started = supervisor.start({"cpu": {"command": ["fake-miner"]}}, mode="standard")
+    monkeypatch.setattr(supervisor, "_launch", fake_hybrid_launch)
+    started = supervisor.start({"cpu": {"command": ["fake-worker"]}}, mode="standard")
     assert started["started"] is True
+    assert started["started_engines"] == ["cpu"]
 
     with monkeypatch.context() as patch:
         patch.setattr(direct.subprocess, "Popen", _FakeMinerProcess)
@@ -179,15 +177,24 @@ def test_direct_controller_and_hybrid_supervisor_are_mutually_exclusive(tmp_path
     # HybridSupervisor must refuse to launch a second independent worker.
     monkeypatch.setattr(direct, "_proc", None)
     direct_supervisor = hybrid_module.HybridSupervisor(runtime_root=tmp_path / "direct-first")
+    launch_attempts = []
+    monkeypatch.setattr(
+        direct_supervisor, "_launch",
+        lambda *args, **kwargs: launch_attempts.append(args) or (_ for _ in ()).throw(AssertionError("worker must not launch")),
+    )
     with monkeypatch.context() as patch:
         patch.setattr(direct.subprocess, "Popen", _FakeMinerProcess)
         result = direct.start(_fake_controller_request())
     assert result["status"] == "running"
 
-    blocked = direct_supervisor.start({"cpu": {"command": ["fake-miner"]}}, mode="standard")
+    blocked = direct_supervisor.start(
+        {"cpu": {"command": ["fake-worker"]}},
+        mode="standard",
+    )
     assert blocked["started"] is False
     assert blocked["error"] == "mining_runtime_busy"
     assert direct_supervisor.status()["engines"]["cpu"]["state"] == "stopped"
+    assert launch_attempts == []
 
     direct.stop()
     direct_supervisor.stop_mode()
