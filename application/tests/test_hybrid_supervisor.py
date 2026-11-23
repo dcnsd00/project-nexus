@@ -16,7 +16,27 @@ def test_cpu_gpu_are_separate_and_independently_stoppable(tmp_path):
     while time.time() < deadline and any(x['state'] != 'running' for x in sup.status()['engines'].values()):
         time.sleep(.05)
     status = sup.status()['engines']
-    assert status['cpu']['state'] == status['gpu']['state'] == 'running', status
+    diagnostics = {
+        engine: {
+            "status": data,
+            "worker_process_log": (
+                (tmp_path / "standard" / engine / "worker-process.log").read_text(
+                    encoding="utf-8", errors="replace"
+                )[-4000:]
+                if (tmp_path / "standard" / engine / "worker-process.log").exists()
+                else None
+            ),
+            "miner_log": (
+                (tmp_path / "standard" / engine / "worker.log").read_text(
+                    encoding="utf-8", errors="replace"
+                )[-4000:]
+                if (tmp_path / "standard" / engine / "worker.log").exists()
+                else None
+            ),
+        }
+        for engine, data in status.items()
+    }
+    assert status['cpu']['state'] == status['gpu']['state'] == 'running', diagnostics
     cpu_pid = status['cpu']['pid']
     assert cpu_pid != status['gpu']['pid']
     sup.stop('gpu')
