@@ -1,3 +1,4 @@
+import json
 import multiprocessing
 import os
 import sys
@@ -80,6 +81,20 @@ def test_os_lock_is_exclusive_across_processes(tmp_path):
     assert child.exitcode == 0
 
 
+def test_arbiter_can_be_released_from_a_different_thread(tmp_path):
+    import threading
+
+    arbiter = MiningProcessArbiter(tmp_path / "thread-release.lock")
+    assert arbiter.acquire("api-start-thread") is True
+    results = []
+    thread = threading.Thread(target=lambda: results.append(arbiter.release("api-start-thread")))
+    thread.start()
+    thread.join(timeout=5)
+    assert not thread.is_alive()
+    assert results == [True]
+    assert arbiter.held is False
+
+
 def test_stale_lock_metadata_blocks_while_orphan_pid_is_alive(tmp_path):
     path = tmp_path / "mining.lock"
     arbiter = MiningProcessArbiter(path)
@@ -113,11 +128,42 @@ def test_direct_controller_and_hybrid_supervisor_are_mutually_exclusive(tmp_path
         "accepted_shares": None, "rejected_shares": None, "gpu": {}, "system": {}, "raw_api": None,
     })
 
+    class _FakeHybridProcess:
+        def __init__(self):
+            self.pid = os.getpid()
+            self.returncode = None
+
+        def poll(self):
+            return self.returncode
+
+        def wait(self, timeout=None):
+            self.returncode = 0
+            return self.returncode
+
+        def terminate(self):
+            self.returncode = 0
+
+        def kill(self):
+            self.returncode = -9
+
+    def fake_hybrid_launch(instance, engine, request, restart_count=0):
+        runtime = instance.runtime_root / str(instance._mode) / engine
+        runtime.mkdir(parents=True, exist_ok=True)
+        status_path, stop_path = runtime / "status.json", runtime / "stop"
+        process = _FakeHybridProcess()
+        status_path.write_text(json.dumps({
+            "engine": engine, "pid": process.pid, "state": "running",
+            "heartbeat_unix": time.time(), "miner_pid": None,
+        }), encoding="utf-8")
+        instance._workers[engine] = {
+            "process": process, "status_path": status_path, "stop_path": stop_path,
+            "request": dict(request), "runtime": runtime, "started_at": time.time(),
+            "restart_count": restart_count,
+        }
+
+    monkeypatch.setattr(hybrid_module.HybridSupervisor, "_launch", fake_hybrid_launch)
     supervisor = hybrid_module.HybridSupervisor(runtime_root=tmp_path / "hybrid-first")
-    started = supervisor.start(
-        {"cpu": {"command": [sys.executable, "-c", "import time; time.sleep(30)"]}},
-        mode="standard",
-    )
+    started = supervisor.start({"cpu": {"command": ["fake-miner"]}}, mode="standard")
     assert started["started"] is True
 
     with monkeypatch.context() as patch:
@@ -125,9 +171,6 @@ def test_direct_controller_and_hybrid_supervisor_are_mutually_exclusive(tmp_path
         with pytest.raises(ValueError, match="altă sesiune de minare NEXUS"):
             direct.start(_fake_controller_request())
 
-    deadline = time.time() + 5
-    while time.time() < deadline and supervisor.status()["engines"]["cpu"]["state"] != "running":
-        time.sleep(0.05)
     assert supervisor.status()["engines"]["cpu"]["state"] == "running"
     supervisor.stop_mode()
     assert arbiter.held is False
@@ -141,10 +184,7 @@ def test_direct_controller_and_hybrid_supervisor_are_mutually_exclusive(tmp_path
         result = direct.start(_fake_controller_request())
     assert result["status"] == "running"
 
-    blocked = direct_supervisor.start(
-        {"cpu": {"command": [sys.executable, "-c", "import time; time.sleep(30)"]}},
-        mode="standard",
-    )
+    blocked = direct_supervisor.start({"cpu": {"command": ["fake-miner"]}}, mode="standard")
     assert blocked["started"] is False
     assert blocked["error"] == "mining_runtime_busy"
     assert direct_supervisor.status()["engines"]["cpu"]["state"] == "stopped"
