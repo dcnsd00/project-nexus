@@ -1,3 +1,65 @@
+# Current continuation checkpoint — 2026-11-23 (native SHA-256d block-candidate correctness)
+
+This checkpoint supersedes the 2026-11-23 MASTER API audit checkpoint below for current source state. Earlier audit entries remain historical evidence.
+
+## Verified repository state before this documentation update
+
+- Repository: `dcnsd00/project-nexus`
+- Active branch: `feature/edge-replay-protection-sqlite-v1`
+- Source HEAD: `7a46d836c36a37b6210c3af120ac88eba18cf415`.
+- Integration target: `integration/source-import-safe-0.10.25`, exact base `30210464088ff51c32cabda90ae56b6a9ce20bc8`.
+- Exact GitHub comparison at source HEAD: 319 commits ahead, 0 behind, 80 changed files.
+- Latest source CI run for this source HEAD: NEXUS CI run `45121800039`, queued at checkpoint time.
+- Latest Windows package workflow run: `45121800031`, queued at checkpoint time.
+- No application test result is claimed yet for this patch. `main` remains untouched; no PR or merge was created.
+
+## Native SHA-256d scanner correctness fix
+
+Files changed:
+- `application/mining/native/miner.c`
+- `application/mining/native_sha256d.py`
+- `application/mining/bitcoin_pow_engine.py`
+- `application/tests/test_native_sha256d_021.py`
+
+Verified issue in prior implementation:
+- Native C scanner accepted the pool share target only, not the independent block target.
+- Scanner loops overwrote the previously found nonce when later share candidates appeared.
+- Python wrapper evaluated the block target only against the single nonce returned by C.
+- The Python fallback returned immediately on the first pool share, so it could also stop before a later block candidate.
+- Result: a block-valid nonce could be present in a scanned interval but be lost from the reported result if a later non-block share candidate replaced it.
+
+Patch now committed on the feature branch:
+- C ABI accepts an optional block target separately.
+- C scanner records the first share candidate and separately records the first block candidate; after joining worker threads, a block candidate is preferred.
+- Block target ordering is validated as `block_target <= share_target`, which is the expected Bitcoin mining relation.
+- Python wrapper passes the optional target buffer through ctypes.
+- Python fallback continues through the interval when a block target is supplied, returns immediately if a block candidate is found, and otherwise returns the first share candidate after the interval.
+- Regression tests cover native variant paths and Python fallback using a deterministic range where the first nonce meets block target and the final nonce meets only the easier share target; another test rejects invalid target ordering.
+
+Important validation boundary:
+- These are source changes, not yet validated by a completed CI run at checkpoint time.
+- CI must prove the C shared-library ABI, GCC/Clang SIMD paths, MSVC scalar path, Python fallback and test suite.
+- The full CPU benchmark and Windows desktop package workflows were also queued due feature-branch push triggers. They are not substitutes for the native correctness tests.
+- No local compiler/test execution was performed in this environment.
+
+## Other audit findings from this stage
+
+- `nexus_cli.py` uses GET-only requests and is read-only by design.
+- `tools/nexus_hardware_benchmark.py` is an explicit offline benchmark; it blocks when known miner processes are detected unless `--allow-active-miners` is passed. It does not connect to pools or wallets.
+- `RuntimeTelemetry` uses local psutil/WMI/nvidia-smi observations and labels unavailable values rather than estimating them. Mining-process detection is process-name based and is not proof of complete process discovery.
+- Desktop launcher remains loopback-only but identifies an existing instance using an unauthenticated `/api/nexus/master` product field. Harden with a verifiable local-instance handshake before treating port reuse as trusted.
+- Global MASTER API authentication remains absent in the reviewed entry-point files. Do not expose beyond loopback until global authentication/authorization and Origin/CSRF boundaries are designed and tested.
+
+## Next exact actions
+
+1. Check CI run `45121800039` and Windows package run `45121800031`; inspect job logs if either fails. Do not mark this fix tested until both native-specific tests and full application CI complete.
+2. If tests fail, isolate whether failure is ABI mismatch, compiler-specific code, target ordering, or a regression. Do not weaken tests.
+3. Review the remaining changed source files and tests, then implement the launcher instance handshake and mining process arbiter as separate changes.
+4. Correct the Windows version/installer metadata and stale CI provenance only after a successful run on a precisely identified source commit.
+5. Recheck exact integration base, branch head, PR list and CI before any PR. Do not target or merge into `main` without explicit approval.
+
+---
+
 # Current continuation checkpoint — 2026-11-23 (MASTER API surface and release metadata audit)
 
 This checkpoint supersedes the 2026-11-22 checkpoint above for current state. Older entries remain historical evidence.
