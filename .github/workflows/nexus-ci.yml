@@ -148,7 +148,7 @@ jobs:
           $Root = "${{ needs.source-detection.outputs.root }}"
           python (Join-Path $Root "tools_check_dashboard_js.py") $Root
           if ($LASTEXITCODE -ne 0) { throw "Dashboard JavaScript validation failed." }
-      - name: Run primary application test suite on Windows
+      - name: Run isolated Windows API test module
         shell: pwsh
         run: |
           $Root = "${{ needs.source-detection.outputs.root }}"
@@ -157,10 +157,20 @@ jobs:
           $env:NEXUS_NATIVE_COMPILER = "msvc"
           Push-Location $Root
           try {
-            python -m pytest -vv --full-trace --disable-warnings tests/test_mining_solo_matrix_0105.py::test_major_coin_catalog_contains_pow_and_non_pow_classification
-            if ($LASTEXITCODE -ne 0) { throw "Isolated Windows mining catalog API test failed." }
-            python -m pytest -vv --full-trace --disable-warnings --maxfail=1
-            if ($LASTEXITCODE -ne 0) { throw "NEXUS Windows test suite failed." }
+            python -m pytest -vv --full-trace --disable-warnings tests/test_mining_solo_matrix_0105.py
+            if ($LASTEXITCODE -ne 0) { throw "Isolated Windows mining catalog API module failed." }
+          } finally {
+            Pop-Location
+          }
+      - name: Run remaining application test suite on Windows
+        shell: pwsh
+        run: |
+          $Root = "${{ needs.source-detection.outputs.root }}"
+          $env:NEXUS_NATIVE_COMPILER = "msvc"
+          Push-Location $Root
+          try {
+            python -m pytest -vv --full-trace --disable-warnings --maxfail=1 --ignore=tests/test_mining_solo_matrix_0105.py
+            if ($LASTEXITCODE -ne 0) { throw "Remaining NEXUS Windows test suite failed." }
           } finally {
             Pop-Location
           }
