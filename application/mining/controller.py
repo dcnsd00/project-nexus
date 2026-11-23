@@ -2,6 +2,7 @@ from __future__ import annotations
 import json, os, re, shutil, subprocess, threading, time, urllib.request
 from pathlib import Path
 from mining.pool_config import pool_endpoint, pool_username
+from mining.process_arbiter import MINING_PROCESS_ARBITER
 from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -29,6 +30,7 @@ MINERS = {
 
 _state: dict[str, Any] = {'status':'stopped','pid':None,'miner_id':None,'miner_name':None,'coin':None,'algorithm':None,'pool':None,'started_at':None,'last_error':None,'last_exit_code':None,'log_path':str(LOG),'api':None}
 _proc: subprocess.Popen | None = None
+_ARBITER_OWNER = "direct-mining-controller"
 
 
 def _pool_catalog():
@@ -246,6 +248,9 @@ def start(req: dict) -> dict:
     with LOCK:
         if _proc is not None and _proc.poll() is None:
             raise ValueError('Există deja un miner pornit de NEXUS. Oprește-l înainte de a porni altul.')
+        if _proc is not None:
+            _proc = None
+            MINING_PROCESS_ARBITER.release(_ARBITER_OWNER)
         mid=req['miner_id']; spec=MINERS.get(mid)
         if not spec or not spec['launch']: raise ValueError('Adaptorul de lansare pentru acest miner nu este activ în această versiune.')
         pool=next((p for p in _pool_catalog() if p['id']==req['pool_id']),None)
@@ -286,7 +291,15 @@ def start(req: dict) -> dict:
             worker_engine=StratumBitcoinWorker(str(host),int(port),login,req.get('password','x'),bool(req.get('use_ssl')),
                                               timeout=8.0,scan_chunk=50000,prefer_native=True)
             LOG.write_text(f'NEXUS internal Bitcoin SHA-256d CPU\nPool: {pool["name"]} | {host}:{int(port)} | TLS={bool(req.get("use_ssl"))}\nWallet/login: {login}\n',encoding='utf-8')
-            worker_engine.start()
+            if not MINING_PROCESS_ARBITER.acquire(_ARBITER_OWNER):
+                raise ValueError('O altă sesiune de minare NEXUS este deja activă prin controllerul direct sau HybridSupervisor.')
+            try:
+                worker_engine.start()
+            except Exception:
+                MINING_PROCESS_ARBITER.release(_ARBITER_OWNER)
+                raise
+            worker_pid = getattr(worker_engine, 'pid', None)
+            MINING_PROCESS_ARBITER.update_processes(_ARBITER_OWNER, [worker_pid] if isinstance(worker_pid, int) else [])
             _proc=worker_engine
             _state.update(status='starting',pid=None,miner_id=mid,miner_name=spec['name'],coin='BTC',algorithm=algo,
                           pool={'name':pool['name'],'host':host,'port':int(port),'tls':bool(req.get('use_ssl'))},
@@ -401,11 +414,17 @@ def start(req: dict) -> dict:
         kwargs={'stdout':log_handle,'stderr':subprocess.STDOUT,'cwd':str(RUNTIME)}
         if os.name=='nt': kwargs['creationflags']=getattr(subprocess,'CREATE_NO_WINDOW',0)
         else: kwargs['start_new_session']=True
+        if not MINING_PROCESS_ARBITER.acquire(_ARBITER_OWNER):
+            log_handle.close()
+            raise ValueError('O altă sesiune de minare NEXUS este deja activă prin controllerul direct sau HybridSupervisor.')
         try:
             _proc=subprocess.Popen(cmd,**kwargs)
         except Exception as exc:
-            log_handle.close(); _state.update(status='error',last_error=_diagnose(str(exc)))
+            log_handle.close()
+            MINING_PROCESS_ARBITER.release(_ARBITER_OWNER)
+            _state.update(status='error',last_error=_diagnose(str(exc)))
             raise ValueError(f'Nu am putut lansa minerul: {type(exc).__name__}: {exc}')
+        MINING_PROCESS_ARBITER.update_processes(_ARBITER_OWNER, [_proc.pid])
         _state.update(status='starting',pid=_proc.pid,miner_id=mid,miner_name=spec['name'],coin=pool['coin'],algorithm=algo,
                       pool={'name':pool['name'],'host':host,'port':int(port),'tls':bool(req.get('use_ssl'))},started_at=time.time(),last_error=None,last_exit_code=None)
         return status()
@@ -415,6 +434,7 @@ def stop() -> dict:
     global _proc
     with LOCK:
         if _proc is None or _proc.poll() is not None:
+            MINING_PROCESS_ARBITER.release(_ARBITER_OWNER)
             _state.update(status='stopped',pid=None)
             return status()
         try:
@@ -428,6 +448,7 @@ def stop() -> dict:
                         _state['last_error']={'code':'STRATUM_CPU_ERROR','message':es['error'],'severity':'error','advice':'Verifică endpoint-ul și autentificarea.'}
                 except Exception: pass
             _state.update(status='stopped',last_exit_code=_proc.returncode,pid=None)
+            MINING_PROCESS_ARBITER.release(_ARBITER_OWNER)
         except Exception as exc:
             _state.update(status='error',last_error=_diagnose(str(exc)))
             raise ValueError(f'Eroare la oprire: {exc}')
@@ -447,6 +468,7 @@ def status() -> dict:
                     try: native_error=_proc.status().get('error')
                     except Exception: native_error=None
                 _state.update(status='stopped' if code==0 else 'error',pid=None,last_exit_code=code)
+                MINING_PROCESS_ARBITER.release(_ARBITER_OWNER)
                 if code!=0 and not _state.get('last_error'):
                     _state['last_error']={'code':'STRATUM_CPU_ERROR','message':native_error or 'Motorul intern s-a oprit cu eroare.','severity':'error','advice':'Verifică endpoint-ul Stratum V1, TLS și autentificarea.'} if native_error else _diagnose('\n'.join(read_log(40)))
                 _proc=None
