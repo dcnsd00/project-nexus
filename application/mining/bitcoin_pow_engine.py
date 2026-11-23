@@ -34,6 +34,7 @@ def scan_nonce_range(header_template: bytes, start_nonce: int, count: int, share
     if isinstance(count,bool) or not isinstance(count,int) or not 1<=count<=1_000_000: raise BitcoinPowError("count trebuie să fie între 1 și 1.000.000.")
     if isinstance(share_target,bool) or not isinstance(share_target,int) or not 0<share_target<1<<256: raise BitcoinPowError("share_target invalid.")
     if block_target is not None and (not isinstance(block_target,int) or not 0<block_target<1<<256): raise BitcoinPowError("block_target invalid.")
+    if block_target is not None and block_target>share_target: raise BitcoinPowError("block_target trebuie să fie mai dificil sau egal cu share_target (block_target <= share_target).")
     engine=ExactBitcoinMidstate(header_template); checked=0; best=None
     for nonce in range(start_nonce,min(0x100000000,start_nonce+count)):
         digest=engine.hash_nonce(nonce); value=int.from_bytes(digest[::-1],"big"); checked+=1
