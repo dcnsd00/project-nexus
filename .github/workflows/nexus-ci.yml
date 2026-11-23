@@ -157,6 +157,8 @@ jobs:
           $env:NEXUS_NATIVE_COMPILER = "msvc"
           Push-Location $Root
           try {
+            python -m pytest -vv --full-trace --disable-warnings tests/test_mining_solo_matrix_0105.py::test_major_coin_catalog_contains_pow_and_non_pow_classification
+            if ($LASTEXITCODE -ne 0) { throw "Isolated Windows mining catalog API test failed." }
             python -m pytest -vv --full-trace --disable-warnings --maxfail=1
             if ($LASTEXITCODE -ne 0) { throw "NEXUS Windows test suite failed." }
           } finally {
