@@ -298,3 +298,31 @@ def test_bitcoin_core_password_check_does_not_claim_success_if_relock_fails(monk
         assert "could not relock" in str(exc)
     else:
         raise AssertionError("NEXUS must not report success when walletlock fails")
+
+
+def test_nexus_aesgcm_keystore_decrypt_maps_wrong_password_to_401_without_key_export():
+    from nexus_wallet_manager import _encrypt_secret
+    password = secrets.token_urlsafe(24)
+    address = evm_address(7)
+    keystore = json.loads(_encrypt_secret((7).to_bytes(32, "big"), password))
+    payload = {"keystore": keystore, "address": address}
+
+    with TestClient(app) as c:
+        wrong = c.post("/api/wallet/recovery/decrypt", json={
+            "format": "NEXUS_AESGCM_V1", "payload": payload,
+            "password": "wrong-password", "owner_authorized": True,
+        })
+        assert wrong.status_code == 401
+        assert "PASSWORD_INVALID" in wrong.json()["detail"]
+
+        opened = c.post("/api/wallet/recovery/decrypt", json={
+            "format": "NEXUS_AESGCM_V1", "payload": payload,
+            "password": password, "owner_authorized": True,
+        })
+        assert opened.status_code == 200, opened.text
+        data = opened.json()
+        assert data["status"] == "DECRYPTION_SUCCESS"
+        assert data["address"] == address
+        assert data["address_match"] == "ADDRESS_MATCH"
+        assert data["private_key_returned"] is False
+        assert data["re_encrypted_in_nexus_vault"] is False
