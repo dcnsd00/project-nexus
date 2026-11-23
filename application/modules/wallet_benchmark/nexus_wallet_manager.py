@@ -8,6 +8,7 @@ from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from cryptography.hazmat.primitives.asymmetric import ec
 from modules.data_paths import data_path
 from nexus_wallet_benchmark import SECP256K1_N, evm_address, validate_address
+from nexus_keystore_recovery import decrypt_keystore, KeystoreError, KeystoreAuthenticationError
 
 router = APIRouter(prefix="/api/wallet", tags=["wallet"])
 DB = Path(os.getenv("NEXUS_WALLET_DB", str(data_path("db", "nexus_wallets.db")))).expanduser().resolve()
@@ -71,9 +72,6 @@ def _encrypt_secret(secret: bytes, password: str) -> str:
       "nonce":base64.b64encode(nonce).decode(),"ciphertext":base64.b64encode(cipher).decode()})
 
 def _decrypt_secret(blob: str, password: str) -> bytes:
-    from nexus_keystore_recovery import (
-    decrypt_keystore, KeystoreError, KeystoreAuthenticationError,
-)
     return decrypt_keystore(blob, password)
 
 @router.post("/vault/create")
