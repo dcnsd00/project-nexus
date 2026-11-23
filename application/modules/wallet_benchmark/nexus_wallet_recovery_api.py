@@ -212,7 +212,7 @@ def check_bip39(x: BIP39CheckRequest, request: Request):
     try:
         words = load_bip39_wordlist(x.language)
         result = bip39_validate(x.mnemonic, words)
-        return {"status":"ADDRESS_MATCH" if result["valid"] else "PASSWORD_INVALID",
+        return {"status":"CHECKSUM_VALID" if result["valid"] else "CHECKSUM_INVALID",
                 "mnemonic_checksum_valid":result["valid"], "reason":result["reason"],
                 "word_count":result.get("word_count"), "seed_exported":False}
     except WalletFormatError as e:
