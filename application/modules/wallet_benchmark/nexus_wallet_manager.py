@@ -71,7 +71,9 @@ def _encrypt_secret(secret: bytes, password: str) -> str:
       "nonce":base64.b64encode(nonce).decode(),"ciphertext":base64.b64encode(cipher).decode()})
 
 def _decrypt_secret(blob: str, password: str) -> bytes:
-    from nexus_keystore_recovery import decrypt_keystore
+    from nexus_keystore_recovery import (
+    decrypt_keystore, KeystoreError, KeystoreAuthenticationError,
+)
     return decrypt_keystore(blob, password)
 
 @router.post("/vault/create")
@@ -92,15 +94,26 @@ def create_vault(x: CreateVault):
 def unlock_vault(x: UnlockVault):
     with db() as c: row=c.execute("SELECT * FROM vaults WHERE id=?",(x.wallet_id,)).fetchone()
     if not row: raise HTTPException(404,"Wallet not found")
-    try: secret=_decrypt_secret(row["keystore"],x.password)
-    except Exception: raise HTTPException(401,"Incorrect password or corrupt keystore")
-    if len(secret)!=32: raise HTTPException(500,"Invalid key material")
-    key=int.from_bytes(secret,"big")
-    if not 1 <= key < SECP256K1_N: raise HTTPException(500,"Invalid secp256k1 key")
-    if evm_address(key).lower()!=row["address"].lower(): raise HTTPException(500,"Keystore/address mismatch")
-    return {"unlocked":True,"wallet_id":row["id"],"address":row["address"],
-      "networks":sorted(NETWORKS),"private_key_returned":False,
-      "broadcast_enabled":False,"message":"Local key decryption and address correspondence verified. No transaction was sent."}
+    try:
+        secret = bytearray(_decrypt_secret(row["keystore"], x.password))
+    except KeystoreAuthenticationError:
+        raise HTTPException(401, "Incorrect wallet password")
+    except KeystoreError:
+        raise HTTPException(422, "Corrupt or unsupported wallet keystore")
+    try:
+        if len(secret) != 32:
+            raise HTTPException(422, "Invalid EVM key material length")
+        key = int.from_bytes(secret, "big")
+        if not 1 <= key < SECP256K1_N:
+            raise HTTPException(422, "Invalid secp256k1 key material")
+        if evm_address(key).lower() != row["address"].lower():
+            raise HTTPException(422, "Keystore/address mismatch")
+        return {"unlocked":True,"wallet_id":row["id"],"address":row["address"],
+          "networks":sorted(NETWORKS),"private_key_returned":False,
+          "broadcast_enabled":False,"message":"Local key decryption and address correspondence verified. No transaction was sent."}
+    finally:
+        for i in range(len(secret)):
+            secret[i] = 0
 
 @router.get("/vaults")
 def list_vaults():
