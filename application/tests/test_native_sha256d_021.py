@@ -104,3 +104,44 @@ def test_native_scanner_uses_explicit_header_bytes_and_ignores_untrusted_compact
     result = scan_nonce_range_native(bytes(header), 7, 9, target, variant=status['selected_variant'], threads=2)
     assert result['status'] == 'share_candidate'
     assert result['checked'] == 9
+
+def test_native_scanner_prioritizes_block_candidate_over_later_pool_shares():
+    status = native_status()
+    if not status["available"]:
+        pytest.skip(status.get("error") or "native C compiler unavailable")
+
+    share_target = (1 << 256) - 1
+    start_nonce = 1234567
+    # Pick a deterministic 4-nonce range where the final hash is above the
+    # first hash. The first nonce is a block candidate by construction, while
+    # every nonce is still a valid pool share.
+    while True:
+        def hash_value(nonce):
+            header = GENESIS_HEADER[:76] + nonce.to_bytes(4, "little")
+            digest = hashlib.sha256(hashlib.sha256(header).digest()).digest()
+            return int.from_bytes(digest[::-1], "big")
+
+        first_value = hash_value(start_nonce)
+        last_value = hash_value(start_nonce + 3)
+        if last_value > first_value:
+            break
+        start_nonce += 1
+
+    block_target = first_value
+    for variant in status["variants"]:
+        result = scan_nonce_range_native(
+            GENESIS_HEADER, start_nonce, 4, share_target, block_target,
+            variant=variant, threads=4,
+        )
+        assert result["status"] == "share_candidate", (variant, result)
+        assert result["nonce"] == start_nonce, (variant, result)
+        assert result["meets_share_target"] is True
+        assert result["meets_block_target"] is True
+        assert result["checked"] == 4
+
+
+def test_native_scanner_rejects_block_target_easier_than_share_target():
+    with pytest.raises(ValueError, match="block_target"):
+        scan_nonce_range_native(
+            GENESIS_HEADER, 0, 1, 1, 2,
+        )
