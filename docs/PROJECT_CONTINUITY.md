@@ -1,3 +1,61 @@
+# Current continuation checkpoint — 2026-11-23 (MASTER API surface and release metadata audit)
+
+This checkpoint supersedes the 2026-11-22 checkpoint above for current state. Older entries remain historical evidence.
+
+## Verified repository state
+
+- Repository: `dcnsd00/project-nexus`
+- Active branch: `feature/edge-replay-protection-sqlite-v1`
+- Source HEAD before this documentation checkpoint: `036908adca62f303d83e5f3670fe83224d3f61c8`.
+- Integration target: `integration/source-import-safe-0.10.25`, exact base `30210464088ff51c32cabda90ae56b6a9ce20bc8`.
+- Exact GitHub comparison: 311 commits ahead, 0 behind, 78 changed files.
+- No open pull requests were returned at this check.
+- `main` was not modified. No application source code or tests were changed/run in this stage.
+- Existing CI evidence remains tied to the earlier source HEAD `d5d84ef6ad1d934ccfb9467f811fe3e640f0cf2b`; this stage did not produce new application CI.
+
+## MASTER API surface and local security boundary
+
+Files reviewed: `application/nexus_master.py` (1,944 lines), `application/core/PROJECT-NEXUS-LOCAL/app/main.py` (198 lines), and `application/START_NEXUS_DESKTOP.pyw`.
+
+- MASTER extends the existing FastAPI application and adds the wallet, wallet-recovery, earnings-intelligence, integration-registry and pool-failover routers.
+- The reviewed `app.main` and `nexus_master.py` contain no global authentication middleware, authenticated operator dependency, CSRF/origin validation or request-token gate. This statement is limited to those two files; individual included routers may implement their own controls.
+- The desktop launcher binds Uvicorn to `127.0.0.1` only, which materially limits network exposure. This is a deployment boundary, not API authentication.
+- Sensitive local POST operations include direct miner start/stop, HybridSupervisor start/stop/switch, miner installation, local Bitcoin regtest mining, wallet recovery operations through an included router, and research jobs that persist results. In the reviewed MASTER routes, these operations are not protected by a common operator-authentication layer.
+- Risk classification: local-process trust-boundary gap; not evidence of an internet-reachable exploit while the supported desktop launcher remains loopback-only. Any LAN/public binding or reverse-proxy exposure is blocked pending an authentication, origin/CSRF and authorization design.
+- The launcher treats a service on port 8765 as an existing NEXUS instance when `GET /api/nexus/master` returns only `{"product":"NEXUS"}`. There is no cryptographic instance identity in that handshake. A local process able to occupy the port and spoof that response could cause the desktop shell to attach to the wrong local service. This is a local port-squatting/spoofing hardening item, not a demonstrated remote attack.
+- Positive boundaries remain: the dashboard/operator snapshot is explicitly read-only; wallet/research/EDGE surfaces carry separate safeguards described in earlier checkpoints; EDGE gateway operator endpoints use their own Bearer authentication. These do not create global MASTER API authentication.
+
+## Package, version and CI provenance findings
+
+Files reviewed: `application/VERSION.json`, `application/README_RO.md`, `application/INSTALL_NEXUS.bat`, `application/INSTALL_NEXUS_ONECLICK.ps1`, `application/INSTALL_NEXUS_WINDOWS.ps1`, `application/START_NEXUS_DESKTOP.pyw`, `application/packaging/NEXUS_DESKTOP.spec`, `.github/workflows/nexus-ci.yml` and `.github/workflows/nexus-desktop-package.yml`.
+
+- Supported package entry point is `application/INSTALL_NEXUS.bat` → `INSTALL_NEXUS_ONECLICK.ps1`; the current PyInstaller spec is `application/packaging/NEXUS_DESKTOP.spec`.
+- `VERSION.json` identifies version `0.10.26`, but `desktop_shell.installer` still names legacy `INSTALL_NEXUS_WINDOWS.ps1`, which hardcodes `0.10.25`. This metadata is inconsistent with the supported package route.
+- `VERSION.json` and `README_RO.md` still show Linux 636 / Windows 635 test counts and CI provenance for commit `3f9d9c3...`. Those counts are historical, not current evidence for HEAD `036908ad...`.
+- The metadata's `desktop_shell.validation` text still says Windows installation/WebView2 were not executed in the build environment, while the separate `desktop_validation` section records a GitHub Actions Windows package/self-test. The distinction between hosted-runner validation and the user's laptop validation needs to be stated consistently.
+- The package workflow is configured for the feature branch and workflow dispatch; it builds the frozen onedir package, runs the packaged API/dashboard self-test, runs the installer with `-NoLaunch`, and uploads the ZIP. A no-launch success does not prove interactive WebView2 behavior on the user's laptop.
+- The one-click manifest verifies SHA-256 file integrity but is not a publisher signature for the NEXUS package.
+- No local Windows build or interactive launch was performed in this stage.
+
+## Findings to carry into implementation
+
+1. **P1 deployment guard:** keep the MASTER API loopback-only. Do not expose it on LAN/public interfaces until a global operator-authentication and authorization model, Origin/CSRF protections, and tests exist. Review included routers for their own auth boundaries.
+2. **P2 launcher hardening:** replace the unauthenticated port-8765 product-string check with a verifiable local-instance handshake or remove automatic attachment to an unverified process.
+3. **P2 release metadata:** align `VERSION.json` installer metadata with `INSTALL_NEXUS.bat` / `INSTALL_NEXUS_ONECLICK.ps1`; refresh README and CI provenance only from a named completed run on the exact source commit; clarify hosted Windows versus user's laptop validation.
+4. Preserve the separate mining process-arbitration finding between `mining.controller` and `HybridSupervisor`; add cross-path exclusion tests before automatic switching.
+5. Preserve the EVM DNS-resolution/address-validation hardening item before less-trusted endpoint use.
+
+## Exact next actions
+
+1. Review the remaining changed files and included routers for authentication, authorization, file/path handling and startup side effects.
+2. Implement only the narrow metadata/provenance correction after checking the exact current CI run IDs and commit SHA; run the affected tests and workflows.
+3. Design and test a shared mining process arbiter; do not enable automatic switching.
+4. Add launcher instance verification and tests before changing port reuse behavior.
+5. Recheck branch head, exact integration base, open PRs and CI before PR preparation. Target `integration/source-import-safe-0.10.25` only; no `main` PR/merge without explicit approval.
+6. External validation still required: interactive Windows 11/WebView2 launch, physical ESP32-C5/HIL, live MQTT/TLS/provider adapters, and backup/restore.
+
+---
+
 # Current continuation checkpoint — 2026-11-22 (EDGE transport and Windows package audit)
 
 This section supersedes prior 2026-11-22 checkpoints and the 2026-11-19 historical checkpoint below. Preserve older entries as historical evidence.
