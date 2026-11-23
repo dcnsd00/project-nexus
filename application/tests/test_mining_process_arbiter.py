@@ -125,6 +125,9 @@ def test_direct_controller_and_hybrid_supervisor_are_mutually_exclusive(tmp_path
         with pytest.raises(ValueError, match="altă sesiune de minare NEXUS"):
             direct.start(_fake_controller_request())
 
+    deadline = time.time() + 5
+    while time.time() < deadline and supervisor.status()["engines"]["cpu"]["state"] != "running":
+        time.sleep(0.05)
     assert supervisor.status()["engines"]["cpu"]["state"] == "running"
     supervisor.stop_mode()
     assert arbiter.held is False
