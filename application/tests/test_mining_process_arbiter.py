@@ -95,7 +95,7 @@ def test_arbiter_can_be_released_from_a_different_thread(tmp_path):
     arbiter = MiningProcessArbiter(tmp_path / "thread-release.lock")
     assert arbiter.acquire("api-start-thread") is True
     results = []
-    thread = threading.Thread(target=lambda: results.append(arbiter.release("api-start-thread")))
+    thread = threading.Thread(target=lambda: results.append(arbiter.release("api-start-thread")), daemon=True)
     thread.start()
     thread.join(timeout=5)
     assert not thread.is_alive()
