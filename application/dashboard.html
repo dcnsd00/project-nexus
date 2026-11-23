@@ -167,24 +167,207 @@ $('poolConnectorList').onclick=async()=>{try{$('poolCatalogOutput').textContent=
 $('hybridCaps').onclick=async()=>{try{$('hybridOutput').textContent=JSON.stringify(await api('/api/math/hybrid/capabilities'),null,2);}catch(e){$('hybridOutput').textContent=e.message;}};
 $('hybridSolve').onclick=async()=>{try{const problem=JSON.parse($('hybridProblem').value);$('hybridOutput').textContent=JSON.stringify(await api('/api/math/hybrid/solve',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(problem)}),null,2);}catch(e){$('hybridOutput').textContent=e.message;}};
 
-async function refreshHybridSupervisor(){try{$('hybridSupervisorStatus').textContent=JSON.stringify(await api('/api/mining/hybrid/status'),null,2);}catch(e){$('hybridSupervisorStatus').textContent=e.message;}}
-$('hybridModeStart')?.addEventListener('click',async()=>{try{const mode=$('hybridModeSelect').value;const d=await api(`/api/mining/mode/${mode}/start`,{method:'POST'});$('hybridSupervisorStatus').textContent=JSON.stringify(d,null,2);await $('randomx20Run')?.addEventListener('click',async()=>{const out=$('randomx20Output');try{const threads=Number($('randomx20Threads').value);const hashes_per_block=Number($('randomx20Hashes').value);if(!Number.isInteger(threads)||threads<1||threads>64)throw new Error('Fire CPU trebuie să fie între 1 și 64.');if(!Number.isInteger(hashes_per_block)||hashes_per_block<100||hashes_per_block>50000)throw new Error('Hash-uri per antet trebuie să fie între 100 și 50000.');out.textContent='Benchmark RandomX fast în execuție. Se inițializează datasetul de 2080 MiB.';const d=await api('/api/mining/randomx/20block-benchmark',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({threads,hashes_per_block})});out.textContent=JSON.stringify(d,null,2);}catch(e){out.textContent=e.message;}});
+async function refreshHybridSupervisor(){
+  try {
+    $('hybridSupervisorStatus').textContent=JSON.stringify(
+      await api('/api/mining/hybrid/status'), null, 2
+    );
+  } catch(e) {
+    $('hybridSupervisorStatus').textContent=e.message;
+  }
+}
+
+$('hybridModeStart')?.addEventListener('click', async()=>{
+  try {
+    const mode=$('hybridModeSelect').value;
+    const d=await api('/api/mining/mode/'+encodeURIComponent(mode)+'/start',{method:'POST'});
+    $('hybridSupervisorStatus').textContent=JSON.stringify(d,null,2);
+    await refreshHybridSupervisor();
+  } catch(e) {
+    $('hybridSupervisorStatus').textContent=e.message;
+  }
+});
+
+$('hybridModeStop')?.addEventListener('click', async()=>{
+  try {
+    const mode=$('hybridModeSelect').value;
+    const d=await api('/api/mining/mode/'+encodeURIComponent(mode)+'/stop',{method:'POST'});
+    $('hybridSupervisorStatus').textContent=JSON.stringify(d,null,2);
+    await refreshHybridSupervisor();
+  } catch(e) {
+    $('hybridSupervisorStatus').textContent=e.message;
+  }
+});
+
+$('hybridStopAll')?.addEventListener('click', async()=>{
+  try {
+    $('hybridSupervisorStatus').textContent=JSON.stringify(
+      await api('/api/mining/hybrid/stop',{method:'POST'}),null,2
+    );
+    await refreshHybridSupervisor();
+  } catch(e) {
+    $('hybridSupervisorStatus').textContent=e.message;
+  }
+});
+$('hybridRefresh')?.addEventListener('click', refreshHybridSupervisor);
+
+$('randomx20Run')?.addEventListener('click', async()=>{
+  const out=$('randomx20Output');
+  try {
+    const threads=Number($('randomx20Threads').value);
+    const hashes_per_block=Number($('randomx20Hashes').value);
+    if(!Number.isInteger(threads)||threads<1||threads>64)
+      throw new Error('Fire CPU trebuie să fie între 1 și 64.');
+    if(!Number.isInteger(hashes_per_block)||hashes_per_block<100||hashes_per_block>50000)
+      throw new Error('Hash-uri per antet trebuie să fie între 100 și 50000.');
+    out.textContent='Benchmark RandomX fast în execuție. Se inițializează datasetul de laborator.';
+    const d=await api('/api/mining/randomx/20block-benchmark',{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({threads,hashes_per_block})
+    });
+    out.textContent=JSON.stringify(d,null,2);
+  } catch(e) {
+    out.textContent=e.message;
+  }
+});
+
+async function loadHybridMinerOptions(){
+  try {
+    const inventory=await api('/api/mining/miners');
+    const catalog=await api('/api/mining/pools');
+    const cpuPools=(catalog.pools||[]).filter(p=>p.algorithm==='RandomX');
+    const gpuPools=(catalog.pools||[]).filter(p=>[
+      'PearlHash','PearlPow','KawPoW','Etchash','KHeavyHash','NexaPow',
+      'Autolykos2','FishHash','Verthash','XelisHashv3'
+    ].includes(p.algorithm));
+
+    for(const [id,rows] of [
+      ['hybridCpuPool',cpuPools],['hybridGpuPool',gpuPools]
+    ]){
+      const select=$(id);
+      select.innerHTML='<option value="">Selectează pool</option>'+
+        rows.map(p=>'<option value="'+esc(p.id)+'" data-algo="'+esc(p.algorithm)+'">'+
+          esc(p.name||p.id)+' · '+esc(p.algorithm)+'</option>').join('');
+      select.addEventListener('change',()=>{
+        const option=select.selectedOptions[0];
+        const target=id==='hybridCpuPool'?'hybridCpuAlgo':'hybridGpuAlgo';
+        if(option?.dataset.algo) $(target).value=option.dataset.algo;
+      });
+    }
+
+    for(const [id,device] of [
+      ['hybridCpuMiner','CPU'],['hybridGpuMiner','GPU']
+    ]){
+      const select=$(id);
+      const options=(inventory.miners||[]).filter(m=>
+        m.available && (
+          (Array.isArray(m.device_support)&&m.device_support.includes(device)) ||
+          m.device_support==='BOTH'
+        )
+      );
+      select.innerHTML='<option value="">Selectează miner instalat</option>'+
+        options.map(m=>'<option value="'+esc(m.id)+'" data-path="'+
+          esc(m.path||'')+'">'+esc(m.name||m.id)+'</option>').join('');
+    }
+  } catch(e) {
+    $('hybridSupervisorStatus').textContent='Inventar indisponibil: '+e.message;
+  }
+}
+
+function hybridMinerPayload(prefix){
+  const select=$(prefix+'Miner');
+  const option=select?.selectedOptions?.[0];
+  if(!option||!option.value)
+    throw new Error('Selectează un miner detectat în inventar.');
+  let args;
+  try {
+    args=JSON.parse($(prefix+'Args').value||'[]');
+  } catch(e) {
+    throw new Error('Argumentele minerului trebuie să fie un JSON array.');
+  }
+  if(!Array.isArray(args)||args.some(x=>typeof x!=='string'))
+    throw new Error('Argumentele trebuie să fie un array de texte.');
+  const poolSelect=$(prefix==='hybridCpu'?'hybridCpuPool':'hybridGpuPool');
+  if(!poolSelect.value)
+    throw new Error('Selectează pool-ul corespunzător motorului.');
+  return {
+    binary_path:option.dataset.path,
+    miner_id:option.value,
+    pool_id:poolSelect.value,
+    algorithm:$(prefix+'Algo').value,
+    args
+  };
+}
+
+async function startHybridEngine(engine){
+  try {
+    let body;
+    if($('hybridModeSelect').value==='development'){
+      if(engine==='gpu') throw new Error('Development GPU backend indisponibil.');
+      body={
+        network:'regtest',algorithm:'sha256d',
+        attempts:Number($('hybridDevAttempts').value)
+      };
+    } else {
+      body=hybridMinerPayload(engine==='cpu'?'hybridCpu':'hybridGpu');
+    }
+    const d=await api('/api/mining/hybrid/engine/'+engine+'/start',{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify(body)
+    });
+    $('hybridSupervisorStatus').textContent=JSON.stringify(d,null,2);
+    await refreshHybridSupervisor();
+  } catch(e) {
+    $('hybridSupervisorStatus').textContent=e.message;
+  }
+}
+
+$('hybridCpuStart')?.addEventListener('click',()=>startHybridEngine('cpu'));
+$('hybridGpuStart')?.addEventListener('click',()=>startHybridEngine('gpu'));
+$('hybridCpuStop')?.addEventListener('click',async()=>{
+  try {
+    const d=await api('/api/mining/hybrid/engine/cpu/stop',{method:'POST'});
+    $('hybridSupervisorStatus').textContent=JSON.stringify(d,null,2);
+    await refreshHybridSupervisor();
+  } catch(e) {
+    $('hybridSupervisorStatus').textContent=e.message;
+  }
+});
+$('hybridGpuStop')?.addEventListener('click',async()=>{
+  try {
+    const d=await api('/api/mining/hybrid/engine/gpu/stop',{method:'POST'});
+    $('hybridSupervisorStatus').textContent=JSON.stringify(d,null,2);
+    await refreshHybridSupervisor();
+  } catch(e) {
+    $('hybridSupervisorStatus').textContent=e.message;
+  }
+});
+$('hybridGpuSwitch')?.addEventListener('click',async()=>{
+  try {
+    if($('hybridModeSelect').value!=='standard')
+      throw new Error('GPU switch este disponibil numai în modul Standard.');
+    const body=hybridMinerPayload('hybridGpu');
+    const d=await api('/api/mining/hybrid/gpu/switch',{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify(body)
+    });
+    $('hybridSupervisorStatus').textContent=JSON.stringify(d,null,2);
+    await refreshHybridSupervisor();
+  } catch(e) {
+    $('hybridSupervisorStatus').textContent=e.message;
+  }
+});
+$('hybridDevRun')?.addEventListener('click',async()=>{
+  if($('hybridModeSelect').value!=='development'){
+    $('hybridSupervisorStatus').textContent='Selectează mai întâi modul Development.';
+    return;
+  }
+  await startHybridEngine('cpu');
+});
+
+loadHybridMinerOptions();
 refreshHybridSupervisor();
 
-async function loadHybridMinerOptions(){try{const d=await api('/api/mining/miners');const catalog=await api('/api/mining/pools');const cpuPools=(catalog.pools||[]).filter(p=>p.algorithm==='RandomX');const gpuPools=(catalog.pools||[]).filter(p=>['PearlHash','PearlPow','KawPoW','Etchash','KHeavyHash','NexaPow','Autolykos2','FishHash','Verthash','XelisHashv3'].includes(p.algorithm));for(const [id,rows] of [['hybridCpuPool',cpuPools],['hybridGpuPool',gpuPools]]){$(id).innerHTML='<option value="">Selectează pool</option>'+rows.map(p=>`<option value="${esc(p.id)}" data-algo="${esc(p.algorithm)}">${esc(p.name||p.id)} · ${esc(p.algorithm)}</option>`).join('');$(id).addEventListener('change',()=>{const opt=$(id).selectedOptions[0];const algo=id==='hybridCpuPool'?'hybridCpuAlgo':'hybridGpuAlgo';if(opt?.dataset.algo)$(algo).value=opt.dataset.algo;});}for(const [id,device] of [['hybridCpuMiner','CPU'],['hybridGpuMiner','GPU']]){const el=$(id);const options=(d.miners||[]).filter(m=>m.available&&((m.device_support||[]).includes(device)||m.device_support==='BOTH'));el.innerHTML='<option value="">Selectează miner instalat</option>'+options.map(m=>`<option value="${esc(m.id)}" data-path="${esc(m.path||'')}">${esc(m.name||m.id)}</option>`).join('');}}catch(e){$('hybridSupervisorStatus').textContent='Inventar indisponibil: '+e.message;}}
-function hybridMinerPayload(prefix){const el=$(prefix+'Miner'),opt=el?.selectedOptions?.[0];if(!opt||!opt.value)throw new Error('Selectează un miner detectat în inventar.');let args;try{args=JSON.parse($(prefix+'Args').value||'[]');}catch(e){throw new Error('Argumentele minerului trebuie să fie un JSON array.');}if(!Array.isArray(args)||args.some(x=>typeof x!=='string'))throw new Error('Argumentele trebuie să fie un array de texte.');const poolEl=$(prefix==='hybridCpu'?'hybridCpuPool':'hybridGpuPool');if(!poolEl.value)throw new Error('Selectează pool-ul corespunzător motorului.');return {binary_path:opt.dataset.path,miner_id:opt.value,pool_id:poolEl.value,algorithm:$(prefix+'Algo').value,args};}
-async function startHybridEngine(engine){try{let body;if($('hybridModeSelect').value==='development'){if(engine==='gpu')throw new Error('Development GPU backend indisponibil.');body={network:'regtest',algorithm:'sha256d',attempts:Number($('hybridDevAttempts').value)};}else body=hybridMinerPayload(engine==='cpu'?'hybridCpu':'hybridGpu');const d=await api(`/api/mining/hybrid/engine/${engine}/start`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});$('hybridSupervisorStatus').textContent=JSON.stringify(d,null,2);setTimeout(refreshHybridSupervisor,500);}catch(e){$('hybridSupervisorStatus').textContent=e.message;}}
-$('hybridCpuStart')?.addEventListener('click',()=>startHybridEngine('cpu'));$('hybridGpuStart')?.addEventListener('click',()=>startHybridEngine('gpu'));
-$('hybridGpuSwitch')?.addEventListener('click',async()=>{try{if($('hybridModeSelect').value!=='standard')throw new Error('GPU switch este disponibil numai în modul Standard.');const body=hybridMinerPayload('hybridGpu');const d=await api('/api/mining/hybrid/gpu/switch',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});$('hybridSupervisorStatus').textContent=JSON.stringify(d,null,2);await refreshHybridSupervisor();}catch(e){$('hybridSupervisorStatus').textContent=e.message;}});
-
-$('hybridCpuStop')?.addEventListener('click',async()=>{try{$('hybridSupervisorStatus').textContent=JSON.stringify(await api('/api/mining/hybrid/engine/cpu/stop',{method:'POST'}),null,2);}catch(e){$('hybridSupervisorStatus').textContent=e.message;}});
-$('hybridGpuStop')?.addEventListener('click',async()=>{try{$('hybridSupervisorStatus').textContent=JSON.stringify(await api('/api/mining/hybrid/engine/gpu/stop',{method:'POST'}),null,2);}catch(e){$('hybridSupervisorStatus').textContent=e.message;}});
-$('hybridDevRun')?.addEventListener('click',async()=>{try{if($('hybridModeSelect').value!=='development')throw new Error('Selectează mai întâi modul Development.');await startHybridEngine('cpu');}catch(e){$('hybridSupervisorStatus').textContent=e.message;}});
-loadHybridMinerOptions();
-}catch(e){$('hybridSupervisorStatus').textContent=e.message;}});
-$('hybridModeStop')?.addEventListener('click',async()=>{try{const mode=$('hybridModeSelect').value;const d=await api(`/api/mining/mode/${mode}/stop`,{method:'POST'});$('hybridSupervisorStatus').textContent=JSON.stringify(d,null,2);}catch(e){$('hybridSupervisorStatus').textContent=e.message;}});
-$('hybridStopAll')?.addEventListener('click',async()=>{try{$('hybridSupervisorStatus').textContent=JSON.stringify(await api('/api/mining/hybrid/stop',{method:'POST'}),null,2);}catch(e){$('hybridSupervisorStatus').textContent=e.message;}});
-$('hybridRefresh')?.addEventListener('click',refreshHybridSupervisor);
 $('randomxBenchmarkRun')?.addEventListener('click',async()=>{const out=$('randomxBenchmarkOutput');try{const threads=$('randomxThreads').value.split(',').map(x=>Number(x.trim()));if(threads.some(x=>!Number.isInteger(x)))throw new Error('Introdu numere întregi separate prin virgulă.');out.textContent='Benchmark în execuție. XMRig poate rula până la 180 secunde pentru fiecare configurație.';const d=await api('/api/mining/randomx/benchmark',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({threads,dataset:$('randomxDataset').value})});out.textContent=JSON.stringify(d,null,2);}catch(e){out.textContent=e.message;}});
 refreshHybridSupervisor();
 
