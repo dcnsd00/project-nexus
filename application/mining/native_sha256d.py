@@ -117,9 +117,9 @@ def _load_library():
             fn = lib.nexus_scan_range
             fn.argtypes = [
                 ctypes.POINTER(ctypes.c_ubyte), ctypes.POINTER(ctypes.c_ubyte),
-                ctypes.c_uint32, ctypes.c_uint64, ctypes.c_int, ctypes.c_int,
-                ctypes.POINTER(ctypes.c_uint32), ctypes.POINTER(ctypes.c_uint64),
-                ctypes.POINTER(ctypes.c_double),
+                ctypes.POINTER(ctypes.c_ubyte), ctypes.c_uint32, ctypes.c_uint64,
+                ctypes.c_int, ctypes.c_int, ctypes.POINTER(ctypes.c_uint32),
+                ctypes.POINTER(ctypes.c_uint64), ctypes.POINTER(ctypes.c_double),
             ]
             fn.restype = ctypes.c_int
             sup = lib.nexus_variant_supported
@@ -199,6 +199,8 @@ def scan_nonce_range_native(
         raise BitcoinPowError("share_target invalid.")
     if block_target is not None and (isinstance(block_target, bool) or not isinstance(block_target, int) or not 0 < block_target < 1 << 256):
         raise BitcoinPowError("block_target invalid.")
+    if block_target is not None and block_target > share_target:
+        raise BitcoinPowError("block_target trebuie să fie mai dificil sau egal cu share_target (block_target <= share_target).")
 
     lib = _load_library()
     if lib is None:
@@ -230,12 +232,17 @@ def scan_nonce_range_native(
 
     header_buf = (ctypes.c_ubyte * 80).from_buffer_copy(header_template)
     target_buf = (ctypes.c_ubyte * 32).from_buffer_copy(share_target.to_bytes(32, "big"))
+    block_target_buf = (
+        (ctypes.c_ubyte * 32).from_buffer_copy(block_target.to_bytes(32, "big"))
+        if block_target is not None else None
+    )
     nonce_out = ctypes.c_uint32(0)
     checked_out = ctypes.c_uint64(0)
     rate_out = ctypes.c_double(0.0)
     rc = lib.nexus_scan_range(
-        header_buf, target_buf, start_nonce, count, chosen_variant, chosen_threads,
-        ctypes.byref(nonce_out), ctypes.byref(checked_out), ctypes.byref(rate_out),
+        header_buf, target_buf, block_target_buf, start_nonce, count,
+        chosen_variant, chosen_threads, ctypes.byref(nonce_out),
+        ctypes.byref(checked_out), ctypes.byref(rate_out),
     )
     if rc < 0:
         raise BitcoinPowError(f"Native scanner a returnat codul {rc}.")
