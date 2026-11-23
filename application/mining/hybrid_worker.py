@@ -24,7 +24,7 @@ def run_worker(engine: str, request: dict, status_path: str, stop_event_path: st
         'heartbeat_unix': time.time(), 'miner_id': request.get('miner_id'),
         'algorithm': request.get('algorithm'), 'hashrate_hs': None,
         'accepted_shares': None, 'rejected_shares': None,
-        'last_error': None, 'pool_connected': False, 'authorized': False,
+        'last_error': None, 'pool_connected': None, 'authorized': None,
     }
     _write_status(status_file, payload)
     command = request.get('command')
