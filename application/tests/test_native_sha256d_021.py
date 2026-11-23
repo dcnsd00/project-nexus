@@ -6,6 +6,7 @@ from pathlib import Path
 
 import pytest
 
+from mining.bitcoin_pow_engine import scan_nonce_range
 from mining.native_sha256d import native_status, scan_nonce_range_native
 
 GENESIS_HEADER = bytes.fromhex(
@@ -145,3 +146,25 @@ def test_native_scanner_rejects_block_target_easier_than_share_target():
         scan_nonce_range_native(
             GENESIS_HEADER, 0, 1, 1, 2,
         )
+
+
+def test_python_fallback_prioritizes_block_candidate_over_pool_share():
+    share_target = (1 << 256) - 1
+    start_nonce = 1234567
+
+    def hash_value(nonce):
+        header = GENESIS_HEADER[:76] + nonce.to_bytes(4, "little")
+        digest = hashlib.sha256(hashlib.sha256(header).digest()).digest()
+        return int.from_bytes(digest[::-1], "big")
+
+    while hash_value(start_nonce + 3) <= hash_value(start_nonce):
+        start_nonce += 1
+    block_target = hash_value(start_nonce)
+
+    result = scan_nonce_range(
+        GENESIS_HEADER, start_nonce, 4, share_target, block_target,
+    )
+    assert result["status"] == "share_candidate"
+    assert result["nonce"] == start_nonce
+    assert result["meets_share_target"] is True
+    assert result["meets_block_target"] is True
