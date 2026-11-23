@@ -1,7 +1,8 @@
 import json
 import json
-import multiprocessing
 import os
+import subprocess
+import sys
 import time
 
 import pytest
@@ -9,12 +10,15 @@ import pytest
 from mining.process_arbiter import MiningProcessArbiter
 
 
-def _try_acquire_in_child(path, result_queue):
-    arbiter = MiningProcessArbiter(path)
-    acquired = arbiter.acquire("child-process")
-    result_queue.put(acquired)
-    if acquired:
-        arbiter.release("child-process")
+_CHILD_ACQUIRE_SCRIPT = r"""
+import sys
+from mining.process_arbiter import MiningProcessArbiter
+arbiter = MiningProcessArbiter(sys.argv[1])
+acquired = arbiter.acquire("child-process")
+print("ACQUIRED" if acquired else "BUSY", flush=True)
+if acquired:
+    arbiter.release("child-process")
+"""
 
 
 def _fake_controller_request():
@@ -66,19 +70,23 @@ def test_os_lock_is_exclusive_across_processes(tmp_path):
     path = str(tmp_path / "mining.lock")
     arbiter = MiningProcessArbiter(path)
     assert arbiter.acquire("parent-process") is True
-    context = multiprocessing.get_context("spawn")
-    result_queue = context.Queue()
-    child = context.Process(target=_try_acquire_in_child, args=(path, result_queue))
-    child.start()
     try:
-        assert result_queue.get(timeout=10) is False
+        child = subprocess.run(
+            [sys.executable, "-c", _CHILD_ACQUIRE_SCRIPT, path],
+            capture_output=True, text=True, timeout=10,
+        )
+        assert child.returncode == 0, child.stderr
+        assert child.stdout.strip() == "BUSY"
     finally:
-        child.join(timeout=10)
-        if child.is_alive():
-            child.terminate()
-            child.join(timeout=5)
         arbiter.release("parent-process")
-    assert child.exitcode == 0
+
+    # Once the parent releases the lease, a different process can own it.
+    child = subprocess.run(
+        [sys.executable, "-c", _CHILD_ACQUIRE_SCRIPT, path],
+        capture_output=True, text=True, timeout=10,
+    )
+    assert child.returncode == 0, child.stderr
+    assert child.stdout.strip() == "ACQUIRED"
 
 
 def test_arbiter_can_be_released_from_a_different_thread(tmp_path):
