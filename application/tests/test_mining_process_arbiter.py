@@ -2,6 +2,7 @@ import json
 import json
 import multiprocessing
 import os
+import time
 
 import pytest
 
@@ -150,7 +151,7 @@ def test_direct_controller_and_hybrid_supervisor_are_mutually_exclusive(tmp_path
         runtime.mkdir(parents=True, exist_ok=True)
         status_path = runtime / "status.json"
         stop_path = runtime / "stop"
-        status_path.write_text(json.dumps({"state": "running", "pid": 987655}), encoding="utf-8")
+        status_path.write_text(json.dumps({"state": "running", "pid": 987655, "heartbeat_unix": time.time()}), encoding="utf-8")
         process = _FakeHybridWorkerProcess()
         supervisor._workers[engine] = {
             "process": process, "status_path": status_path, "stop_path": stop_path,
