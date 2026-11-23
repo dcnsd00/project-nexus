@@ -61,9 +61,13 @@ def decrypt_keystore(blob: str, password: str) -> bytes:
     return plaintext
 
 def decrypt_and_verify_address(blob: str, password: str, expected_address: str) -> dict:
-    secret = decrypt_keystore(blob, password)
-    actual = evm_address(int.from_bytes(secret, "big"))
-    if not isinstance(expected_address, str) or actual.lower() != expected_address.lower():
-        raise KeystoreKeyError("decrypted key does not match expected address")
-    return {"decrypted": True, "address_verified": True, "address": actual,
-            "private_key_returned": False}
+    secret = bytearray(decrypt_keystore(blob, password))
+    try:
+        actual = evm_address(int.from_bytes(secret, "big"))
+        if not isinstance(expected_address, str) or actual.lower() != expected_address.lower():
+            raise KeystoreKeyError("decrypted key does not match expected address")
+        return {"decrypted": True, "address_verified": True, "address": actual,
+                "private_key_returned": False}
+    finally:
+        for index in range(len(secret)):
+            secret[index] = 0
