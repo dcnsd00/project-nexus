@@ -25,6 +25,18 @@ Files reviewed: `application/nexus_master.py` (1,944 lines), `application/core/P
 - The launcher treats a service on port 8765 as an existing NEXUS instance when `GET /api/nexus/master` returns only `{"product":"NEXUS"}`. There is no cryptographic instance identity in that handshake. A local process able to occupy the port and spoof that response could cause the desktop shell to attach to the wrong local service. This is a local port-squatting/spoofing hardening item, not a demonstrated remote attack.
 - Positive boundaries remain: the dashboard/operator snapshot is explicitly read-only; wallet/research/EDGE surfaces carry separate safeguards described in earlier checkpoints; EDGE gateway operator endpoints use their own Bearer authentication. These do not create global MASTER API authentication.
 
+## Included-router follow-up (same audit stage)
+
+Additional files reviewed: `modules/earnings_intelligence.py`, `modules/integration_registry.py`, `modules/pool_failover_api.py`, `modules/wallet_benchmark/nexus_wallet_manager.py` and `modules/wallet_benchmark/nexus_wallet_recovery_api.py`.
+
+- Earnings Intelligence exposes local CRUD-style POST routes for opportunities, devices, jobs, telemetry, rewards, costs, payouts, wallet-watch and sources. No router-level authentication dependency was found in the inspected module.
+- Integration Registry exposes catalog/status reads; its own policy says providers are not marked live until dedicated adapter contract, auth, freshness and response validation pass. No router-level auth dependency was found; these are configuration/status surfaces.
+- Pool failover API exposes scenario and simulation routes; no router-level auth dependency was found in the inspected file.
+- Wallet manager has password-gated vault unlock/decryption paths and encrypts keys at rest. Its routes do not establish a common authenticated operator identity; several metadata/watch routes are not password-gated.
+- Wallet recovery checks the request peer against loopback in `_local_only()`. Its `_authorized(value: bool)` check accepts a client-supplied boolean `owner_authorized=true`; this is an explicit owner-attestation flag, not identity authentication or proof of ownership. Keep it as a user-consent safeguard, not an access-control boundary.
+- The loopback check relies on `request.client.host`; behind a same-host reverse proxy, the API may see the proxy's loopback address rather than the original remote client unless the deployment is designed to preserve and validate client identity. This reinforces the no-proxy/no-LAN deployment guard until a trusted proxy/auth model is implemented.
+- No secrets or credentials were read from the user's environment; this was a source-only review. No tests were run.
+
 ## Package, version and CI provenance findings
 
 Files reviewed: `application/VERSION.json`, `application/README_RO.md`, `application/INSTALL_NEXUS.bat`, `application/INSTALL_NEXUS_ONECLICK.ps1`, `application/INSTALL_NEXUS_WINDOWS.ps1`, `application/START_NEXUS_DESKTOP.pyw`, `application/packaging/NEXUS_DESKTOP.spec`, `.github/workflows/nexus-ci.yml` and `.github/workflows/nexus-desktop-package.yml`.
