@@ -11,7 +11,7 @@ while an orphaned miner is still alive.
 from __future__ import annotations
 
 import errno
-import hashlib
+import ctypes
 import json
 import os
 import threading
@@ -49,7 +49,7 @@ class MiningProcessArbiter:
         ).resolve()
         self._file: BinaryIO | None = None
         self._owner: str | None = None
-        self._mutex_handle = None
+        self._win_overlapped = None
         self._guard = threading.RLock()
 
     @property
@@ -62,6 +62,15 @@ class MiningProcessArbiter:
         with self._guard:
             return self._owner
 
+    class _OVERLAPPED(ctypes.Structure):
+        _fields_ = [
+            ("Internal", ctypes.c_size_t),
+            ("InternalHigh", ctypes.c_size_t),
+            ("Offset", ctypes.c_uint32),
+            ("OffsetHigh", ctypes.c_uint32),
+            ("hEvent", ctypes.c_void_p),
+        ]
+
     def _lock_os_file(self, handle: BinaryIO) -> None:
         handle.seek(0, os.SEEK_END)
         if handle.tell() == 0:
@@ -69,36 +78,32 @@ class MiningProcessArbiter:
             handle.flush()
         handle.seek(0)
         if os.name == "nt":
-            import ctypes
+            import msvcrt
             from ctypes import wintypes
 
             kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
-            kernel32.CreateMutexW.argtypes = (
-                wintypes.LPVOID, wintypes.BOOL, wintypes.LPCWSTR,
+            kernel32.LockFileEx.argtypes = (
+                wintypes.HANDLE, wintypes.DWORD, wintypes.DWORD,
+                wintypes.DWORD, wintypes.DWORD,
+                ctypes.POINTER(self._OVERLAPPED),
             )
-            kernel32.CreateMutexW.restype = wintypes.HANDLE
-            kernel32.WaitForSingleObject.argtypes = (wintypes.HANDLE, wintypes.DWORD)
-            kernel32.WaitForSingleObject.restype = wintypes.DWORD
-            kernel32.CloseHandle.argtypes = (wintypes.HANDLE,)
-            kernel32.CloseHandle.restype = wintypes.BOOL
+            kernel32.LockFileEx.restype = wintypes.BOOL
 
-            identity = hashlib.sha256(
-                str(self.path).casefold().encode("utf-8")
-            ).hexdigest()
-            mutex_name = "Local\\NEXUS_MINING_RUNTIME_" + identity
-            mutex_handle = kernel32.CreateMutexW(None, False, mutex_name)
-            if not mutex_handle:
-                raise ctypes.WinError(ctypes.get_last_error())
-
-            wait_result = kernel32.WaitForSingleObject(mutex_handle, 0)
-            if wait_result in (0x00000000, 0x00000080):  # WAIT_OBJECT_0 / WAIT_ABANDONED
-                self._mutex_handle = mutex_handle
-                return
-
-            kernel32.CloseHandle(mutex_handle)
-            if wait_result == 0x00000102:  # WAIT_TIMEOUT
-                raise BlockingIOError(errno.EAGAIN, "NEXUS mining runtime is already locked")
-            raise ctypes.WinError(ctypes.get_last_error())
+            overlapped = self._OVERLAPPED()
+            overlapped.Offset = 0
+            overlapped.OffsetHigh = 0
+            overlapped.hEvent = None
+            os_handle = wintypes.HANDLE(msvcrt.get_osfhandle(handle.fileno()))
+            flags = 0x00000002 | 0x00000001  # EXCLUSIVE_LOCK | FAIL_IMMEDIATELY
+            locked = kernel32.LockFileEx(
+                os_handle, flags, 0, 1, 0, ctypes.byref(overlapped)
+            )
+            if not locked:
+                error_code = ctypes.get_last_error()
+                if error_code in (33, 158):  # ERROR_LOCK_VIOLATION / ERROR_NOT_LOCKED
+                    raise BlockingIOError(errno.EAGAIN, "NEXUS mining runtime is already locked")
+                raise ctypes.WinError(error_code)
+            self._win_overlapped = overlapped
         else:
             import fcntl
 
@@ -106,22 +111,25 @@ class MiningProcessArbiter:
 
     def _unlock_os_file(self, handle: BinaryIO) -> None:
         if os.name == "nt":
-            import ctypes
+            import msvcrt
             from ctypes import wintypes
 
-            mutex_handle = self._mutex_handle
-            if mutex_handle is None:
+            overlapped = self._win_overlapped
+            if overlapped is None:
                 return
             kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
-            kernel32.ReleaseMutex.argtypes = (wintypes.HANDLE,)
-            kernel32.ReleaseMutex.restype = wintypes.BOOL
-            kernel32.CloseHandle.argtypes = (wintypes.HANDLE,)
-            kernel32.CloseHandle.restype = wintypes.BOOL
-            released = kernel32.ReleaseMutex(mutex_handle)
+            kernel32.UnlockFileEx.argtypes = (
+                wintypes.HANDLE, wintypes.DWORD, wintypes.DWORD,
+                wintypes.DWORD, ctypes.POINTER(self._OVERLAPPED),
+            )
+            kernel32.UnlockFileEx.restype = wintypes.BOOL
+            os_handle = wintypes.HANDLE(msvcrt.get_osfhandle(handle.fileno()))
+            unlocked = kernel32.UnlockFileEx(
+                os_handle, 0, 1, 0, ctypes.byref(overlapped)
+            )
             error_code = ctypes.get_last_error()
-            kernel32.CloseHandle(mutex_handle)
-            self._mutex_handle = None
-            if not released:
+            self._win_overlapped = None
+            if not unlocked:
                 raise ctypes.WinError(error_code)
         else:
             import fcntl
