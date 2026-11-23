@@ -12,7 +12,10 @@ from nexus_wallet_formats import (
 )
 from nexus_wallet_manager import db, _encrypt_secret
 from nexus_wallet_search import search_wallet_files
-from nexus_keystore_recovery import decrypt_and_verify_address
+from nexus_keystore_recovery import (
+    decrypt_and_verify_address, KeystoreError,
+    KeystoreAuthenticationError,
+)
 
 router = APIRouter(prefix="/api/wallet/recovery", tags=["wallet-recovery"])
 
@@ -149,9 +152,9 @@ def decrypt_and_import(x: DecryptRequest, request: Request):
         raise HTTPException(400, "Formatul nu este acceptat de acest endpoint")
     except HTTPException:
         raise
-    except WalletPasswordError as e:
+    except (WalletPasswordError, KeystoreAuthenticationError) as e:
         raise HTTPException(401, f"PASSWORD_INVALID: {e}")
-    except (WalletFormatError, WalletIntegrityError, RecoveryAuthorizationError) as e:
+    except (WalletFormatError, WalletIntegrityError, RecoveryAuthorizationError, KeystoreError) as e:
         raise HTTPException(422, f"DECRYPTION_FAILED: {e}")
     except Exception as e:
         raise HTTPException(422, f"DECRYPTION_FAILED: {type(e).__name__}")
