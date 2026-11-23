@@ -149,20 +149,24 @@ typedef struct {
     u8 hdr[80];
     u32 mid[8];   /* starea dupa primul bloc de 64 B */
     u32 tail[3];  /* cuvintele 0..2 ale blocului 2 (merkle tail, time, bits) */
-    u8 target[32];/* big-endian */
+    u8 target[32];      /* share target, big-endian */
+    u8 block_target[32]; /* optional block target, big-endian */
+    int has_block_target;
 } Job;
 
 typedef struct {
     int found;
     u32 nonce;
+    int block_found;
+    u32 block_nonce;
     u64 candidates;
 } Result;
 
-static int hash_le_target(const Job *j, const u8 h2[32]) {
+static int hash_le_target(const u8 target[32], const u8 h2[32]) {
     for (int i = 0; i < 32; i++) {  /* hash-ul ca numar = digest inversat */
         u8 hb = h2[31 - i];
-        if (hb < j->target[i]) return 1;
-        if (hb > j->target[i]) return 0;
+        if (hb < target[i]) return 1;
+        if (hb > target[i]) return 0;
     }
     return 1;
 }
@@ -174,14 +178,26 @@ static int target_requires_zero_top_word(const Job *j) {
     return j->target[0] == 0 && j->target[1] == 0 && j->target[2] == 0 && j->target[3] == 0;
 }
 
-static int verify_nonce(const Job *j, u32 nonce) {
+static int verify_nonce(const Job *j, u32 nonce, int *block_match) {
     u8 h[80], h1[32], h2[32];
     memcpy(h, j->hdr, 80);
     h[76] = (u8)nonce; h[77] = (u8)(nonce >> 8);
     h[78] = (u8)(nonce >> 16); h[79] = (u8)(nonce >> 24);
     sha256_bytes(h, 80, h1);
     sha256_bytes(h1, 32, h2);
-    return hash_le_target(j, h2);
+    if (block_match) *block_match = j->has_block_target && hash_le_target(j->block_target, h2);
+    return hash_le_target(j->target, h2);
+}
+
+static void record_candidate(const Job *j, u32 nonce, Result *r) {
+    int block_match = 0;
+    if (verify_nonce(j, nonce, &block_match)) {
+        if (!r->found) { r->found = 1; r->nonce = nonce; }
+        if (block_match && !r->block_found) {
+            r->block_found = 1;
+            r->block_nonce = nonce;
+        }
+    }
 }
 
 static void job_init_header(Job *j, const u8 header[80]) {
@@ -198,6 +214,8 @@ static void job_init_header(Job *j, const u8 header[80]) {
         j->tail[k] = bswap32(word);
     }
     memset(j->target, 0, 32);
+    memset(j->block_target, 0, 32);
+    j->has_block_target = 0;
 }
 
 static void job_init(Job *j, const char *hex) {
@@ -219,7 +237,7 @@ static void job_init(Job *j, const char *hex) {
 /* ---------- variante scalare ---------- */
 static void scan_v0(const Job *j, u64 start, u64 count, Result *r) {
     for (u64 n = start; n < start + count; n++)
-        if (verify_nonce(j, (u32)n)) { r->found = 1; r->nonce = (u32)n; }
+        record_candidate(j, (u32)n, r);
 }
 
 static void scan_v1(const Job *j, u64 start, u64 count, Result *r) {
@@ -235,7 +253,7 @@ static void scan_v1(const Job *j, u64 start, u64 count, Result *r) {
         compress(st2, in2);
         if (!target_requires_zero_top_word(j) || st2[7] == 0) {
             r->candidates++;
-            if (verify_nonce(j, (u32)n)) { r->found = 1; r->nonce = (u32)n; }
+            record_candidate(j, (u32)n, r);
         }
     }
 }
@@ -248,7 +266,7 @@ static void scan_v2(const Job *j, u64 start, u64 count, Result *r) {
         u32 st[8];
         memcpy(st, j->mid, 32);
         compress(st, in);
-        if (second_e60(st) + IV[7] == 0) { r->candidates++; if (verify_nonce(j, (u32)n)) { r->found = 1; r->nonce = (u32)n; } }
+        if (second_e60(st) + IV[7] == 0) { r->candidates++; record_candidate(j, (u32)n, r); }
     }
 }
 
@@ -323,7 +341,7 @@ static void scan_v3(const Job *j, u64 start, u64 count, Result *r) {
             int l = (int)ctz32((u32)mask);
             mask &= mask - 1;
             r->candidates++;
-            if (verify_nonce(j, (u32)(n + l))) { r->found = 1; r->nonce = (u32)(n + l); }
+            record_candidate(j, (u32)(n + l), r);
         }
     }
     u64 end = start + count;
@@ -394,7 +412,7 @@ static void scan_v4(const Job *j, u64 start, u64 count, Result *r) {
             int l = __builtin_ctz(mask);
             mask &= mask - 1;
             r->candidates++;
-            if (verify_nonce(j, (u32)(n + l))) { r->found = 1; r->nonce = (u32)(n + l); }
+            record_candidate(j, (u32)(n + l), r);
         }
     }
     u64 end = start + count;
@@ -487,8 +505,13 @@ static double run(const Job *j, int v, int threads, u64 start, u64 total, Result
         if (launched[i]) pthread_join(th[i], NULL);
 #endif
         out->candidates += tk[i].res.candidates;
-        if (tk[i].res.found) { out->found = 1; out->nonce = tk[i].res.nonce; }
+        if (tk[i].res.found && !out->found) { out->found = 1; out->nonce = tk[i].res.nonce; }
+        if (tk[i].res.block_found && !out->block_found) {
+            out->block_found = 1;
+            out->block_nonce = tk[i].res.block_nonce;
+        }
     }
+    if (out->block_found) { out->found = 1; out->nonce = out->block_nonce; }
     double dt = now() - t0;
     return dt > 0.0 ? (double)total / dt / 1e6 : 0.0; /* MH/s */
 }
@@ -522,8 +545,9 @@ NEXUS_EXPORT int nexus_variant_supported(int variant) {
     return 1;
 }
 
-NEXUS_EXPORT int nexus_scan_range(const u8 *header, const u8 *target_be, u32 start_nonce,
-                     u64 count, int variant, int threads, u32 *nonce_out,
+NEXUS_EXPORT int nexus_scan_range(const u8 *header, const u8 *target_be,
+                     const u8 *block_target_be, u32 start_nonce, u64 count,
+                     int variant, int threads, u32 *nonce_out,
                      u64 *checked_out, double *hashrate_mhs_out) {
     if (!header || !target_be || !nonce_out || !checked_out || !hashrate_mhs_out) return -1;
     if (variant < 0 || variant > 4 || threads < 1 || threads > 256 || count < 1) return -2;
@@ -531,6 +555,10 @@ NEXUS_EXPORT int nexus_scan_range(const u8 *header, const u8 *target_be, u32 sta
     if (!nexus_variant_supported(variant)) return -4;
     Job j; job_init_header(&j, header);
     memcpy(j.target, target_be, 32);
+    if (block_target_be) {
+        memcpy(j.block_target, block_target_be, 32);
+        j.has_block_target = 1;
+    }
     Result result;
     double rate = run(&j, variant, threads, start_nonce, count, &result);
     *nonce_out = result.found ? result.nonce : 0;
