@@ -106,10 +106,15 @@ class MiningProcessArbiter:
         handle.write(sentinel + raw)
         handle.truncate(1 + len(raw))
         handle.flush()
-        try:
-            os.fsync(handle.fileno())
-        except OSError:
-            pass
+        # Windows FlushFileBuffers on an actively byte-locked handle can
+        # stall on some runners/filesystems. FileIO is unbuffered and flush()
+        # has already handed the metadata to the OS cache; the live OS lock
+        # protects concurrent readers. POSIX keeps fsync for crash durability.
+        if os.name != "nt":
+            try:
+                os.fsync(handle.fileno())
+            except OSError:
+                pass
 
     def _metadata_has_live_process(self, metadata: dict) -> bool:
         owner_pid = metadata.get("owner_pid")
