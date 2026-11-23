@@ -21,6 +21,9 @@ def test_worker_launches_owned_child_and_stops_it(tmp_path):
             break
         time.sleep(.05)
     assert json.loads(status.read_text())['state'] == 'running'
+    running = json.loads(status.read_text())
+    assert running['pool_connected'] is None
+    assert running['authorized'] is None
     stop.parent.mkdir(parents=True, exist_ok=True)
     stop.write_text('stop')
     thread.join(5)
