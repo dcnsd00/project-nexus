@@ -1,16 +1,32 @@
 import json
+from contextlib import asynccontextmanager
 from pathlib import Path
+
 from fastapi.testclient import TestClient
 import pytest
 import nexus_master
 
+
 @pytest.fixture(scope="module")
 def client():
-    # Keep one explicitly managed portal for this module. A module-global
-    # TestClient starts implicit AnyIO portal threads per request and does
-    # not guarantee lifespan cleanup on Windows.
-    with TestClient(nexus_master.app) as test_client:
-        yield test_client
+    # These tests exercise mining HTTP routes and catalog validation only.
+    # Starting the full NEXUS service graph here creates unrelated background
+    # workers and can exhaust/hang the Windows AnyIO portal during the suite.
+    # Lifecycle startup and shutdown are covered by dedicated runtime tests.
+    original_lifespan = nexus_master.app.router.lifespan_context
+
+    @asynccontextmanager
+    async def route_test_lifespan(_app):
+        yield
+
+    nexus_master.app.router.lifespan_context = route_test_lifespan
+    try:
+        with TestClient(nexus_master.app) as test_client:
+            yield test_client
+    finally:
+        nexus_master.app.router.lifespan_context = original_lifespan
+
+
 ROOT=Path(__file__).resolve().parents[1]
 
 def test_major_coin_catalog_contains_pow_and_non_pow_classification(client):
@@ -127,7 +143,6 @@ def test_f2pool_pearl_pool_is_catalogued_with_operator_source(client):
     assert p['algorithm']=='PearlHash' and p['auth_type']=='account_worker'
     assert p['source'].startswith('https://f2pool.zendesk.com/')
 
-
 def test_luxor_and_poolin_bitcoin_profiles_have_documented_login_and_failover(client):
     data=client.get('/api/mining/pools').json()['pools']
     rows={p['id']:p for p in data}
@@ -140,7 +155,6 @@ def test_luxor_and_poolin_bitcoin_profiles_have_documented_login_and_failover(cl
     assert poolin['backup_ports']==[1883,700]
     assert poolin['ssl_port'] is None  # port 443 alone is not proof of TLS
     assert poolin['worker_format']=='ACCOUNT.worker'
-
 
 def test_f2pool_primary_and_etc_tls_hosts_match_current_operator_docs(client):
     data=client.get('/api/mining/pools').json()['pools']
