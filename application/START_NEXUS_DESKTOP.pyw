@@ -1,6 +1,6 @@
 """NEXUS desktop shell with loopback-only dynamic port selection."""
 from __future__ import annotations
-import json, socket, sys, threading, time, urllib.request
+import json, socket, sys, threading, time
 from pathlib import Path
 import uvicorn
 import webview
@@ -42,55 +42,52 @@ def run_packaged_self_test() -> int:
     return 0
 
 
-def nexus_is_running(port: int = DEFAULT_PORT) -> bool:
+def choose_listener() -> tuple[int, socket.socket]:
+    """Reserve a loopback listener; never attach to an unverified process."""
+    listener = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     try:
-        with urllib.request.urlopen(f"http://{HOST}:{port}/api/nexus/master", timeout=1.2) as r:
-            data = json.loads(r.read().decode("utf-8"))
-            return data.get("product") == "NEXUS"
-    except Exception:
-        return False
+        listener.bind((HOST, DEFAULT_PORT))
+    except OSError:
+        listener.close()
+        listener = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        listener.bind((HOST, 0))
+    listener.listen(socket.SOMAXCONN)
+    listener.setblocking(False)
+    return int(listener.getsockname()[1]), listener
 
 
-def choose_port() -> tuple[int, bool]:
-    """Return (port, already_running); never bind to a non-loopback interface."""
-    if nexus_is_running(DEFAULT_PORT):
-        return DEFAULT_PORT, True
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
-        try:
-            sock.bind((HOST, DEFAULT_PORT))
-            return DEFAULT_PORT, False
-        except OSError:
-            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as ephemeral:
-                ephemeral.bind((HOST, 0))
-                return int(ephemeral.getsockname()[1]), False
-
-
-def wait_ready(port: int, timeout: float = 25.0) -> bool:
-    end = time.time() + timeout
-    while time.time() < end:
-        if nexus_is_running(port):
+def wait_ready(server: uvicorn.Server, thread: threading.Thread,
+               timeout: float = 25.0) -> bool:
+    """Wait for this process's Uvicorn server, not an unauthenticated HTTP banner."""
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        if server.started:
             return True
-        time.sleep(0.25)
-    return False
+        if not thread.is_alive():
+            return False
+        time.sleep(0.05)
+    return bool(server.started)
 
 
 def main():
     if "--self-test" in sys.argv[1:]:
         return run_packaged_self_test()
-    port, already_running = choose_port()
+    port, listener = choose_listener()
     url = f"http://{HOST}:{port}/api/nexus/dashboard"
-    server = None
-    if not already_running:
-        config = uvicorn.Config(nexus_app, host=HOST, port=port, log_level="warning", access_log=False)
-        server = uvicorn.Server(config)
-        thread = threading.Thread(target=server.run, name="NEXUS-API", daemon=True)
-        thread.start()
-        if not wait_ready(port):
-            raise RuntimeError(f"Motorul local NEXUS nu a pornit pe 127.0.0.1:{port} în 25 secunde. Verifică logs/desktop-launcher.log.")
+    config = uvicorn.Config(nexus_app, host=HOST, port=port, log_level="warning", access_log=False)
+    server = uvicorn.Server(config)
+    thread = threading.Thread(
+        target=server.run, kwargs={"sockets": [listener]},
+        name="NEXUS-API", daemon=True,
+    )
+    thread.start()
+    if not wait_ready(server, thread):
+        server.should_exit = True
+        listener.close()
+        raise RuntimeError(f"Motorul local NEXUS nu a pornit pe 127.0.0.1:{port} în 25 secunde. Verifică logs/desktop-launcher.log.")
     window = webview.create_window("NEXUS Control Center", url, width=1500, height=960,
                                    min_size=(1050, 700), background_color="#0b1220")
-    if server is not None:
-        window.events.closed += lambda: setattr(server, "should_exit", True)
+    window.events.closed += lambda: setattr(server, "should_exit", True)
     webview.start(gui="edgechromium", debug=False)
     return 0
 
