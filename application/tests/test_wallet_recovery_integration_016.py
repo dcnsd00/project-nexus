@@ -326,3 +326,66 @@ def test_nexus_aesgcm_keystore_decrypt_maps_wrong_password_to_401_without_key_ex
         assert data["address_match"] == "ADDRESS_MATCH"
         assert data["private_key_returned"] is False
         assert data["re_encrypted_in_nexus_vault"] is False
+
+
+def test_bip39_checksum_and_one_missing_word_api_returns_only_missing_word():
+    from mnemonic import Mnemonic
+    from nexus_wallet_benchmark import bip39_seed, derive_path, make_path
+    wordlist = Mnemonic("english").wordlist
+    phrase = "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about"
+    seed = bip39_seed(phrase, "")
+    address = evm_address(derive_path(seed, make_path("EVM_ETHEREUM", 0)))
+    with TestClient(app) as c:
+        checked = c.post("/api/wallet/recovery/bip39/check", json={
+            "mnemonic": phrase, "language": "english", "owner_authorized": True
+        })
+        assert checked.status_code == 200, checked.text
+        assert checked.json()["mnemonic_checksum_valid"] is True
+        assert checked.json()["seed_exported"] is False
+
+        partial = " ".join(phrase.split()[:-1] + ["?"])
+        recovered = c.post("/api/wallet/recovery/bip39/one-missing", json={
+            "partial_mnemonic": partial, "expected_address": address,
+            "format": "EVM_ETHEREUM", "language": "english",
+            "passphrase": "", "address_index": 0, "owner_authorized": True
+        })
+        assert recovered.status_code == 200, recovered.text
+        body = recovered.json()
+        assert body["status"] == "ADDRESS_MATCH"
+        assert body["match_count"] == 1
+        assert body["matches"][0]["recovered_word"] == "about"
+        assert body["mnemonic_exported"] is False
+        assert "mnemonic" not in body["matches"][0]
+
+
+def test_solana_keypair_validation_api_checks_public_half_without_export():
+    from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+    from cryptography.hazmat.primitives import serialization
+    from nexus_wallet_benchmark import base58_encode
+    seed = bytes(range(32))
+    public = Ed25519PrivateKey.from_private_bytes(seed).public_key().public_bytes(
+        serialization.Encoding.Raw, serialization.PublicFormat.Raw
+    )
+    keypair = list(seed + public)
+    with TestClient(app) as c:
+        valid = c.post("/api/wallet/recovery/solana/validate", json={"payload": keypair})
+        assert valid.status_code == 200, valid.text
+        body = valid.json()
+        assert body["valid"] is True
+        assert body["address"] == base58_encode(public)
+        assert body["private_key_returned"] is False
+
+        keypair[-1] ^= 1
+        invalid = c.post("/api/wallet/recovery/solana/validate", json={"payload": keypair})
+        assert invalid.status_code == 422
+
+
+def test_wallet_page_exposes_bip39_and_solana_tools_without_persisting_inputs():
+    with TestClient(app) as c:
+        page = c.get("/wallet")
+        assert page.status_code == 200
+        assert 'id="bip39Phrase"' in page.text
+        assert 'id="bip39Partial"' in page.text
+        assert 'id="solanaKeypairFile"' in page.text
+        assert "function recoverBip39Missing()" in page.text
+        assert "function validateSolanaKeypair()" in page.text
