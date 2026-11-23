@@ -226,9 +226,17 @@ def recover_bip39_missing(x: BIP39MissingRequest, request: Request):
         matches = bip39_recover_one_missing_by_address(
             x.partial_mnemonic, words, x.expected_address, x.format,
             x.passphrase, x.address_index, owner_authorized=True)
-        return {"status":"ADDRESS_MATCH" if matches else "ADDRESS_MISMATCH",
-                "match_count":len(matches), "matches":matches,
-                "private_key_exported":False, "seed_exported":False}
+        # Return only the missing word and public derivation metadata.
+        # The completed mnemonic is intentionally not sent back over the API.
+        safe_matches = [
+            {"recovered_word": item["recovered_word"], "address": item["address"],
+             "format": item["format"], "path": item["path"]}
+            for item in matches
+        ]
+        return {"status":"ADDRESS_MATCH" if safe_matches else "ADDRESS_MISMATCH",
+                "match_count":len(safe_matches), "matches":safe_matches,
+                "private_key_exported":False, "seed_exported":False,
+                "mnemonic_exported":False}
     except WalletFormatError as e:
         raise HTTPException(422, str(e))
 
