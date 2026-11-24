@@ -6,6 +6,7 @@ import time
 
 import pytest
 
+from mining import process_arbiter as process_arbiter_module
 from mining.process_arbiter import MiningProcessArbiter
 
 
@@ -100,6 +101,28 @@ def test_arbiter_can_be_released_from_a_different_thread(tmp_path):
     assert not thread.is_alive()
     assert results == [True]
     assert arbiter.held is False
+
+
+def test_windows_process_liveness_uses_psutil_pid_exists(monkeypatch):
+    monkeypatch.setattr(process_arbiter_module, "_IS_WINDOWS", True)
+    monkeypatch.setattr(
+        process_arbiter_module.psutil,
+        "pid_exists",
+        lambda pid: pid == 4321,
+    )
+
+    assert process_arbiter_module.process_is_alive(4321) is True
+    assert process_arbiter_module.process_is_alive(4322) is False
+
+
+def test_windows_process_liveness_fails_closed_on_lookup_error(monkeypatch):
+    monkeypatch.setattr(process_arbiter_module, "_IS_WINDOWS", True)
+
+    def deny_lookup(pid):
+        raise process_arbiter_module.psutil.AccessDenied(pid=pid)
+
+    monkeypatch.setattr(process_arbiter_module.psutil, "pid_exists", deny_lookup)
+    assert process_arbiter_module.process_is_alive(4321) is True
 
 
 def test_stale_lock_metadata_blocks_while_orphan_pid_is_alive(tmp_path):

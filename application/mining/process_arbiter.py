@@ -14,16 +14,33 @@ import errno
 import json
 import os
 import threading
+
+import psutil
 from pathlib import Path
 from typing import BinaryIO, Iterable
 
 from modules.data_paths import data_path
 
 
+_IS_WINDOWS = os.name == "nt"
+
+
+def _windows_process_is_alive(pid: int) -> bool:
+    """Use psutil's Windows process enumeration instead of os.kill(pid, 0)."""
+    try:
+        return psutil.pid_exists(pid)
+    except (psutil.Error, OSError):
+        # If Windows cannot confirm the process state, fail closed: do not
+        # release a mining lease while an orphan process may still be alive.
+        return True
+
+
 def process_is_alive(pid: int | None) -> bool:
     """Return a conservative process-liveness result for a positive PID."""
     if isinstance(pid, bool) or not isinstance(pid, int) or pid <= 0:
         return False
+    if _IS_WINDOWS:
+        return _windows_process_is_alive(pid)
     try:
         os.kill(pid, 0)
     except ProcessLookupError:
