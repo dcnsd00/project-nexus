@@ -113,6 +113,15 @@ def test_arbiter_can_be_released_from_a_different_thread(tmp_path):
     assert arbiter.held is False
 
 
+def test_process_liveness_rejects_invalid_pids_and_accepts_current_process():
+    from mining.process_arbiter import process_is_alive
+
+    assert process_is_alive(0) is False
+    assert process_is_alive(-1) is False
+    assert process_is_alive(True) is False
+    assert process_is_alive(os.getpid()) is True
+
+
 def test_stale_lock_metadata_blocks_while_orphan_pid_is_alive(tmp_path):
     path = tmp_path / "mining.lock"
     arbiter = MiningProcessArbiter(path)
