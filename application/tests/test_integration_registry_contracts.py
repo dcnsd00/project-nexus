@@ -38,3 +38,15 @@ def test_complete_credentials_are_pending_validation_and_never_echoed():
     assert row["live_connection_verified"] is False
     assert row["writes_enabled"] is False
     assert secret not in repr(row)
+
+
+def test_catalog_and_status_endpoints_report_only_readiness():
+    from modules.integration_registry import integrations_catalog, integrations_status
+
+    catalog = integrations_catalog()
+    status = integrations_status()
+    assert catalog["count"] == len(PROVIDERS)
+    assert catalog["live_verified"] == 0
+    assert status["total"] == len(PROVIDERS)
+    assert status["live_verified"] == 0
+    assert status["not_configured"] + status["configured_pending_adapter_validation"] == status["total"]
