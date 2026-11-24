@@ -11,7 +11,7 @@ def _request(method: str, path: str, *, json_body=None):
     async def send():
         transport = httpx.ASGITransport(app=nexus_master.app)
         async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
-            return await client.request(method, path, json_body=json_body)
+            return await client.request(method, path, json=json_body)
 
     return asyncio.run(send())
 
