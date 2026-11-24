@@ -174,66 +174,303 @@ jobs:
           } finally {
             Pop-Location
           }
-      - name: Run Windows application test shard 1 of 4
+      - name: Run Windows test module batch 1 of 12 (isolated processes)
         timeout-minutes: 10
         shell: pwsh
         run: |
           $Root = "${{ needs.source-detection.outputs.root }}"
           $env:NEXUS_NATIVE_COMPILER = "msvc"
+          $Modules = @(
+            "tests/rcsc/test_bitcoin_unit.py",
+            "tests/rcsc/test_rcsc_integration.py",
+            "tests/rcsc/test_statistics_unit.py",
+            "tests/test_backend_adapters.py",
+            "tests/test_bitcoin_pow_engine_0113.py",
+            "tests/test_blockchain_node_telemetry.py",
+            "tests/test_blockchain_regtest_import.py"
+          )
           Push-Location $Root
           try {
-            python -m pytest -vv --full-trace --disable-warnings --maxfail=1 tests/rcsc/test_bitcoin_unit.py tests/rcsc/test_rcsc_integration.py tests/rcsc/test_statistics_unit.py tests/test_backend_adapters.py tests/test_bitcoin_pow_engine_0113.py tests/test_blockchain_node_telemetry.py tests/test_blockchain_regtest_import.py tests/test_catalog_cosmos_unmineable_0108.py tests/test_coin_catalog.py tests/test_command_continuity.py tests/test_core_api.py tests/test_crypto_engine.py tests/test_crypto_security.py tests/test_data_paths.py tests/test_desktop_packaging.py tests/test_desktop_shell_021.py tests/test_development_pow.py tests/test_earnings_intelligence.py tests/test_evm_node_telemetry.py tests/test_fieldstation_import_safety.py tests/test_hybrid_orchestrator.py tests/test_hybrid_safety.py tests/test_hybrid_solver_0105.py tests/test_hybrid_supervisor_api.py
-            if ($LASTEXITCODE -ne 0) { throw "Windows application test shard 1 of 4 failed." }
+            foreach ($Module in $Modules) {
+              Write-Host "Running isolated Windows pytest module: $Module"
+              python -m pytest -vv --full-trace --disable-warnings --maxfail=1 $Module
+              if ($LASTEXITCODE -ne 0) { throw "Windows test module failed: $Module" }
+            }
           } finally {
             Pop-Location
           }
-      - name: Run Windows application test shard 2 of 4
+      - name: Run Windows test module batch 2 of 12 (isolated processes)
         timeout-minutes: 10
         shell: pwsh
         run: |
           $Root = "${{ needs.source-detection.outputs.root }}"
           $env:NEXUS_NATIVE_COMPILER = "msvc"
+          $Modules = @(
+            "tests/test_catalog_cosmos_unmineable_0108.py",
+            "tests/test_coin_catalog.py",
+            "tests/test_command_continuity.py",
+            "tests/test_core_api.py",
+            "tests/test_crypto_engine.py",
+            "tests/test_crypto_security.py",
+            "tests/test_data_paths.py"
+          )
           Push-Location $Root
           try {
-            python -m pytest -vv --full-trace --disable-warnings --maxfail=1 tests/test_hybrid_supervisor.py tests/test_hybrid_worker.py tests/test_integration_registry_015.py tests/test_keystore_recovery_20.py tests/test_lifecycle_manager.py tests/test_master.py tests/test_math_intelligence_095.py tests/test_math_intelligence_api_095.py tests/test_mathematical_regression_015.py tests/test_miner_adapters_0109.py tests/test_miner_installer_091.py tests/test_mining_capability_api.py tests/test_mining_capability_registry.py tests/test_mining_catalog_099.py tests/test_mining_compatibility_matrix.py tests/test_mining_controller_090.py tests/test_mining_efficiency_optimizer.py tests/test_mining_optimization_094.py tests/test_mining_process_arbiter.py tests/test_mining_switch_controller.py tests/test_mining_telemetry_evidence.py tests/test_mining_v098.py tests/test_module_registry.py tests/test_native_sha256d_021.py
-            if ($LASTEXITCODE -ne 0) { throw "Windows application test shard 2 of 4 failed." }
+            foreach ($Module in $Modules) {
+              Write-Host "Running isolated Windows pytest module: $Module"
+              python -m pytest -vv --full-trace --disable-warnings --maxfail=1 $Module
+              if ($LASTEXITCODE -ne 0) { throw "Windows test module failed: $Module" }
+            }
           } finally {
             Pop-Location
           }
-      - name: Report Windows thread diagnostics after shard 2
-        if: always()
-        shell: pwsh
-        run: |
-          $DiagnosticPath = Join-Path $env:RUNNER_TEMP "nexus-thread-diagnostics.txt"
-          if (Test-Path $DiagnosticPath) {
-            Write-Host "Windows thread/process snapshot:"
-            Get-Content $DiagnosticPath
-          } else {
-            Write-Host "No Windows thread diagnostic file was produced."
-          }
-      - name: Run Windows application test shard 3 of 4
+      - name: Run Windows test module batch 3 of 12 (isolated processes)
         timeout-minutes: 10
         shell: pwsh
         run: |
           $Root = "${{ needs.source-detection.outputs.root }}"
           $env:NEXUS_NATIVE_COMPILER = "msvc"
+          $Modules = @(
+            "tests/test_desktop_packaging.py",
+            "tests/test_desktop_shell_021.py",
+            "tests/test_development_pow.py",
+            "tests/test_earnings_intelligence.py",
+            "tests/test_evm_node_telemetry.py",
+            "tests/test_fieldstation_import_safety.py",
+            "tests/test_hybrid_orchestrator.py"
+          )
           Push-Location $Root
           try {
-            python -m pytest -vv --full-trace --disable-warnings --maxfail=1 tests/test_nexus_080.py tests/test_nexus_cli.py tests/test_nexus_edge_gateway_runtime.py tests/test_nexus_edge_gateway.py tests/test_nexus_edge_manager.py tests/test_nexus_edge_master_integration.py tests/test_nexus_edge_persistence.py tests/test_nexus_edge_replay_guard.py tests/test_nexus_edge_runtime_lock.py tests/test_nexus_edge_runtime.py tests/test_nexus_edge_service.py tests/test_nexus_edge_sqlite_store.py tests/test_nexus_edge_transports.py tests/test_nexus_hardware_benchmark.py tests/test_nexus_runtime.py tests/test_pool_connectors_0104.py tests/test_pool_failover_api.py
-            if ($LASTEXITCODE -ne 0) { throw "Windows application test shard 3 of 4 failed." }
+            foreach ($Module in $Modules) {
+              Write-Host "Running isolated Windows pytest module: $Module"
+              python -m pytest -vv --full-trace --disable-warnings --maxfail=1 $Module
+              if ($LASTEXITCODE -ne 0) { throw "Windows test module failed: $Module" }
+            }
           } finally {
             Pop-Location
           }
-      - name: Run Windows application test shard 4 of 4
+      - name: Run Windows test module batch 4 of 12 (isolated processes)
         timeout-minutes: 10
         shell: pwsh
         run: |
           $Root = "${{ needs.source-detection.outputs.root }}"
           $env:NEXUS_NATIVE_COMPILER = "msvc"
+          $Modules = @(
+            "tests/test_hybrid_safety.py",
+            "tests/test_hybrid_supervisor_api.py",
+            "tests/test_hybrid_supervisor.py",
+            "tests/test_hybrid_worker.py",
+            "tests/test_integration_registry_015.py",
+            "tests/test_keystore_recovery_20.py",
+            "tests/test_lifecycle_manager.py"
+          )
           Push-Location $Root
           try {
-            python -m pytest -vv --full-trace --disable-warnings --maxfail=1 tests/test_pool_failover_simulator.py tests/test_pool_fault_simulator.py tests/test_pool_registry_0104.py tests/test_randomx_benchmark_api.py tests/test_randomx_benchmark.py tests/test_runtime_telemetry.py tests/test_sha_avalanche_0102.py tests/test_sha2_research_bridge_0113.py tests/test_sha2_research_service_020.py tests/test_sha256_advanced.py tests/test_sha256_research.py tests/test_solo_bitcoin_rpc_097.py tests/test_solo_mining_096.py tests/test_solo_profiles_0104.py tests/test_stratum_endpoint_tls_0105.py tests/test_stratum_miner_014.py tests/test_stratum_probe_0104.py tests/test_stratum_session_01010.py tests/test_stratum_share_simulator_01012.py tests/test_vault_audit_015.py tests/test_wallet_manager.py tests/test_wallet_recovery_integration_016.py
-            if ($LASTEXITCODE -ne 0) { throw "Windows application test shard 4 of 4 failed." }
+            foreach ($Module in $Modules) {
+              Write-Host "Running isolated Windows pytest module: $Module"
+              python -m pytest -vv --full-trace --disable-warnings --maxfail=1 $Module
+              if ($LASTEXITCODE -ne 0) { throw "Windows test module failed: $Module" }
+            }
+          } finally {
+            Pop-Location
+          }
+      - name: Run Windows test module batch 5 of 12 (isolated processes)
+        timeout-minutes: 10
+        shell: pwsh
+        run: |
+          $Root = "${{ needs.source-detection.outputs.root }}"
+          $env:NEXUS_NATIVE_COMPILER = "msvc"
+          $Modules = @(
+            "tests/test_master.py",
+            "tests/test_math_intelligence_095.py",
+            "tests/test_math_intelligence_api_095.py",
+            "tests/test_mathematical_regression_015.py",
+            "tests/test_miner_adapters_0109.py",
+            "tests/test_miner_installer_091.py",
+            "tests/test_mining_capability_api.py"
+          )
+          Push-Location $Root
+          try {
+            foreach ($Module in $Modules) {
+              Write-Host "Running isolated Windows pytest module: $Module"
+              python -m pytest -vv --full-trace --disable-warnings --maxfail=1 $Module
+              if ($LASTEXITCODE -ne 0) { throw "Windows test module failed: $Module" }
+            }
+          } finally {
+            Pop-Location
+          }
+      - name: Run Windows test module batch 6 of 12 (isolated processes)
+        timeout-minutes: 10
+        shell: pwsh
+        run: |
+          $Root = "${{ needs.source-detection.outputs.root }}"
+          $env:NEXUS_NATIVE_COMPILER = "msvc"
+          $Modules = @(
+            "tests/test_mining_capability_registry.py",
+            "tests/test_mining_catalog_099.py",
+            "tests/test_mining_compatibility_matrix.py",
+            "tests/test_mining_controller_090.py",
+            "tests/test_mining_efficiency_optimizer.py",
+            "tests/test_mining_optimization_094.py",
+            "tests/test_mining_process_arbiter.py"
+          )
+          Push-Location $Root
+          try {
+            foreach ($Module in $Modules) {
+              Write-Host "Running isolated Windows pytest module: $Module"
+              python -m pytest -vv --full-trace --disable-warnings --maxfail=1 $Module
+              if ($LASTEXITCODE -ne 0) { throw "Windows test module failed: $Module" }
+            }
+          } finally {
+            Pop-Location
+          }
+      - name: Run Windows test module batch 7 of 12 (isolated processes)
+        timeout-minutes: 10
+        shell: pwsh
+        run: |
+          $Root = "${{ needs.source-detection.outputs.root }}"
+          $env:NEXUS_NATIVE_COMPILER = "msvc"
+          $Modules = @(
+            "tests/test_mining_switch_controller.py",
+            "tests/test_mining_telemetry_evidence.py",
+            "tests/test_module_registry.py",
+            "tests/test_native_sha256d_021.py",
+            "tests/test_nexus_080.py",
+            "tests/test_nexus_cli.py",
+            "tests/test_nexus_edge_gateway_runtime.py"
+          )
+          Push-Location $Root
+          try {
+            foreach ($Module in $Modules) {
+              Write-Host "Running isolated Windows pytest module: $Module"
+              python -m pytest -vv --full-trace --disable-warnings --maxfail=1 $Module
+              if ($LASTEXITCODE -ne 0) { throw "Windows test module failed: $Module" }
+            }
+          } finally {
+            Pop-Location
+          }
+      - name: Run Windows test module batch 8 of 12 (isolated processes)
+        timeout-minutes: 10
+        shell: pwsh
+        run: |
+          $Root = "${{ needs.source-detection.outputs.root }}"
+          $env:NEXUS_NATIVE_COMPILER = "msvc"
+          $Modules = @(
+            "tests/test_nexus_edge_gateway.py",
+            "tests/test_nexus_edge_manager.py",
+            "tests/test_nexus_edge_master_integration.py",
+            "tests/test_nexus_edge_persistence.py",
+            "tests/test_nexus_edge_replay_guard.py",
+            "tests/test_nexus_edge_runtime_lock.py",
+            "tests/test_nexus_edge_runtime.py"
+          )
+          Push-Location $Root
+          try {
+            foreach ($Module in $Modules) {
+              Write-Host "Running isolated Windows pytest module: $Module"
+              python -m pytest -vv --full-trace --disable-warnings --maxfail=1 $Module
+              if ($LASTEXITCODE -ne 0) { throw "Windows test module failed: $Module" }
+            }
+          } finally {
+            Pop-Location
+          }
+      - name: Run Windows test module batch 9 of 12 (isolated processes)
+        timeout-minutes: 10
+        shell: pwsh
+        run: |
+          $Root = "${{ needs.source-detection.outputs.root }}"
+          $env:NEXUS_NATIVE_COMPILER = "msvc"
+          $Modules = @(
+            "tests/test_nexus_edge_service.py",
+            "tests/test_nexus_edge_sqlite_store.py",
+            "tests/test_nexus_edge_transports.py",
+            "tests/test_nexus_hardware_benchmark.py",
+            "tests/test_nexus_runtime.py",
+            "tests/test_pool_connectors_0104.py",
+            "tests/test_pool_failover_api.py"
+          )
+          Push-Location $Root
+          try {
+            foreach ($Module in $Modules) {
+              Write-Host "Running isolated Windows pytest module: $Module"
+              python -m pytest -vv --full-trace --disable-warnings --maxfail=1 $Module
+              if ($LASTEXITCODE -ne 0) { throw "Windows test module failed: $Module" }
+            }
+          } finally {
+            Pop-Location
+          }
+      - name: Run Windows test module batch 10 of 12 (isolated processes)
+        timeout-minutes: 10
+        shell: pwsh
+        run: |
+          $Root = "${{ needs.source-detection.outputs.root }}"
+          $env:NEXUS_NATIVE_COMPILER = "msvc"
+          $Modules = @(
+            "tests/test_pool_failover_simulator.py",
+            "tests/test_pool_fault_simulator.py",
+            "tests/test_pool_registry_0104.py",
+            "tests/test_randomx_benchmark_api.py",
+            "tests/test_randomx_benchmark.py",
+            "tests/test_runtime_telemetry.py",
+            "tests/test_sha_avalanche_0102.py"
+          )
+          Push-Location $Root
+          try {
+            foreach ($Module in $Modules) {
+              Write-Host "Running isolated Windows pytest module: $Module"
+              python -m pytest -vv --full-trace --disable-warnings --maxfail=1 $Module
+              if ($LASTEXITCODE -ne 0) { throw "Windows test module failed: $Module" }
+            }
+          } finally {
+            Pop-Location
+          }
+      - name: Run Windows test module batch 11 of 12 (isolated processes)
+        timeout-minutes: 10
+        shell: pwsh
+        run: |
+          $Root = "${{ needs.source-detection.outputs.root }}"
+          $env:NEXUS_NATIVE_COMPILER = "msvc"
+          $Modules = @(
+            "tests/test_sha2_research_bridge_0113.py",
+            "tests/test_sha2_research_service_020.py",
+            "tests/test_sha256_advanced.py",
+            "tests/test_sha256_research.py",
+            "tests/test_solo_bitcoin_rpc_097.py",
+            "tests/test_solo_profiles_0104.py",
+            "tests/test_stratum_endpoint_tls_0105.py"
+          )
+          Push-Location $Root
+          try {
+            foreach ($Module in $Modules) {
+              Write-Host "Running isolated Windows pytest module: $Module"
+              python -m pytest -vv --full-trace --disable-warnings --maxfail=1 $Module
+              if ($LASTEXITCODE -ne 0) { throw "Windows test module failed: $Module" }
+            }
+          } finally {
+            Pop-Location
+          }
+      - name: Run Windows test module batch 12 of 12 (isolated processes)
+        timeout-minutes: 10
+        shell: pwsh
+        run: |
+          $Root = "${{ needs.source-detection.outputs.root }}"
+          $env:NEXUS_NATIVE_COMPILER = "msvc"
+          $Modules = @(
+            "tests/test_stratum_miner_014.py",
+            "tests/test_stratum_probe_0104.py",
+            "tests/test_stratum_session_01010.py",
+            "tests/test_stratum_share_simulator_01012.py",
+            "tests/test_vault_audit_015.py",
+            "tests/test_wallet_manager.py",
+            "tests/test_wallet_recovery_integration_016.py"
+          )
+          Push-Location $Root
+          try {
+            foreach ($Module in $Modules) {
+              Write-Host "Running isolated Windows pytest module: $Module"
+              python -m pytest -vv --full-trace --disable-warnings --maxfail=1 $Module
+              if ($LASTEXITCODE -ne 0) { throw "Windows test module failed: $Module" }
+            }
           } finally {
             Pop-Location
           }
