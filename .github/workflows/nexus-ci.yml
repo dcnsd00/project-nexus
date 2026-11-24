@@ -200,6 +200,17 @@ jobs:
           } finally {
             Pop-Location
           }
+      - name: Report Windows thread diagnostics after shard 2
+        if: always()
+        shell: pwsh
+        run: |
+          $DiagnosticPath = Join-Path $env:RUNNER_TEMP "nexus-thread-diagnostics.txt"
+          if (Test-Path $DiagnosticPath) {
+            Write-Host "Windows thread/process snapshot:"
+            Get-Content $DiagnosticPath
+          } else {
+            Write-Host "No Windows thread diagnostic file was produced."
+          }
       - name: Run Windows application test shard 3 of 4
         timeout-minutes: 10
         shell: pwsh
