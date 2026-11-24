@@ -2,7 +2,7 @@ name: NEXUS CI
 
 on:
   push:
-    branches: [main, "feature/**", "integration/**"]
+    branches: [main, "feature/**", "integration/**", "experiment/**"]
   pull_request:
     branches: [main, "feature/edge-replay-protection-sqlite-v1"]
   workflow_dispatch:
