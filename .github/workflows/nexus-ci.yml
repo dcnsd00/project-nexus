@@ -179,6 +179,8 @@ jobs:
         shell: pwsh
         run: |
           $Root = "${{ needs.source-detection.outputs.root }}"
+          $ErrorActionPreference = "Stop"
+          $PSNativeCommandUseErrorActionPreference = $false
           $env:NEXUS_NATIVE_COMPILER = "msvc"
           $Modules = @(
             "tests/rcsc/test_bitcoin_unit.py",
@@ -207,6 +209,8 @@ jobs:
         shell: pwsh
         run: |
           $Root = "${{ needs.source-detection.outputs.root }}"
+          $ErrorActionPreference = "Stop"
+          $PSNativeCommandUseErrorActionPreference = $false
           $env:NEXUS_NATIVE_COMPILER = "msvc"
           $Modules = @(
             "tests/test_catalog_cosmos_unmineable_0108.py",
@@ -235,6 +239,8 @@ jobs:
         shell: pwsh
         run: |
           $Root = "${{ needs.source-detection.outputs.root }}"
+          $ErrorActionPreference = "Stop"
+          $PSNativeCommandUseErrorActionPreference = $false
           $env:NEXUS_NATIVE_COMPILER = "msvc"
           $Modules = @(
             "tests/test_desktop_packaging.py",
@@ -263,6 +269,8 @@ jobs:
         shell: pwsh
         run: |
           $Root = "${{ needs.source-detection.outputs.root }}"
+          $ErrorActionPreference = "Stop"
+          $PSNativeCommandUseErrorActionPreference = $false
           $env:NEXUS_NATIVE_COMPILER = "msvc"
           $Modules = @(
             "tests/test_hybrid_safety.py",
@@ -291,6 +299,8 @@ jobs:
         shell: pwsh
         run: |
           $Root = "${{ needs.source-detection.outputs.root }}"
+          $ErrorActionPreference = "Stop"
+          $PSNativeCommandUseErrorActionPreference = $false
           $env:NEXUS_NATIVE_COMPILER = "msvc"
           $Modules = @(
             "tests/test_master.py",
@@ -319,6 +329,8 @@ jobs:
         shell: pwsh
         run: |
           $Root = "${{ needs.source-detection.outputs.root }}"
+          $ErrorActionPreference = "Stop"
+          $PSNativeCommandUseErrorActionPreference = $false
           $env:NEXUS_NATIVE_COMPILER = "msvc"
           $Modules = @(
             "tests/test_mining_capability_registry.py",
@@ -347,6 +359,8 @@ jobs:
         shell: pwsh
         run: |
           $Root = "${{ needs.source-detection.outputs.root }}"
+          $ErrorActionPreference = "Stop"
+          $PSNativeCommandUseErrorActionPreference = $false
           $env:NEXUS_NATIVE_COMPILER = "msvc"
           $Modules = @(
             "tests/test_mining_switch_controller.py",
@@ -375,6 +389,8 @@ jobs:
         shell: pwsh
         run: |
           $Root = "${{ needs.source-detection.outputs.root }}"
+          $ErrorActionPreference = "Stop"
+          $PSNativeCommandUseErrorActionPreference = $false
           $env:NEXUS_NATIVE_COMPILER = "msvc"
           $Modules = @(
             "tests/test_nexus_edge_gateway.py",
@@ -403,6 +419,8 @@ jobs:
         shell: pwsh
         run: |
           $Root = "${{ needs.source-detection.outputs.root }}"
+          $ErrorActionPreference = "Stop"
+          $PSNativeCommandUseErrorActionPreference = $false
           $env:NEXUS_NATIVE_COMPILER = "msvc"
           $Modules = @(
             "tests/test_nexus_edge_service.py",
@@ -431,6 +449,8 @@ jobs:
         shell: pwsh
         run: |
           $Root = "${{ needs.source-detection.outputs.root }}"
+          $ErrorActionPreference = "Stop"
+          $PSNativeCommandUseErrorActionPreference = $false
           $env:NEXUS_NATIVE_COMPILER = "msvc"
           $Modules = @(
             "tests/test_pool_failover_simulator.py",
@@ -459,6 +479,8 @@ jobs:
         shell: pwsh
         run: |
           $Root = "${{ needs.source-detection.outputs.root }}"
+          $ErrorActionPreference = "Stop"
+          $PSNativeCommandUseErrorActionPreference = $false
           $env:NEXUS_NATIVE_COMPILER = "msvc"
           $Modules = @(
             "tests/test_sha2_research_bridge_0113.py",
@@ -487,6 +509,8 @@ jobs:
         shell: pwsh
         run: |
           $Root = "${{ needs.source-detection.outputs.root }}"
+          $ErrorActionPreference = "Stop"
+          $PSNativeCommandUseErrorActionPreference = $false
           $env:NEXUS_NATIVE_COMPILER = "msvc"
           $Modules = @(
             "tests/test_stratum_miner_014.py",
