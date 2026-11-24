@@ -195,8 +195,16 @@ jobs:
           try {
             foreach ($Module in $Modules) {
               Write-Host "Running isolated Windows pytest module: $Module"
-              python -m pytest -vv --full-trace --disable-warnings --maxfail=1 $Module
-              $ModuleExitCode = $LASTEXITCODE
+              $SafeModuleName = $Module.Replace("/", "_").Replace("\\", "_")
+              $StdOutPath = Join-Path $env:RUNNER_TEMP "$SafeModuleName.stdout.log"
+              $StdErrPath = Join-Path $env:RUNNER_TEMP "$SafeModuleName.stderr.log"
+              $PythonPath = (Get-Command python -ErrorAction Stop).Source
+              $PytestProcess = Start-Process -FilePath $PythonPath -ArgumentList @(
+                "-m", "pytest", "-vv", "--full-trace", "--disable-warnings", "--maxfail=1", $Module
+              ) -PassThru -Wait -WindowStyle Hidden -RedirectStandardOutput $StdOutPath -RedirectStandardError $StdErrPath
+              if (Test-Path $StdOutPath) { Get-Content $StdOutPath }
+              if (Test-Path $StdErrPath) { Get-Content $StdErrPath }
+              $ModuleExitCode = $PytestProcess.ExitCode
               Write-Host "Pytest exit code for ${Module}: $ModuleExitCode"
               if ($ModuleExitCode -ne 0) { throw "Windows test module failed: $Module (exit $ModuleExitCode)" }
             }
@@ -225,8 +233,16 @@ jobs:
           try {
             foreach ($Module in $Modules) {
               Write-Host "Running isolated Windows pytest module: $Module"
-              python -m pytest -vv --full-trace --disable-warnings --maxfail=1 $Module
-              $ModuleExitCode = $LASTEXITCODE
+              $SafeModuleName = $Module.Replace("/", "_").Replace("\\", "_")
+              $StdOutPath = Join-Path $env:RUNNER_TEMP "$SafeModuleName.stdout.log"
+              $StdErrPath = Join-Path $env:RUNNER_TEMP "$SafeModuleName.stderr.log"
+              $PythonPath = (Get-Command python -ErrorAction Stop).Source
+              $PytestProcess = Start-Process -FilePath $PythonPath -ArgumentList @(
+                "-m", "pytest", "-vv", "--full-trace", "--disable-warnings", "--maxfail=1", $Module
+              ) -PassThru -Wait -WindowStyle Hidden -RedirectStandardOutput $StdOutPath -RedirectStandardError $StdErrPath
+              if (Test-Path $StdOutPath) { Get-Content $StdOutPath }
+              if (Test-Path $StdErrPath) { Get-Content $StdErrPath }
+              $ModuleExitCode = $PytestProcess.ExitCode
               Write-Host "Pytest exit code for ${Module}: $ModuleExitCode"
               if ($ModuleExitCode -ne 0) { throw "Windows test module failed: $Module (exit $ModuleExitCode)" }
             }
@@ -255,8 +271,16 @@ jobs:
           try {
             foreach ($Module in $Modules) {
               Write-Host "Running isolated Windows pytest module: $Module"
-              python -m pytest -vv --full-trace --disable-warnings --maxfail=1 $Module
-              $ModuleExitCode = $LASTEXITCODE
+              $SafeModuleName = $Module.Replace("/", "_").Replace("\\", "_")
+              $StdOutPath = Join-Path $env:RUNNER_TEMP "$SafeModuleName.stdout.log"
+              $StdErrPath = Join-Path $env:RUNNER_TEMP "$SafeModuleName.stderr.log"
+              $PythonPath = (Get-Command python -ErrorAction Stop).Source
+              $PytestProcess = Start-Process -FilePath $PythonPath -ArgumentList @(
+                "-m", "pytest", "-vv", "--full-trace", "--disable-warnings", "--maxfail=1", $Module
+              ) -PassThru -Wait -WindowStyle Hidden -RedirectStandardOutput $StdOutPath -RedirectStandardError $StdErrPath
+              if (Test-Path $StdOutPath) { Get-Content $StdOutPath }
+              if (Test-Path $StdErrPath) { Get-Content $StdErrPath }
+              $ModuleExitCode = $PytestProcess.ExitCode
               Write-Host "Pytest exit code for ${Module}: $ModuleExitCode"
               if ($ModuleExitCode -ne 0) { throw "Windows test module failed: $Module (exit $ModuleExitCode)" }
             }
@@ -285,8 +309,16 @@ jobs:
           try {
             foreach ($Module in $Modules) {
               Write-Host "Running isolated Windows pytest module: $Module"
-              python -m pytest -vv --full-trace --disable-warnings --maxfail=1 $Module
-              $ModuleExitCode = $LASTEXITCODE
+              $SafeModuleName = $Module.Replace("/", "_").Replace("\\", "_")
+              $StdOutPath = Join-Path $env:RUNNER_TEMP "$SafeModuleName.stdout.log"
+              $StdErrPath = Join-Path $env:RUNNER_TEMP "$SafeModuleName.stderr.log"
+              $PythonPath = (Get-Command python -ErrorAction Stop).Source
+              $PytestProcess = Start-Process -FilePath $PythonPath -ArgumentList @(
+                "-m", "pytest", "-vv", "--full-trace", "--disable-warnings", "--maxfail=1", $Module
+              ) -PassThru -Wait -WindowStyle Hidden -RedirectStandardOutput $StdOutPath -RedirectStandardError $StdErrPath
+              if (Test-Path $StdOutPath) { Get-Content $StdOutPath }
+              if (Test-Path $StdErrPath) { Get-Content $StdErrPath }
+              $ModuleExitCode = $PytestProcess.ExitCode
               Write-Host "Pytest exit code for ${Module}: $ModuleExitCode"
               if ($ModuleExitCode -ne 0) { throw "Windows test module failed: $Module (exit $ModuleExitCode)" }
             }
@@ -315,8 +347,16 @@ jobs:
           try {
             foreach ($Module in $Modules) {
               Write-Host "Running isolated Windows pytest module: $Module"
-              python -m pytest -vv --full-trace --disable-warnings --maxfail=1 $Module
-              $ModuleExitCode = $LASTEXITCODE
+              $SafeModuleName = $Module.Replace("/", "_").Replace("\\", "_")
+              $StdOutPath = Join-Path $env:RUNNER_TEMP "$SafeModuleName.stdout.log"
+              $StdErrPath = Join-Path $env:RUNNER_TEMP "$SafeModuleName.stderr.log"
+              $PythonPath = (Get-Command python -ErrorAction Stop).Source
+              $PytestProcess = Start-Process -FilePath $PythonPath -ArgumentList @(
+                "-m", "pytest", "-vv", "--full-trace", "--disable-warnings", "--maxfail=1", $Module
+              ) -PassThru -Wait -WindowStyle Hidden -RedirectStandardOutput $StdOutPath -RedirectStandardError $StdErrPath
+              if (Test-Path $StdOutPath) { Get-Content $StdOutPath }
+              if (Test-Path $StdErrPath) { Get-Content $StdErrPath }
+              $ModuleExitCode = $PytestProcess.ExitCode
               Write-Host "Pytest exit code for ${Module}: $ModuleExitCode"
               if ($ModuleExitCode -ne 0) { throw "Windows test module failed: $Module (exit $ModuleExitCode)" }
             }
@@ -345,8 +385,16 @@ jobs:
           try {
             foreach ($Module in $Modules) {
               Write-Host "Running isolated Windows pytest module: $Module"
-              python -m pytest -vv --full-trace --disable-warnings --maxfail=1 $Module
-              $ModuleExitCode = $LASTEXITCODE
+              $SafeModuleName = $Module.Replace("/", "_").Replace("\\", "_")
+              $StdOutPath = Join-Path $env:RUNNER_TEMP "$SafeModuleName.stdout.log"
+              $StdErrPath = Join-Path $env:RUNNER_TEMP "$SafeModuleName.stderr.log"
+              $PythonPath = (Get-Command python -ErrorAction Stop).Source
+              $PytestProcess = Start-Process -FilePath $PythonPath -ArgumentList @(
+                "-m", "pytest", "-vv", "--full-trace", "--disable-warnings", "--maxfail=1", $Module
+              ) -PassThru -Wait -WindowStyle Hidden -RedirectStandardOutput $StdOutPath -RedirectStandardError $StdErrPath
+              if (Test-Path $StdOutPath) { Get-Content $StdOutPath }
+              if (Test-Path $StdErrPath) { Get-Content $StdErrPath }
+              $ModuleExitCode = $PytestProcess.ExitCode
               Write-Host "Pytest exit code for ${Module}: $ModuleExitCode"
               if ($ModuleExitCode -ne 0) { throw "Windows test module failed: $Module (exit $ModuleExitCode)" }
             }
@@ -375,8 +423,16 @@ jobs:
           try {
             foreach ($Module in $Modules) {
               Write-Host "Running isolated Windows pytest module: $Module"
-              python -m pytest -vv --full-trace --disable-warnings --maxfail=1 $Module
-              $ModuleExitCode = $LASTEXITCODE
+              $SafeModuleName = $Module.Replace("/", "_").Replace("\\", "_")
+              $StdOutPath = Join-Path $env:RUNNER_TEMP "$SafeModuleName.stdout.log"
+              $StdErrPath = Join-Path $env:RUNNER_TEMP "$SafeModuleName.stderr.log"
+              $PythonPath = (Get-Command python -ErrorAction Stop).Source
+              $PytestProcess = Start-Process -FilePath $PythonPath -ArgumentList @(
+                "-m", "pytest", "-vv", "--full-trace", "--disable-warnings", "--maxfail=1", $Module
+              ) -PassThru -Wait -WindowStyle Hidden -RedirectStandardOutput $StdOutPath -RedirectStandardError $StdErrPath
+              if (Test-Path $StdOutPath) { Get-Content $StdOutPath }
+              if (Test-Path $StdErrPath) { Get-Content $StdErrPath }
+              $ModuleExitCode = $PytestProcess.ExitCode
               Write-Host "Pytest exit code for ${Module}: $ModuleExitCode"
               if ($ModuleExitCode -ne 0) { throw "Windows test module failed: $Module (exit $ModuleExitCode)" }
             }
@@ -405,8 +461,16 @@ jobs:
           try {
             foreach ($Module in $Modules) {
               Write-Host "Running isolated Windows pytest module: $Module"
-              python -m pytest -vv --full-trace --disable-warnings --maxfail=1 $Module
-              $ModuleExitCode = $LASTEXITCODE
+              $SafeModuleName = $Module.Replace("/", "_").Replace("\\", "_")
+              $StdOutPath = Join-Path $env:RUNNER_TEMP "$SafeModuleName.stdout.log"
+              $StdErrPath = Join-Path $env:RUNNER_TEMP "$SafeModuleName.stderr.log"
+              $PythonPath = (Get-Command python -ErrorAction Stop).Source
+              $PytestProcess = Start-Process -FilePath $PythonPath -ArgumentList @(
+                "-m", "pytest", "-vv", "--full-trace", "--disable-warnings", "--maxfail=1", $Module
+              ) -PassThru -Wait -WindowStyle Hidden -RedirectStandardOutput $StdOutPath -RedirectStandardError $StdErrPath
+              if (Test-Path $StdOutPath) { Get-Content $StdOutPath }
+              if (Test-Path $StdErrPath) { Get-Content $StdErrPath }
+              $ModuleExitCode = $PytestProcess.ExitCode
               Write-Host "Pytest exit code for ${Module}: $ModuleExitCode"
               if ($ModuleExitCode -ne 0) { throw "Windows test module failed: $Module (exit $ModuleExitCode)" }
             }
@@ -435,8 +499,16 @@ jobs:
           try {
             foreach ($Module in $Modules) {
               Write-Host "Running isolated Windows pytest module: $Module"
-              python -m pytest -vv --full-trace --disable-warnings --maxfail=1 $Module
-              $ModuleExitCode = $LASTEXITCODE
+              $SafeModuleName = $Module.Replace("/", "_").Replace("\\", "_")
+              $StdOutPath = Join-Path $env:RUNNER_TEMP "$SafeModuleName.stdout.log"
+              $StdErrPath = Join-Path $env:RUNNER_TEMP "$SafeModuleName.stderr.log"
+              $PythonPath = (Get-Command python -ErrorAction Stop).Source
+              $PytestProcess = Start-Process -FilePath $PythonPath -ArgumentList @(
+                "-m", "pytest", "-vv", "--full-trace", "--disable-warnings", "--maxfail=1", $Module
+              ) -PassThru -Wait -WindowStyle Hidden -RedirectStandardOutput $StdOutPath -RedirectStandardError $StdErrPath
+              if (Test-Path $StdOutPath) { Get-Content $StdOutPath }
+              if (Test-Path $StdErrPath) { Get-Content $StdErrPath }
+              $ModuleExitCode = $PytestProcess.ExitCode
               Write-Host "Pytest exit code for ${Module}: $ModuleExitCode"
               if ($ModuleExitCode -ne 0) { throw "Windows test module failed: $Module (exit $ModuleExitCode)" }
             }
@@ -465,8 +537,16 @@ jobs:
           try {
             foreach ($Module in $Modules) {
               Write-Host "Running isolated Windows pytest module: $Module"
-              python -m pytest -vv --full-trace --disable-warnings --maxfail=1 $Module
-              $ModuleExitCode = $LASTEXITCODE
+              $SafeModuleName = $Module.Replace("/", "_").Replace("\\", "_")
+              $StdOutPath = Join-Path $env:RUNNER_TEMP "$SafeModuleName.stdout.log"
+              $StdErrPath = Join-Path $env:RUNNER_TEMP "$SafeModuleName.stderr.log"
+              $PythonPath = (Get-Command python -ErrorAction Stop).Source
+              $PytestProcess = Start-Process -FilePath $PythonPath -ArgumentList @(
+                "-m", "pytest", "-vv", "--full-trace", "--disable-warnings", "--maxfail=1", $Module
+              ) -PassThru -Wait -WindowStyle Hidden -RedirectStandardOutput $StdOutPath -RedirectStandardError $StdErrPath
+              if (Test-Path $StdOutPath) { Get-Content $StdOutPath }
+              if (Test-Path $StdErrPath) { Get-Content $StdErrPath }
+              $ModuleExitCode = $PytestProcess.ExitCode
               Write-Host "Pytest exit code for ${Module}: $ModuleExitCode"
               if ($ModuleExitCode -ne 0) { throw "Windows test module failed: $Module (exit $ModuleExitCode)" }
             }
@@ -495,8 +575,16 @@ jobs:
           try {
             foreach ($Module in $Modules) {
               Write-Host "Running isolated Windows pytest module: $Module"
-              python -m pytest -vv --full-trace --disable-warnings --maxfail=1 $Module
-              $ModuleExitCode = $LASTEXITCODE
+              $SafeModuleName = $Module.Replace("/", "_").Replace("\\", "_")
+              $StdOutPath = Join-Path $env:RUNNER_TEMP "$SafeModuleName.stdout.log"
+              $StdErrPath = Join-Path $env:RUNNER_TEMP "$SafeModuleName.stderr.log"
+              $PythonPath = (Get-Command python -ErrorAction Stop).Source
+              $PytestProcess = Start-Process -FilePath $PythonPath -ArgumentList @(
+                "-m", "pytest", "-vv", "--full-trace", "--disable-warnings", "--maxfail=1", $Module
+              ) -PassThru -Wait -WindowStyle Hidden -RedirectStandardOutput $StdOutPath -RedirectStandardError $StdErrPath
+              if (Test-Path $StdOutPath) { Get-Content $StdOutPath }
+              if (Test-Path $StdErrPath) { Get-Content $StdErrPath }
+              $ModuleExitCode = $PytestProcess.ExitCode
               Write-Host "Pytest exit code for ${Module}: $ModuleExitCode"
               if ($ModuleExitCode -ne 0) { throw "Windows test module failed: $Module (exit $ModuleExitCode)" }
             }
@@ -525,8 +613,16 @@ jobs:
           try {
             foreach ($Module in $Modules) {
               Write-Host "Running isolated Windows pytest module: $Module"
-              python -m pytest -vv --full-trace --disable-warnings --maxfail=1 $Module
-              $ModuleExitCode = $LASTEXITCODE
+              $SafeModuleName = $Module.Replace("/", "_").Replace("\\", "_")
+              $StdOutPath = Join-Path $env:RUNNER_TEMP "$SafeModuleName.stdout.log"
+              $StdErrPath = Join-Path $env:RUNNER_TEMP "$SafeModuleName.stderr.log"
+              $PythonPath = (Get-Command python -ErrorAction Stop).Source
+              $PytestProcess = Start-Process -FilePath $PythonPath -ArgumentList @(
+                "-m", "pytest", "-vv", "--full-trace", "--disable-warnings", "--maxfail=1", $Module
+              ) -PassThru -Wait -WindowStyle Hidden -RedirectStandardOutput $StdOutPath -RedirectStandardError $StdErrPath
+              if (Test-Path $StdOutPath) { Get-Content $StdOutPath }
+              if (Test-Path $StdErrPath) { Get-Content $StdErrPath }
+              $ModuleExitCode = $PytestProcess.ExitCode
               Write-Host "Pytest exit code for ${Module}: $ModuleExitCode"
               if ($ModuleExitCode -ne 0) { throw "Windows test module failed: $Module (exit $ModuleExitCode)" }
             }
