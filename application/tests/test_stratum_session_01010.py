@@ -50,6 +50,7 @@ def test_probe_job_local_mock_server():
     th=threading.Thread(target=serve,daemon=True); th.start()
     result=probe_job('127.0.0.1',port,'wallet.worker',timeout=4)
     server.close(); th.join(1)
+    assert not th.is_alive()
     assert result['ok'] and result['job_received'] and result['authorized']
     assert result['difficulty']==64 and result['job']['job_id']=='job-1'
     assert 'no share submitted' in result['scope']
