@@ -107,6 +107,8 @@ jobs:
     if: needs.source-detection.outputs.available == 'true'
     runs-on: windows-latest
     timeout-minutes: 30
+    env:
+      VSCMD_SKIP_SENDTELEMETRY: "1"
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -131,6 +133,23 @@ jobs:
           }
           if (Test-Path (Join-Path $Root "requirements-edge.txt")) {
             python -m pip install -r (Join-Path $Root "requirements-edge.txt")
+          }
+      - name: Opt out of optional Visual Studio telemetry on ephemeral runner
+        shell: pwsh
+        run: |
+          # This modifies only the disposable GitHub-hosted CI runner, not a developer PC.
+          $keys = @(
+            "HKLM:\SOFTWARE\Wow6432Node\Microsoft\VSCommon\17.0\SQM",
+            "HKLM:\SOFTWARE\Microsoft\VSCommon\17.0\SQM",
+            "HKLM:\SOFTWARE\Policies\Microsoft\VisualStudio\SQM"
+          )
+          foreach ($key in $keys) {
+            New-Item -Path $key -Force | Out-Null
+            New-ItemProperty -Path $key -Name "OptIn" -PropertyType DWord -Value 0 -Force | Out-Null
+          }
+          foreach ($key in $keys) {
+            $value = (Get-ItemProperty -Path $key -Name "OptIn").OptIn
+            if ($value -ne 0) { throw "Visual Studio telemetry opt-out did not apply: $key" }
           }
       - name: Configure MSVC x64 build environment
         uses: ilammy/msvc-dev-cmd@0b201ec74fa43914dc39ae48a89fd1d8cb592756 # v1.13.0
