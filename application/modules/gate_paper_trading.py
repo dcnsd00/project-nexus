@@ -5,6 +5,7 @@ No account credentials, private endpoints, real orders, wallet signing or transf
 from __future__ import annotations
 
 import sqlite3
+import statistics
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Literal
@@ -241,6 +242,49 @@ def _symbol(value: str) -> str:
     return symbol
 
 
+def analyze_candles(candles: list) -> dict:
+    """Compute transparent indicators from Gate OHLCV candles; no prediction claims."""
+    parsed = []
+    for row in candles:
+        try:
+            if isinstance(row, dict):
+                timestamp = int(row.get("t", row.get("time")))
+                close = float(row.get("c", row.get("close")))
+            else:
+                timestamp = int(float(row[0]))
+                close = float(row[2])
+            if close > 0:
+                parsed.append((timestamp, close))
+        except (TypeError, ValueError, IndexError):
+            continue
+    parsed.sort(key=lambda item: item[0])
+    closes = [item[1] for item in parsed]
+    if len(closes) < 2:
+        return {"status": "insufficient_data", "candles_used": len(closes)}
+    changes = [(closes[i] / closes[i - 1]) - 1 for i in range(1, len(closes))]
+    gains = [max(change, 0.0) for change in changes[-14:]]
+    losses = [max(-change, 0.0) for change in changes[-14:]]
+    avg_gain = sum(gains) / len(gains) if gains else 0.0
+    avg_loss = sum(losses) / len(losses) if losses else 0.0
+    if avg_loss == 0:
+        rsi14 = 100.0 if avg_gain > 0 else 50.0
+    else:
+        rsi14 = 100.0 - (100.0 / (1.0 + avg_gain / avg_loss))
+    trend = ((closes[-1] / closes[-21]) - 1.0) * 100 if len(closes) >= 21 else None
+    return {
+        "status": "ok", "candles_used": len(closes), "last_close_usdt": closes[-1],
+        "sma20_usdt": statistics.fmean(closes[-20:]) if len(closes) >= 20 else None,
+        "sma50_usdt": statistics.fmean(closes[-50:]) if len(closes) >= 50 else None,
+        "rsi14": round(rsi14, 4) if len(changes) >= 14 else None,
+        "return_20_candles_pct": round(trend, 4) if trend is not None else None,
+        "realized_volatility_20_returns_pct": (
+            round(statistics.pstdev(changes[-20:]) * 100, 4) if len(changes) >= 20 else None
+        ),
+        "method": "SMA20/SMA50; simple RSI14; standard deviation of last 20 close-to-close returns",
+        "interpretation": "Descriptive indicators only; not a price forecast or trading recommendation.",
+    }
+
+
 def _top_price(book: dict, side: str) -> float:
     levels = book.get("asks" if side == "buy" else "bids") or []
     if not levels:
@@ -313,6 +357,19 @@ def gate_market_detail(symbol: str, interval: str = Query(default="15m", pattern
     return {"symbol": asset, "pair": f"{asset}_{QUOTE}", "ticker": ticker,
             "order_book": book, "candles": candles, "interval": interval,
             "source": "Gate spot REST API v4"}
+
+
+@router.get("/api/gate/research/{symbol}")
+def gate_research(symbol: str, interval: str = Query(default="15m", pattern="^(15m|1h|4h|1d)$")):
+    asset = _symbol(symbol)
+    try:
+        candles = GATE_CLIENT.candles(asset, interval=interval, limit=100)
+    except GateAPIError as exc:
+        raise HTTPException(status_code=502, detail=f"Gate research data unavailable: {exc}") from exc
+    return {
+        "symbol": asset, "pair": f"{asset}_{QUOTE}", "interval": interval,
+        "source": "Gate spot REST API v4", "indicators": analyze_candles(candles),
+    }
 
 
 @router.get("/api/gate/paper/portfolio")
