@@ -294,15 +294,32 @@ def analyze_candles(candles: list) -> dict:
     }
 
 
-def _top_price(book: dict, side: str) -> float:
+def _book_vwap(book: dict, side: str, quantity: float) -> float:
+    """Walk the visible book and return VWAP; reject orders beyond visible depth."""
     levels = book.get("asks" if side == "buy" else "bids") or []
     if not levels:
         raise GateAPIError("empty_order_book")
-    first = levels[0]
-    price = float(first.get("p", first.get("price")) if isinstance(first, dict) else first[0])
-    if price <= 0:
-        raise GateAPIError("invalid_order_book_price")
-    return price
+    remaining = quantity
+    notional = 0.0
+    for level in levels:
+        try:
+            if isinstance(level, dict):
+                price = float(level.get("p", level.get("price")))
+                available = float(level.get("s", level.get("size", level.get("amount"))))
+            else:
+                price, available = float(level[0]), float(level[1])
+        except (TypeError, ValueError, IndexError):
+            raise GateAPIError("invalid_order_book_level")
+        if price <= 0 or available <= 0:
+            continue
+        filled = min(remaining, available)
+        notional += filled * price
+        remaining -= filled
+        if remaining <= max(quantity * 1e-12, 1e-15):
+            break
+    if remaining > max(quantity * 1e-12, 1e-15):
+        raise GateAPIError("insufficient_visible_order_book_depth")
+    return notional / quantity
 
 
 @router.get("/api/gate/config")
@@ -391,7 +408,7 @@ def gate_paper_order(order: PaperOrder):
     asset = _symbol(order.symbol)
     try:
         book = GATE_CLIENT.orderbook(asset, limit=5)
-        market_price = _top_price(book, order.side)
+        market_price = _book_vwap(book, order.side, order.quantity)
         adjustment = order.slippage_bps / 10000.0
         execution_price = market_price * (1 + adjustment if order.side == "buy" else 1 - adjustment)
         return PaperTradingStore().execute(
