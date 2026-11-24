@@ -216,7 +216,16 @@ def _now():
 def intel_status():
     init_db()
     with _db() as c:
-        counts={t:c.execute(f"SELECT COUNT(*) FROM {t}").fetchone()[0] for t in ("opportunities","devices","telemetry","jobs","reward_events","payouts","wallet_watches","source_snapshots")}
+        counts = {
+            "opportunities": c.execute("SELECT COUNT(*) FROM opportunities").fetchone()[0],
+            "devices": c.execute("SELECT COUNT(*) FROM devices").fetchone()[0],
+            "telemetry": c.execute("SELECT COUNT(*) FROM telemetry").fetchone()[0],
+            "jobs": c.execute("SELECT COUNT(*) FROM jobs").fetchone()[0],
+            "reward_events": c.execute("SELECT COUNT(*) FROM reward_events").fetchone()[0],
+            "payouts": c.execute("SELECT COUNT(*) FROM payouts").fetchone()[0],
+            "wallet_watches": c.execute("SELECT COUNT(*) FROM wallet_watches").fetchone()[0],
+            "source_snapshots": c.execute("SELECT COUNT(*) FROM source_snapshots").fetchone()[0],
+        }
     return {"module":"earnings_intelligence","status":"local_active","mode":"read_only_ingestion_plus_manual_ledger","execution":"shadow_only","counts":counts,"provider_connectors_live":0,"private_keys_accepted":False}
 
 
@@ -227,8 +236,24 @@ def add_opportunity(x: OpportunityIn):
     data["transferable"]=None if data["transferable"] is None else int(data["transferable"])
     for k in ("eligibility_verified","payout_verified"):
         data[k]=None if data[k] is None else int(data[k])
-    fields=list(data)
-    with _db() as c:c.execute(f"INSERT INTO opportunities(id,{','.join(fields)}) VALUES(?,{','.join('?' for _ in fields)})",[oid]+[data[k] for k in fields])
+    with _db() as c:
+        c.execute(
+            """INSERT INTO opportunities(
+                id,name,category,network,asset,payout_asset,algorithm,device_classes,
+                estimated_tokens_day,price_ron,confidence,daily_fee_ron,transferable,
+                eligibility_verified,payout_verified,liquidity_usd,min_payout,payout_days,
+                source_url,source_checked_at,status,notes
+            ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+            (
+                oid, data["name"], data["category"], data["network"], data["asset"],
+                data["payout_asset"], data["algorithm"], data["device_classes"],
+                data["estimated_tokens_day"], data["price_ron"], data["confidence"],
+                data["daily_fee_ron"], data["transferable"], data["eligibility_verified"],
+                data["payout_verified"], data["liquidity_usd"], data["min_payout"],
+                data["payout_days"], data["source_url"], data["source_checked_at"],
+                data["status"], data["notes"],
+            ),
+        )
     _audit("opportunity.created",oid); return {"id":oid,"status":"created"}
 
 
@@ -243,8 +268,18 @@ def list_opportunities(status: str | None = None):
 @router.post("/devices")
 def add_device(x: DeviceIn):
     init_db(); did=uuid.uuid4().hex; d=x.model_dump(); d["capabilities"]=json.dumps(d["capabilities"]); d["enabled"]=int(d["enabled"])
-    fields=list(d)
-    with _db() as c:c.execute(f"INSERT INTO devices(id,{','.join(fields)}) VALUES(?,{','.join('?' for _ in fields)})",[did]+[d[k] for k in fields])
+    with _db() as c:
+        c.execute(
+            """INSERT INTO devices(
+                id,name,device_type,cpu_threads,gpu_model,gpu_vram_mib,ram_mib,
+                storage_gib,watts_idle,watts_load,tariff_ron_kwh,capabilities,enabled
+            ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+            (
+                did, d["name"], d["device_type"], d["cpu_threads"], d["gpu_model"],
+                d["gpu_vram_mib"], d["ram_mib"], d["storage_gib"], d["watts_idle"],
+                d["watts_load"], d["tariff_ron_kwh"], d["capabilities"], d["enabled"],
+            ),
+        )
     _audit("device.registered",did); return {"id":did,"status":"registered"}
 
 
