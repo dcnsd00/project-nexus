@@ -135,7 +135,7 @@ class PaperTradingStore:
         return {
             "currency": "RON", "cash_ron": round(cash["cash_ron"], 8),
             "initial_capital_ron": cash["initial_capital_ron"],
-            "realized_pnl_ron": round(sum(row["realized_pnl_ron"] for row in trades), 8),
+            "realized_pnl_ron": round(conn.execute("SELECT COALESCE(SUM(realized_pnl_ron),0) FROM paper_trades").fetchone()[0], 8),
             "positions": positions, "recent_trades": trades,
             "execution_mode": "paper_only", "real_orders_enabled": False,
             "wallet_signing_enabled": False, "transfers_enabled": False,
@@ -242,7 +242,8 @@ def _top_price(book: dict, side: str) -> float:
     levels = book.get("asks" if side == "buy" else "bids") or []
     if not levels:
         raise GateAPIError("empty_order_book")
-    price = float(levels[0]["p"] if "p" in levels[0] else levels[0]["price"])
+    first = levels[0]
+    price = float(first.get("p", first.get("price")) if isinstance(first, dict) else first[0])
     if price <= 0:
         raise GateAPIError("invalid_order_book_price")
     return price
