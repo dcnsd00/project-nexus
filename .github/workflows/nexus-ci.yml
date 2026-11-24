@@ -195,7 +195,7 @@ jobs:
           try {
             foreach ($Module in $Modules) {
               Write-Host "Running isolated Windows pytest module: $Module"
-              $SafeModuleName = $Module.Replace("/", "_").Replace("\\", "_")
+              $SafeModuleName = $Module.Replace("/", "_")
               $StdOutPath = Join-Path $env:RUNNER_TEMP "$SafeModuleName.stdout.log"
               $StdErrPath = Join-Path $env:RUNNER_TEMP "$SafeModuleName.stderr.log"
               $PythonPath = (Get-Command python -ErrorAction Stop).Source
@@ -233,7 +233,7 @@ jobs:
           try {
             foreach ($Module in $Modules) {
               Write-Host "Running isolated Windows pytest module: $Module"
-              $SafeModuleName = $Module.Replace("/", "_").Replace("\\", "_")
+              $SafeModuleName = $Module.Replace("/", "_")
               $StdOutPath = Join-Path $env:RUNNER_TEMP "$SafeModuleName.stdout.log"
               $StdErrPath = Join-Path $env:RUNNER_TEMP "$SafeModuleName.stderr.log"
               $PythonPath = (Get-Command python -ErrorAction Stop).Source
@@ -271,7 +271,7 @@ jobs:
           try {
             foreach ($Module in $Modules) {
               Write-Host "Running isolated Windows pytest module: $Module"
-              $SafeModuleName = $Module.Replace("/", "_").Replace("\\", "_")
+              $SafeModuleName = $Module.Replace("/", "_")
               $StdOutPath = Join-Path $env:RUNNER_TEMP "$SafeModuleName.stdout.log"
               $StdErrPath = Join-Path $env:RUNNER_TEMP "$SafeModuleName.stderr.log"
               $PythonPath = (Get-Command python -ErrorAction Stop).Source
@@ -309,7 +309,7 @@ jobs:
           try {
             foreach ($Module in $Modules) {
               Write-Host "Running isolated Windows pytest module: $Module"
-              $SafeModuleName = $Module.Replace("/", "_").Replace("\\", "_")
+              $SafeModuleName = $Module.Replace("/", "_")
               $StdOutPath = Join-Path $env:RUNNER_TEMP "$SafeModuleName.stdout.log"
               $StdErrPath = Join-Path $env:RUNNER_TEMP "$SafeModuleName.stderr.log"
               $PythonPath = (Get-Command python -ErrorAction Stop).Source
@@ -347,7 +347,7 @@ jobs:
           try {
             foreach ($Module in $Modules) {
               Write-Host "Running isolated Windows pytest module: $Module"
-              $SafeModuleName = $Module.Replace("/", "_").Replace("\\", "_")
+              $SafeModuleName = $Module.Replace("/", "_")
               $StdOutPath = Join-Path $env:RUNNER_TEMP "$SafeModuleName.stdout.log"
               $StdErrPath = Join-Path $env:RUNNER_TEMP "$SafeModuleName.stderr.log"
               $PythonPath = (Get-Command python -ErrorAction Stop).Source
@@ -385,7 +385,7 @@ jobs:
           try {
             foreach ($Module in $Modules) {
               Write-Host "Running isolated Windows pytest module: $Module"
-              $SafeModuleName = $Module.Replace("/", "_").Replace("\\", "_")
+              $SafeModuleName = $Module.Replace("/", "_")
               $StdOutPath = Join-Path $env:RUNNER_TEMP "$SafeModuleName.stdout.log"
               $StdErrPath = Join-Path $env:RUNNER_TEMP "$SafeModuleName.stderr.log"
               $PythonPath = (Get-Command python -ErrorAction Stop).Source
@@ -423,7 +423,7 @@ jobs:
           try {
             foreach ($Module in $Modules) {
               Write-Host "Running isolated Windows pytest module: $Module"
-              $SafeModuleName = $Module.Replace("/", "_").Replace("\\", "_")
+              $SafeModuleName = $Module.Replace("/", "_")
               $StdOutPath = Join-Path $env:RUNNER_TEMP "$SafeModuleName.stdout.log"
               $StdErrPath = Join-Path $env:RUNNER_TEMP "$SafeModuleName.stderr.log"
               $PythonPath = (Get-Command python -ErrorAction Stop).Source
@@ -461,7 +461,7 @@ jobs:
           try {
             foreach ($Module in $Modules) {
               Write-Host "Running isolated Windows pytest module: $Module"
-              $SafeModuleName = $Module.Replace("/", "_").Replace("\\", "_")
+              $SafeModuleName = $Module.Replace("/", "_")
               $StdOutPath = Join-Path $env:RUNNER_TEMP "$SafeModuleName.stdout.log"
               $StdErrPath = Join-Path $env:RUNNER_TEMP "$SafeModuleName.stderr.log"
               $PythonPath = (Get-Command python -ErrorAction Stop).Source
@@ -499,7 +499,7 @@ jobs:
           try {
             foreach ($Module in $Modules) {
               Write-Host "Running isolated Windows pytest module: $Module"
-              $SafeModuleName = $Module.Replace("/", "_").Replace("\\", "_")
+              $SafeModuleName = $Module.Replace("/", "_")
               $StdOutPath = Join-Path $env:RUNNER_TEMP "$SafeModuleName.stdout.log"
               $StdErrPath = Join-Path $env:RUNNER_TEMP "$SafeModuleName.stderr.log"
               $PythonPath = (Get-Command python -ErrorAction Stop).Source
@@ -537,7 +537,7 @@ jobs:
           try {
             foreach ($Module in $Modules) {
               Write-Host "Running isolated Windows pytest module: $Module"
-              $SafeModuleName = $Module.Replace("/", "_").Replace("\\", "_")
+              $SafeModuleName = $Module.Replace("/", "_")
               $StdOutPath = Join-Path $env:RUNNER_TEMP "$SafeModuleName.stdout.log"
               $StdErrPath = Join-Path $env:RUNNER_TEMP "$SafeModuleName.stderr.log"
               $PythonPath = (Get-Command python -ErrorAction Stop).Source
@@ -575,7 +575,7 @@ jobs:
           try {
             foreach ($Module in $Modules) {
               Write-Host "Running isolated Windows pytest module: $Module"
-              $SafeModuleName = $Module.Replace("/", "_").Replace("\\", "_")
+              $SafeModuleName = $Module.Replace("/", "_")
               $StdOutPath = Join-Path $env:RUNNER_TEMP "$SafeModuleName.stdout.log"
               $StdErrPath = Join-Path $env:RUNNER_TEMP "$SafeModuleName.stderr.log"
               $PythonPath = (Get-Command python -ErrorAction Stop).Source
@@ -613,7 +613,7 @@ jobs:
           try {
             foreach ($Module in $Modules) {
               Write-Host "Running isolated Windows pytest module: $Module"
-              $SafeModuleName = $Module.Replace("/", "_").Replace("\\", "_")
+              $SafeModuleName = $Module.Replace("/", "_")
               $StdOutPath = Join-Path $env:RUNNER_TEMP "$SafeModuleName.stdout.log"
               $StdErrPath = Join-Path $env:RUNNER_TEMP "$SafeModuleName.stderr.log"
               $PythonPath = (Get-Command python -ErrorAction Stop).Source
