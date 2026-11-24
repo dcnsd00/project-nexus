@@ -92,3 +92,26 @@ def test_market_detail_rejects_unconfigured_symbol():
         assert getattr(exc, "status_code", None) == 404
     else:
         raise AssertionError("Expected unconfigured asset rejection")
+
+
+def test_initial_portfolio_is_persisted_at_100_ron(tmp_path):
+    store = gate.PaperTradingStore(tmp_path / "paper.sqlite3")
+    portfolio = store.portfolio()
+    assert portfolio["initial_capital_ron"] == 100.0
+    assert portfolio["cash_ron"] == 100.0
+    assert portfolio["execution_mode"] == "paper_only"
+    assert portfolio["transfers_enabled"] is False
+
+
+def test_paper_order_uses_gate_ask_and_never_calls_real_execution(monkeypatch, tmp_path):
+    monkeypatch.setattr(gate, "GATE_CLIENT", FakeGate())
+    monkeypatch.setattr(gate, "PAPER_DB_PATH", tmp_path / "paper.sqlite3")
+    order = gate.PaperOrder(
+        symbol="BTC", side="buy", quantity=0.001, ron_per_usdt=5,
+        fee_bps=10, slippage_bps=5
+    )
+    result = gate.gate_paper_order(order)
+    assert result["market_price_usdt"] == 10.1
+    assert result["execution_price_usdt"] > result["market_price_usdt"]
+    assert result["simulated_only"] is True
+    assert result["real_order_submitted"] is False
