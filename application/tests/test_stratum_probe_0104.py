@@ -26,6 +26,7 @@ def test_stratum_probe_subscribe_and_authorize_no_work():
     port,th=fake_stratum(True)
     r=probe_stratum('127.0.0.1',port,'wallet.worker','x',False,3)
     th.join(1)
+    assert not th.is_alive()
     assert r['ok'] is True and r['subscribed'] is True and r['authorized'] is True
     assert r['no_work_requested'] is True
 
@@ -34,6 +35,7 @@ def test_stratum_probe_reports_auth_rejected():
     port,th=fake_stratum(False)
     r=probe_stratum('127.0.0.1',port,'wallet.worker','x',False,3)
     th.join(1)
+    assert not th.is_alive()
     assert r['ok'] is False and r['stage']=='authorize_rejected'
 
 
