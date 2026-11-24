@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import sqlite3
 import statistics
+from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Literal
@@ -79,12 +80,20 @@ class PaperTradingStore:
     def __init__(self, path: str | Path | None = None):
         self.path = Path(path) if path is not None else _db_path()
 
+    @contextmanager
     def _connect(self):
         self.path.parent.mkdir(parents=True, exist_ok=True)
         conn = sqlite3.connect(self.path, timeout=5, isolation_level="IMMEDIATE")
         conn.row_factory = sqlite3.Row
         conn.execute("PRAGMA foreign_keys=ON")
-        return conn
+        try:
+            yield conn
+            conn.commit()
+        except Exception:
+            conn.rollback()
+            raise
+        finally:
+            conn.close()
 
     def initialize(self):
         with self._connect() as conn:
