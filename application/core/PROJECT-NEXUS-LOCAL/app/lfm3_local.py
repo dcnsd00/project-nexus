@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import ipaddress
 import os
+import re
 from urllib.parse import urlsplit
 
 import httpx
@@ -38,7 +39,11 @@ def _endpoint(base_url: str, *, allow_remote: bool = False) -> str:
         raise LFM3ConfigurationError("LFM3 endpoint must be an absolute HTTP(S) URL")
     if parsed.username or parsed.password or parsed.query or parsed.fragment:
         raise LFM3ConfigurationError("LFM3 endpoint must not contain credentials, query, or fragment")
-    if parsed.port is not None and not 1 <= parsed.port <= 65535:
+    try:
+        port = parsed.port
+    except ValueError as exc:
+        raise LFM3ConfigurationError("LFM3 endpoint port is invalid") from exc
+    if port is not None and not 1 <= port <= 65535:
         raise LFM3ConfigurationError("LFM3 endpoint port is invalid")
 
     host = parsed.hostname.rstrip(".").lower()
@@ -92,8 +97,8 @@ async def generate(
     """Generate one bounded response from a local or explicitly approved HTTPS LFM3 server."""
     if not isinstance(message, str) or not message.strip() or len(message) > MAX_PROMPT_CHARS:
         raise LFM3ConfigurationError("message must contain 1-12000 characters")
-    if not isinstance(domain, str) or not domain.strip() or len(domain) > 80:
-        raise LFM3ConfigurationError("domain must contain 1-80 characters")
+    if not isinstance(domain, str) or not re.fullmatch(r"[A-Za-z0-9._-]{1,80}", domain.strip()):
+        raise LFM3ConfigurationError("domain must be a 1-80 character identifier")
 
     values = os.environ if env is None else env
     base_url = values.get("NEXUS_LFM3_BASE_URL", DEFAULT_BASE_URL)
@@ -131,6 +136,8 @@ async def generate(
     }
     headers = {"Content-Type": "application/json"}
     api_key = values.get("NEXUS_LFM3_API_KEY", "").strip()
+    if len(api_key) > 512:
+        raise LFM3ConfigurationError("NEXUS_LFM3_API_KEY exceeds the configured size limit")
     if api_key:
         headers["Authorization"] = "Bearer " + api_key
 
