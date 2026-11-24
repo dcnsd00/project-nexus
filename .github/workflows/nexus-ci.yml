@@ -155,6 +155,9 @@ jobs:
           $env:NEXUS_NATIVE_COMPILER = "msvc"
           Push-Location $Root
           try {
+            $ProjectRoot = (Resolve-Path ".").Path
+            $CoreRoot = (Resolve-Path "core/PROJECT-NEXUS").Path
+            $env:PYTHONPATH = "$ProjectRoot$([IO.Path]::PathSeparator)$CoreRoot"
             python -m pytest -vv --full-trace --disable-warnings tests/test_hybrid_solver_0105.py tests/test_mining_v098.py tests/test_solo_mining_096.py
             if ($LASTEXITCODE -ne 0) { throw "Windows TestClient lifecycle modules failed." }
           } finally {
@@ -169,6 +172,9 @@ jobs:
           $env:NEXUS_NATIVE_COMPILER = "msvc"
           Push-Location $Root
           try {
+            $ProjectRoot = (Resolve-Path ".").Path
+            $CoreRoot = (Resolve-Path "core/PROJECT-NEXUS").Path
+            $env:PYTHONPATH = "$ProjectRoot$([IO.Path]::PathSeparator)$CoreRoot"
             python -m pytest -vv --full-trace --disable-warnings tests/test_mining_solo_matrix_0105.py
             if ($LASTEXITCODE -ne 0) { throw "Isolated Windows mining catalog API module failed." }
           } finally {
@@ -193,6 +199,9 @@ jobs:
           )
           Push-Location $Root
           try {
+            $ProjectRoot = (Resolve-Path ".").Path
+            $CoreRoot = (Resolve-Path "core/PROJECT-NEXUS").Path
+            $env:PYTHONPATH = "$ProjectRoot$([IO.Path]::PathSeparator)$CoreRoot"
             foreach ($Module in $Modules) {
               Write-Host "Running isolated Windows pytest module: $Module"
               $SafeModuleName = $Module.Replace("/", "_")
@@ -231,6 +240,9 @@ jobs:
           )
           Push-Location $Root
           try {
+            $ProjectRoot = (Resolve-Path ".").Path
+            $CoreRoot = (Resolve-Path "core/PROJECT-NEXUS").Path
+            $env:PYTHONPATH = "$ProjectRoot$([IO.Path]::PathSeparator)$CoreRoot"
             foreach ($Module in $Modules) {
               Write-Host "Running isolated Windows pytest module: $Module"
               $SafeModuleName = $Module.Replace("/", "_")
@@ -270,6 +282,9 @@ jobs:
           )
           Push-Location $Root
           try {
+            $ProjectRoot = (Resolve-Path ".").Path
+            $CoreRoot = (Resolve-Path "core/PROJECT-NEXUS").Path
+            $env:PYTHONPATH = "$ProjectRoot$([IO.Path]::PathSeparator)$CoreRoot"
             foreach ($Module in $Modules) {
               Write-Host "Running isolated Windows pytest module: $Module"
               $SafeModuleName = $Module.Replace("/", "_")
@@ -308,6 +323,9 @@ jobs:
           )
           Push-Location $Root
           try {
+            $ProjectRoot = (Resolve-Path ".").Path
+            $CoreRoot = (Resolve-Path "core/PROJECT-NEXUS").Path
+            $env:PYTHONPATH = "$ProjectRoot$([IO.Path]::PathSeparator)$CoreRoot"
             foreach ($Module in $Modules) {
               Write-Host "Running isolated Windows pytest module: $Module"
               $SafeModuleName = $Module.Replace("/", "_")
@@ -346,6 +364,9 @@ jobs:
           )
           Push-Location $Root
           try {
+            $ProjectRoot = (Resolve-Path ".").Path
+            $CoreRoot = (Resolve-Path "core/PROJECT-NEXUS").Path
+            $env:PYTHONPATH = "$ProjectRoot$([IO.Path]::PathSeparator)$CoreRoot"
             foreach ($Module in $Modules) {
               Write-Host "Running isolated Windows pytest module: $Module"
               $SafeModuleName = $Module.Replace("/", "_")
@@ -384,6 +405,9 @@ jobs:
           )
           Push-Location $Root
           try {
+            $ProjectRoot = (Resolve-Path ".").Path
+            $CoreRoot = (Resolve-Path "core/PROJECT-NEXUS").Path
+            $env:PYTHONPATH = "$ProjectRoot$([IO.Path]::PathSeparator)$CoreRoot"
             foreach ($Module in $Modules) {
               Write-Host "Running isolated Windows pytest module: $Module"
               $SafeModuleName = $Module.Replace("/", "_")
@@ -422,6 +446,9 @@ jobs:
           )
           Push-Location $Root
           try {
+            $ProjectRoot = (Resolve-Path ".").Path
+            $CoreRoot = (Resolve-Path "core/PROJECT-NEXUS").Path
+            $env:PYTHONPATH = "$ProjectRoot$([IO.Path]::PathSeparator)$CoreRoot"
             foreach ($Module in $Modules) {
               Write-Host "Running isolated Windows pytest module: $Module"
               $SafeModuleName = $Module.Replace("/", "_")
@@ -460,6 +487,9 @@ jobs:
           )
           Push-Location $Root
           try {
+            $ProjectRoot = (Resolve-Path ".").Path
+            $CoreRoot = (Resolve-Path "core/PROJECT-NEXUS").Path
+            $env:PYTHONPATH = "$ProjectRoot$([IO.Path]::PathSeparator)$CoreRoot"
             foreach ($Module in $Modules) {
               Write-Host "Running isolated Windows pytest module: $Module"
               $SafeModuleName = $Module.Replace("/", "_")
@@ -498,6 +528,9 @@ jobs:
           )
           Push-Location $Root
           try {
+            $ProjectRoot = (Resolve-Path ".").Path
+            $CoreRoot = (Resolve-Path "core/PROJECT-NEXUS").Path
+            $env:PYTHONPATH = "$ProjectRoot$([IO.Path]::PathSeparator)$CoreRoot"
             foreach ($Module in $Modules) {
               Write-Host "Running isolated Windows pytest module: $Module"
               $SafeModuleName = $Module.Replace("/", "_")
@@ -536,6 +569,9 @@ jobs:
           )
           Push-Location $Root
           try {
+            $ProjectRoot = (Resolve-Path ".").Path
+            $CoreRoot = (Resolve-Path "core/PROJECT-NEXUS").Path
+            $env:PYTHONPATH = "$ProjectRoot$([IO.Path]::PathSeparator)$CoreRoot"
             foreach ($Module in $Modules) {
               Write-Host "Running isolated Windows pytest module: $Module"
               $SafeModuleName = $Module.Replace("/", "_")
@@ -574,6 +610,9 @@ jobs:
           )
           Push-Location $Root
           try {
+            $ProjectRoot = (Resolve-Path ".").Path
+            $CoreRoot = (Resolve-Path "core/PROJECT-NEXUS").Path
+            $env:PYTHONPATH = "$ProjectRoot$([IO.Path]::PathSeparator)$CoreRoot"
             foreach ($Module in $Modules) {
               Write-Host "Running isolated Windows pytest module: $Module"
               $SafeModuleName = $Module.Replace("/", "_")
@@ -612,6 +651,9 @@ jobs:
           )
           Push-Location $Root
           try {
+            $ProjectRoot = (Resolve-Path ".").Path
+            $CoreRoot = (Resolve-Path "core/PROJECT-NEXUS").Path
+            $env:PYTHONPATH = "$ProjectRoot$([IO.Path]::PathSeparator)$CoreRoot"
             foreach ($Module in $Modules) {
               Write-Host "Running isolated Windows pytest module: $Module"
               $SafeModuleName = $Module.Replace("/", "_")
