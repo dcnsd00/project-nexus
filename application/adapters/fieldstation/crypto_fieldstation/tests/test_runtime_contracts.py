@@ -40,3 +40,18 @@ def test_fieldstation_binds_only_to_loopback_by_default():
     spec.loader.exec_module(module)
     assert module.HOST == "127.0.0.1"
     assert module.SERVER is None
+
+
+def test_fieldstation_port_can_be_overridden_without_starting_server(monkeypatch):
+    import sys
+    app_file = Path(__file__).resolve().parents[1] / "app.py"
+    application_root = Path(__file__).resolve().parents[4]
+    if str(application_root) not in sys.path:
+        sys.path.insert(0, str(application_root))
+    monkeypatch.setenv("FIELDSTATION_PORT", "18765")
+    spec = importlib.util.spec_from_file_location("fieldstation_port_probe", app_file)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    assert module.PORT == 18765
+    assert module.HOST == "127.0.0.1"
+    assert module.SERVER is None
