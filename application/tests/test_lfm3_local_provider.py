@@ -1,7 +1,13 @@
 import asyncio
 import sqlite3
+import sys
+from pathlib import Path
 
 import pytest
+
+CORE_ROOT = Path(__file__).resolve().parents[1] / "core" / "PROJECT-NEXUS-LOCAL"
+if str(CORE_ROOT) not in sys.path:
+    sys.path.insert(0, str(CORE_ROOT))
 
 from app import lfm3_local
 
@@ -50,7 +56,7 @@ def test_default_endpoint_is_loopback_and_tool_execution_is_not_enabled():
     assert client.request["json"]["model"] == "LiquidAI/LFM3-1.7B"
     assert "tools" not in client.request["json"]
     assert "Authorization" not in client.request["headers"]
-    assert "manual approval" in client.request["json"]["messages"][0]["content"].lower()
+    assert "explicit owner approval" in client.request["json"]["messages"][0]["content"].lower()
 
 
 def test_explicit_local_v1_endpoint_is_not_duplicated():
