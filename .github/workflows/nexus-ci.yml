@@ -155,7 +155,7 @@ jobs:
           $env:NEXUS_NATIVE_COMPILER = "msvc"
           Push-Location $Root
           try {
-            python -m pytest -vv --full-trace --disable-warnings tests/test_hybrid_solver_0105.py tests/test_mining_v098.py
+            python -m pytest -vv --full-trace --disable-warnings tests/test_hybrid_solver_0105.py tests/test_mining_v098.py tests/test_solo_mining_096.py
             if ($LASTEXITCODE -ne 0) { throw "Windows TestClient lifecycle regression modules failed." }
           } finally {
             Pop-Location
