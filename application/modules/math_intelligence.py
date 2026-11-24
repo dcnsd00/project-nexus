@@ -49,7 +49,13 @@ def triage_candidate(data: dict[str, Any]) -> dict[str, Any]:
     baseline_raw = data.get("baseline_hashrate", 0)
     candidate_raw = data.get("candidate_hashrate", 0)
     for name, value in (("baseline_hashrate", baseline_raw), ("candidate_hashrate", candidate_raw)):
-        if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value):
+        if isinstance(value, bool) or not isinstance(value, (int, float)):
+            raise ValueError(f"{name} trebuie să fie un număr finit.")
+        try:
+            finite = math.isfinite(float(value))
+        except (OverflowError, ValueError):
+            finite = False
+        if not finite:
             raise ValueError(f"{name} trebuie să fie un număr finit.")
     baseline = float(baseline_raw)
     candidate = float(candidate_raw)
