@@ -4,6 +4,7 @@ No account credentials, private endpoints, real orders, wallet signing or transf
 """
 from __future__ import annotations
 
+import math
 import sqlite3
 import statistics
 from contextlib import contextmanager
@@ -163,7 +164,14 @@ class PaperTradingStore:
         if side not in ("buy", "sell"):
             raise ValueError("invalid_side")
         values = (quantity, market_price_usdt, execution_price_usdt, ron_per_usdt, fee_bps)
-        if any(not isinstance(v, (int, float)) or v <= 0 for v in values[:4]):
+        if any(
+            isinstance(value, bool)
+            or not isinstance(value, (int, float))
+            or not math.isfinite(value)
+            for value in values
+        ):
+            raise ValueError("numeric_values_must_be_finite")
+        if any(value <= 0 for value in values[:4]):
             raise ValueError("numeric_values_must_be_positive")
         if not 0 <= fee_bps <= 1000:
             raise ValueError("fee_bps_out_of_range")
