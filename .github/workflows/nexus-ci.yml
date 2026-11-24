@@ -194,11 +194,14 @@ jobs:
             foreach ($Module in $Modules) {
               Write-Host "Running isolated Windows pytest module: $Module"
               python -m pytest -vv --full-trace --disable-warnings --maxfail=1 $Module
-              if ($LASTEXITCODE -ne 0) { throw "Windows test module failed: $Module" }
+              $ModuleExitCode = $LASTEXITCODE
+              Write-Host "Pytest exit code for $Module: $ModuleExitCode"
+              if ($ModuleExitCode -ne 0) { throw "Windows test module failed: $Module (exit $ModuleExitCode)" }
             }
           } finally {
             Pop-Location
           }
+          exit 0
       - name: Run Windows test module batch 2 of 12 (isolated processes)
         timeout-minutes: 10
         shell: pwsh
@@ -219,11 +222,14 @@ jobs:
             foreach ($Module in $Modules) {
               Write-Host "Running isolated Windows pytest module: $Module"
               python -m pytest -vv --full-trace --disable-warnings --maxfail=1 $Module
-              if ($LASTEXITCODE -ne 0) { throw "Windows test module failed: $Module" }
+              $ModuleExitCode = $LASTEXITCODE
+              Write-Host "Pytest exit code for $Module: $ModuleExitCode"
+              if ($ModuleExitCode -ne 0) { throw "Windows test module failed: $Module (exit $ModuleExitCode)" }
             }
           } finally {
             Pop-Location
           }
+          exit 0
       - name: Run Windows test module batch 3 of 12 (isolated processes)
         timeout-minutes: 10
         shell: pwsh
@@ -244,11 +250,14 @@ jobs:
             foreach ($Module in $Modules) {
               Write-Host "Running isolated Windows pytest module: $Module"
               python -m pytest -vv --full-trace --disable-warnings --maxfail=1 $Module
-              if ($LASTEXITCODE -ne 0) { throw "Windows test module failed: $Module" }
+              $ModuleExitCode = $LASTEXITCODE
+              Write-Host "Pytest exit code for $Module: $ModuleExitCode"
+              if ($ModuleExitCode -ne 0) { throw "Windows test module failed: $Module (exit $ModuleExitCode)" }
             }
           } finally {
             Pop-Location
           }
+          exit 0
       - name: Run Windows test module batch 4 of 12 (isolated processes)
         timeout-minutes: 10
         shell: pwsh
@@ -269,11 +278,14 @@ jobs:
             foreach ($Module in $Modules) {
               Write-Host "Running isolated Windows pytest module: $Module"
               python -m pytest -vv --full-trace --disable-warnings --maxfail=1 $Module
-              if ($LASTEXITCODE -ne 0) { throw "Windows test module failed: $Module" }
+              $ModuleExitCode = $LASTEXITCODE
+              Write-Host "Pytest exit code for $Module: $ModuleExitCode"
+              if ($ModuleExitCode -ne 0) { throw "Windows test module failed: $Module (exit $ModuleExitCode)" }
             }
           } finally {
             Pop-Location
           }
+          exit 0
       - name: Run Windows test module batch 5 of 12 (isolated processes)
         timeout-minutes: 10
         shell: pwsh
@@ -294,11 +306,14 @@ jobs:
             foreach ($Module in $Modules) {
               Write-Host "Running isolated Windows pytest module: $Module"
               python -m pytest -vv --full-trace --disable-warnings --maxfail=1 $Module
-              if ($LASTEXITCODE -ne 0) { throw "Windows test module failed: $Module" }
+              $ModuleExitCode = $LASTEXITCODE
+              Write-Host "Pytest exit code for $Module: $ModuleExitCode"
+              if ($ModuleExitCode -ne 0) { throw "Windows test module failed: $Module (exit $ModuleExitCode)" }
             }
           } finally {
             Pop-Location
           }
+          exit 0
       - name: Run Windows test module batch 6 of 12 (isolated processes)
         timeout-minutes: 10
         shell: pwsh
@@ -319,11 +334,14 @@ jobs:
             foreach ($Module in $Modules) {
               Write-Host "Running isolated Windows pytest module: $Module"
               python -m pytest -vv --full-trace --disable-warnings --maxfail=1 $Module
-              if ($LASTEXITCODE -ne 0) { throw "Windows test module failed: $Module" }
+              $ModuleExitCode = $LASTEXITCODE
+              Write-Host "Pytest exit code for $Module: $ModuleExitCode"
+              if ($ModuleExitCode -ne 0) { throw "Windows test module failed: $Module (exit $ModuleExitCode)" }
             }
           } finally {
             Pop-Location
           }
+          exit 0
       - name: Run Windows test module batch 7 of 12 (isolated processes)
         timeout-minutes: 10
         shell: pwsh
@@ -344,11 +362,14 @@ jobs:
             foreach ($Module in $Modules) {
               Write-Host "Running isolated Windows pytest module: $Module"
               python -m pytest -vv --full-trace --disable-warnings --maxfail=1 $Module
-              if ($LASTEXITCODE -ne 0) { throw "Windows test module failed: $Module" }
+              $ModuleExitCode = $LASTEXITCODE
+              Write-Host "Pytest exit code for $Module: $ModuleExitCode"
+              if ($ModuleExitCode -ne 0) { throw "Windows test module failed: $Module (exit $ModuleExitCode)" }
             }
           } finally {
             Pop-Location
           }
+          exit 0
       - name: Run Windows test module batch 8 of 12 (isolated processes)
         timeout-minutes: 10
         shell: pwsh
@@ -369,11 +390,14 @@ jobs:
             foreach ($Module in $Modules) {
               Write-Host "Running isolated Windows pytest module: $Module"
               python -m pytest -vv --full-trace --disable-warnings --maxfail=1 $Module
-              if ($LASTEXITCODE -ne 0) { throw "Windows test module failed: $Module" }
+              $ModuleExitCode = $LASTEXITCODE
+              Write-Host "Pytest exit code for $Module: $ModuleExitCode"
+              if ($ModuleExitCode -ne 0) { throw "Windows test module failed: $Module (exit $ModuleExitCode)" }
             }
           } finally {
             Pop-Location
           }
+          exit 0
       - name: Run Windows test module batch 9 of 12 (isolated processes)
         timeout-minutes: 10
         shell: pwsh
@@ -394,11 +418,14 @@ jobs:
             foreach ($Module in $Modules) {
               Write-Host "Running isolated Windows pytest module: $Module"
               python -m pytest -vv --full-trace --disable-warnings --maxfail=1 $Module
-              if ($LASTEXITCODE -ne 0) { throw "Windows test module failed: $Module" }
+              $ModuleExitCode = $LASTEXITCODE
+              Write-Host "Pytest exit code for $Module: $ModuleExitCode"
+              if ($ModuleExitCode -ne 0) { throw "Windows test module failed: $Module (exit $ModuleExitCode)" }
             }
           } finally {
             Pop-Location
           }
+          exit 0
       - name: Run Windows test module batch 10 of 12 (isolated processes)
         timeout-minutes: 10
         shell: pwsh
@@ -419,11 +446,14 @@ jobs:
             foreach ($Module in $Modules) {
               Write-Host "Running isolated Windows pytest module: $Module"
               python -m pytest -vv --full-trace --disable-warnings --maxfail=1 $Module
-              if ($LASTEXITCODE -ne 0) { throw "Windows test module failed: $Module" }
+              $ModuleExitCode = $LASTEXITCODE
+              Write-Host "Pytest exit code for $Module: $ModuleExitCode"
+              if ($ModuleExitCode -ne 0) { throw "Windows test module failed: $Module (exit $ModuleExitCode)" }
             }
           } finally {
             Pop-Location
           }
+          exit 0
       - name: Run Windows test module batch 11 of 12 (isolated processes)
         timeout-minutes: 10
         shell: pwsh
@@ -444,11 +474,14 @@ jobs:
             foreach ($Module in $Modules) {
               Write-Host "Running isolated Windows pytest module: $Module"
               python -m pytest -vv --full-trace --disable-warnings --maxfail=1 $Module
-              if ($LASTEXITCODE -ne 0) { throw "Windows test module failed: $Module" }
+              $ModuleExitCode = $LASTEXITCODE
+              Write-Host "Pytest exit code for $Module: $ModuleExitCode"
+              if ($ModuleExitCode -ne 0) { throw "Windows test module failed: $Module (exit $ModuleExitCode)" }
             }
           } finally {
             Pop-Location
           }
+          exit 0
       - name: Run Windows test module batch 12 of 12 (isolated processes)
         timeout-minutes: 10
         shell: pwsh
@@ -469,8 +502,11 @@ jobs:
             foreach ($Module in $Modules) {
               Write-Host "Running isolated Windows pytest module: $Module"
               python -m pytest -vv --full-trace --disable-warnings --maxfail=1 $Module
-              if ($LASTEXITCODE -ne 0) { throw "Windows test module failed: $Module" }
+              $ModuleExitCode = $LASTEXITCODE
+              Write-Host "Pytest exit code for $Module: $ModuleExitCode"
+              if ($ModuleExitCode -ne 0) { throw "Windows test module failed: $Module (exit $ModuleExitCode)" }
             }
           } finally {
             Pop-Location
           }
+          exit 0
