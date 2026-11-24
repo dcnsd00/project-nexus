@@ -54,7 +54,7 @@ def client():
 
     nexus_master.app.router.lifespan_context = route_test_lifespan
     _emit_thread_snapshot("before_testclient_enter")
-    faulthandler.dump_traceback_later(15, file=sys.stderr, repeat=False)
+    faulthandler.dump_traceback_later(15, file=sys.__stderr__, repeat=False)
     try:
         with TestClient(nexus_master.app) as test_client:
             _emit_thread_snapshot("after_testclient_enter")
