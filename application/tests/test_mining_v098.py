@@ -23,12 +23,14 @@ def _emit_thread_snapshot(stage):
         "[NEXUS_THREAD_DIAG] "
         f"stage={stage} python_threads={len(threads)} "
         f"os_threads={process.num_threads()} child_processes={len(children)}",
+        file=sys.__stderr__,
         flush=True,
     )
     for thread in threads:
         print(
             f"[NEXUS_THREAD_DIAG] thread name={thread.name!r} "
             f"ident={thread.ident} daemon={thread.daemon} alive={thread.is_alive()}",
+            file=sys.__stderr__,
             flush=True,
         )
     for child in children:
@@ -36,6 +38,7 @@ def _emit_thread_snapshot(stage):
             print(
                 f"[NEXUS_THREAD_DIAG] child pid={child.pid} "
                 f"name={child.name()} status={child.status()}",
+                file=sys.__stderr__,
                 flush=True,
             )
         except (psutil.Error, OSError):
