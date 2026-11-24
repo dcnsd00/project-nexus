@@ -59,6 +59,31 @@ def test_paper_buy_and_sell_ledger_never_submits_real_order(tmp_path):
     assert portfolio["real_orders_enabled"] is False
 
 
+def test_paper_trade_rejects_non_finite_numeric_values(tmp_path):
+    store = gate.PaperTradingStore(tmp_path / "paper.sqlite3")
+    invalid_values = (float("nan"), float("inf"), float("-inf"))
+    fields = (
+        "quantity", "market_price_usdt", "execution_price_usdt",
+        "ron_per_usdt", "fee_bps",
+    )
+    for field in fields:
+        for invalid in invalid_values:
+            values = {
+                "quantity": 0.001,
+                "market_price_usdt": 10,
+                "execution_price_usdt": 10,
+                "ron_per_usdt": 5,
+                "fee_bps": 10,
+            }
+            values[field] = invalid
+            try:
+                store.execute(symbol="BTC", side="buy", **values)
+            except ValueError as exc:
+                assert str(exc) == "numeric_values_must_be_finite"
+            else:
+                raise AssertionError(f"Expected non-finite {field} rejection")
+
+
 def test_paper_buy_rejects_insufficient_cash(tmp_path):
     store = gate.PaperTradingStore(tmp_path / "paper.sqlite3")
     try:
