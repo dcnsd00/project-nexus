@@ -43,13 +43,40 @@ def solve_modular_congruence(a: int, b: int, modulus: int) -> dict[str, Any]:
 
 def triage_candidate(data: dict[str, Any]) -> dict[str, Any]:
     """Classify measured optimization; no automatic miner activation."""
-    baseline=float(data.get("baseline_hashrate",0)); candidate=float(data.get("candidate_hashrate",0))
-    if baseline<=0 or candidate<0: raise ValueError("Hashrate baseline trebuie >0, candidat >=0.")
-    duration=int(data.get("duration_seconds",0)); accepted=int(data.get("accepted_shares",0)); rejected=int(data.get("rejected_shares",0))
-    exact=bool(data.get("exact_equivalence_verified",False)); independent=int(data.get("independent_runs",0))
-    delta=(candidate/baseline-1)*100
-    reject_rate=rejected/(accepted+rejected) if accepted+rejected else None
-    valid=exact and independent>=3 and duration>=180 and accepted>0 and (reject_rate is not None and reject_rate<=0.01)
+    if not isinstance(data, dict):
+        raise ValueError("Datele candidatului trebuie să fie un obiect.")
+
+    baseline_raw = data.get("baseline_hashrate", 0)
+    candidate_raw = data.get("candidate_hashrate", 0)
+    for name, value in (("baseline_hashrate", baseline_raw), ("candidate_hashrate", candidate_raw)):
+        if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value):
+            raise ValueError(f"{name} trebuie să fie un număr finit.")
+    baseline = float(baseline_raw)
+    candidate = float(candidate_raw)
+    if baseline <= 0 or candidate < 0:
+        raise ValueError("Hashrate baseline trebuie >0, candidat >=0.")
+
+    integer_fields = ("duration_seconds", "accepted_shares", "rejected_shares", "independent_runs")
+    counts: dict[str, int] = {}
+    for name in integer_fields:
+        value = data.get(name, 0)
+        if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+            raise ValueError(f"{name} trebuie să fie un întreg nenegativ.")
+        counts[name] = value
+
+    exact_raw = data.get("exact_equivalence_verified", False)
+    if not isinstance(exact_raw, bool):
+        raise ValueError("exact_equivalence_verified trebuie să fie boolean.")
+    duration = counts["duration_seconds"]
+    accepted = counts["accepted_shares"]
+    rejected = counts["rejected_shares"]
+    exact = exact_raw
+    independent = counts["independent_runs"]
+    delta = (candidate / baseline - 1) * 100
+    if not math.isfinite(delta):
+        raise ValueError("Raportul hash rate produce o variație numerică nefinita.")
+    reject_rate = rejected / (accepted + rejected) if accepted + rejected else None
+    valid = exact and independent >= 3 and duration >= 180 and accepted > 0 and (reject_rate is not None and reject_rate <= 0.01)
     if not exact: verdict="RESEARCH_ONLY"
     elif not valid: verdict="NEEDS_MORE_EVIDENCE"
     elif delta>1: verdict="PROMISING_MEASURED_GAIN"
