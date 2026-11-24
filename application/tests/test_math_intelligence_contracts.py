@@ -87,3 +87,16 @@ def test_candidate_triage_requires_boolean_equivalence_evidence():
             "exact_equivalence_verified": "yes",
             "independent_runs": 3,
         })
+
+
+def test_candidate_triage_rejects_integer_hashrates_outside_float_range():
+    with pytest.raises(ValueError):
+        triage_candidate({
+            "baseline_hashrate": 10 ** 1000,
+            "candidate_hashrate": 102,
+            "duration_seconds": 300,
+            "accepted_shares": 1000,
+            "rejected_shares": 0,
+            "exact_equivalence_verified": True,
+            "independent_runs": 3,
+        })
