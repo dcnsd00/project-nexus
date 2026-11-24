@@ -132,10 +132,13 @@ class PaperTradingStore:
             trades = [dict(row) for row in conn.execute(
                 "SELECT * FROM paper_trades ORDER BY id DESC LIMIT 100"
             )]
+            realized_pnl = conn.execute(
+                "SELECT COALESCE(SUM(realized_pnl_ron),0) FROM paper_trades"
+            ).fetchone()[0]
         return {
             "currency": "RON", "cash_ron": round(cash["cash_ron"], 8),
             "initial_capital_ron": cash["initial_capital_ron"],
-            "realized_pnl_ron": round(conn.execute("SELECT COALESCE(SUM(realized_pnl_ron),0) FROM paper_trades").fetchone()[0], 8),
+            "realized_pnl_ron": round(realized_pnl, 8),
             "positions": positions, "recent_trades": trades,
             "execution_mode": "paper_only", "real_orders_enabled": False,
             "wallet_signing_enabled": False, "transfers_enabled": False,
