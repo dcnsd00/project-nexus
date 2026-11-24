@@ -6,6 +6,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, Field
 import httpx
+from . import lfm3_local
 from . import math_engine, banking_sandbox, plugin_registry
 
 DB=os.getenv("NEXUS_DB","./data/nexus.db")
@@ -68,7 +69,17 @@ def math_api(kind:str,payload:dict):
 @app.get("/",response_class=HTMLResponse)
 def index(): return PAGE
 @app.get("/api/health")
-def health(): return {"status":"ok","version":"0.5.0","ai_configured":bool(os.getenv("OPENAI_API_KEY")),"mode":"local-first","execution":"manual-approval"}
+def health():
+    ai = lfm3_local.provider_status()
+    return {
+        "status": "ok",
+        "version": "0.5.0",
+        "ai_configured": bool(ai.get("configured")),
+        "ai_provider": ai.get("provider"),
+        "ai_provider_details": ai,
+        "mode": "local-first",
+        "execution": "manual-approval",
+    }
 @app.get("/api/summary")
 def summary():
     with conn() as c:
@@ -124,16 +135,61 @@ def logs():
     with conn() as c:return [dict(x) for x in c.execute("SELECT * FROM audit ORDER BY id DESC LIMIT 250")]
 @app.post("/api/chat")
 async def chat(x:Chat):
-    key=os.getenv("OPENAI_API_KEY","").strip()
-    if not key:return {"reply":"NEXUS local modules are active. Configure OPENAI_API_KEY in .env to enable model-based reasoning. Task, memory, agent, approval and audit functions work without it.","ai_configured":False}
+    provider = os.getenv("NEXUS_AI_PROVIDER", "openai").strip().lower()
+    if provider in {"lfm3", "lfm3-local"}:
+        try:
+            answer = await lfm3_local.generate(x.message, x.domain)
+        except (lfm3_local.LFM3ConfigurationError, lfm3_local.LFM3ProviderError) as exc:
+            raise HTTPException(502, "Local LFM3 provider failed: " + type(exc).__name__) from exc
+        with conn() as c:
+            c.execute("INSERT INTO chat(role,content,domain) VALUES('user',?,?)", (x.message, x.domain))
+            c.execute("INSERT INTO chat(role,content,domain) VALUES('assistant',?,?)", (answer, x.domain))
+            c.commit()
+        audit("ai.response", "lfm3-local:" + x.domain)
+        return {"reply": answer, "ai_configured": True, "provider": "lfm3-local"}
+
+    if provider != "openai":
+        raise HTTPException(400, "Unsupported NEXUS_AI_PROVIDER")
+
+    key = os.getenv("OPENAI_API_KEY", "").strip()
+    if not key:
+        return {
+            "reply": "NEXUS local modules are active. Configure OPENAI_API_KEY or select NEXUS_AI_PROVIDER=lfm3-local to enable model-based reasoning. Task, memory, agent, approval and audit functions work without it.",
+            "ai_configured": False,
+            "provider": "openai",
+        }
     try:
         async with httpx.AsyncClient(timeout=60) as client:
-            r=await client.post("https://api.openai.com/v1/responses",headers={"Authorization":"Bearer "+key},json={"model":os.getenv("OPENAI_MODEL","gpt-6"),"instructions":"You are NEXUS, an owner-controlled assistant. Do not claim to execute external actions. Never request private keys or seed phrases. All sensitive operations require explicit owner approval. Domain: "+x.domain,"input":x.message})
-            r.raise_for_status();data=r.json()
-        answer="\n".join(t.get("text","") for o in data.get("output",[]) if o.get("type")=="message" for t in o.get("content",[]) if t.get("type")=="output_text")
-    except Exception as e:raise HTTPException(502,"AI provider request failed: "+type(e).__name__)
-    with conn() as c:c.execute("INSERT INTO chat(role,content,domain) VALUES('user',?,?)",(x.message,x.domain));c.execute("INSERT INTO chat(role,content,domain) VALUES('assistant',?,?)",(answer,x.domain));c.commit()
-    audit("ai.response",x.domain);return {"reply":answer,"ai_configured":True}
+            r = await client.post(
+                "https://api.openai.com/v1/responses",
+                headers={"Authorization": "Bearer " + key},
+                json={
+                    "model": os.getenv("OPENAI_MODEL", "gpt-6"),
+                    "instructions": (
+                        "You are NEXUS, an owner-controlled assistant. Do not claim to execute external actions. "
+                        "Never request private keys or seed phrases. All sensitive operations require explicit owner approval. "
+                        "Domain: " + x.domain
+                    ),
+                    "input": x.message,
+                },
+            )
+            r.raise_for_status()
+            data = r.json()
+        answer = "\n".join(
+            t.get("text", "")
+            for o in data.get("output", [])
+            if o.get("type") == "message"
+            for t in o.get("content", [])
+            if t.get("type") == "output_text"
+        )
+    except Exception as exc:
+        raise HTTPException(502, "AI provider request failed: " + type(exc).__name__) from exc
+    with conn() as c:
+        c.execute("INSERT INTO chat(role,content,domain) VALUES('user',?,?)", (x.message, x.domain))
+        c.execute("INSERT INTO chat(role,content,domain) VALUES('assistant',?,?)", (answer, x.domain))
+        c.commit()
+    audit("ai.response", "openai:" + x.domain)
+    return {"reply": answer, "ai_configured": True, "provider": "openai"}
 PAGE=r"""<!doctype html><html lang="ro"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>PROJECT NEXUS</title><style>
 body{margin:0;background:#0b1220;color:#e9effa;font:15px Segoe UI,Arial}header{padding:18px 24px;background:#101b2e;border-bottom:1px solid #2a3a55;display:flex;justify-content:space-between}h1{font-size:19px;letter-spacing:2px;margin:0}.wrap{display:grid;grid-template-columns:210px 1fr;min-height:90vh}nav{background:#101b2e;padding:14px}nav button{display:block;width:100%;padding:12px;text-align:left;background:none;color:#dce6f6;border:0;cursor:pointer;border-radius:7px}nav button:hover{background:#263a59}main{padding:24px;max-width:1200px;width:100%;box-sizing:border-box}.view{display:none}.view.on{display:block}.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}.box{background:#142238;border:1px solid #2a3b57;border-radius:10px;padding:15px;margin:10px 0}.big{font-size:28px;font-weight:bold}input,textarea,select{display:block;width:100%;box-sizing:border-box;background:#0b1729;color:white;border:1px solid #3b506f;border-radius:7px;padding:10px;margin:6px 0 12px}textarea{min-height:75px}button.go{background:#426fc2;color:white;border:0;border-radius:7px;padding:10px 14px;cursor:pointer;margin:4px}small,.muted{color:#9eb0c9}.entry{padding:12px 0;border-bottom:1px solid #2b3c56;overflow-wrap:anywhere}.tag{color:#9cb8e9;font-size:12px}@media(max-width:750px){.wrap{grid-template-columns:1fr}nav{display:grid;grid-template-columns:repeat(2,1fr)}.grid{grid-template-columns:repeat(2,1fr)}main{padding:12px}}
 </style><header><h1>PROJECT NEXUS <small>MASTER 0.6.1</small></h1><span id="state">CONNECTING</span></header><div class="wrap"><nav>
