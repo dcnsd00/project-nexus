@@ -148,6 +148,18 @@ jobs:
           $Root = "${{ needs.source-detection.outputs.root }}"
           python (Join-Path $Root "tools_check_dashboard_js.py") $Root
           if ($LASTEXITCODE -ne 0) { throw "Dashboard JavaScript validation failed." }
+      - name: Run Windows TestClient lifecycle regression modules
+        shell: pwsh
+        run: |
+          $Root = "${{ needs.source-detection.outputs.root }}"
+          $env:NEXUS_NATIVE_COMPILER = "msvc"
+          Push-Location $Root
+          try {
+            python -m pytest -vv --full-trace --disable-warnings tests/test_hybrid_solver_0105.py tests/test_mining_v098.py
+            if ($LASTEXITCODE -ne 0) { throw "Windows TestClient lifecycle regression modules failed." }
+          } finally {
+            Pop-Location
+          }
       - name: Run isolated Windows API test module
         shell: pwsh
         run: |
