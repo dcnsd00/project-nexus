@@ -39,11 +39,32 @@ def test_cpu_gpu_are_separate_and_independently_stoppable(tmp_path):
     assert status['cpu']['state'] == status['gpu']['state'] == 'running', diagnostics
     cpu_pid = status['cpu']['pid']
     assert cpu_pid != status['gpu']['pid']
-    sup.stop('gpu')
+    gpu_stop = sup.stop('gpu')
     status = sup.status()['engines']
-    assert status['cpu']['state'] == 'running'
-    assert status['cpu']['pid'] == cpu_pid
-    assert status['gpu']['state'] == 'stopped'
+    cpu_item = sup._workers['cpu']
+    diagnostics = {
+        "gpu_stop": gpu_stop,
+        "cpu_status": status['cpu'],
+        "gpu_status": status['gpu'],
+        "cpu_process_poll": cpu_item['process'].poll(),
+        "cpu_worker_process_log": (
+            (tmp_path / "standard" / "cpu" / "worker-process.log").read_text(
+                encoding="utf-8", errors="replace"
+            )[-4000:]
+            if (tmp_path / "standard" / "cpu" / "worker-process.log").exists()
+            else None
+        ),
+        "cpu_miner_log": (
+            (tmp_path / "standard" / "cpu" / "worker.log").read_text(
+                encoding="utf-8", errors="replace"
+            )[-4000:]
+            if (tmp_path / "standard" / "cpu" / "worker.log").exists()
+            else None
+        ),
+    }
+    assert status['cpu']['state'] == 'running', diagnostics
+    assert status['cpu']['pid'] == cpu_pid, diagnostics
+    assert status['gpu']['state'] == 'stopped', diagnostics
     sup.stop()
 
 
