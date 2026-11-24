@@ -9,11 +9,34 @@ from pathlib import Path
 from typing import Any
 
 
+_STATUS_REPLACE_ATTEMPTS = 7
+
+
+def _replace_status_file(source: Path, destination: Path) -> None:
+    """Retry transient Windows file-lock errors during an atomic status update."""
+    for attempt in range(_STATUS_REPLACE_ATTEMPTS):
+        try:
+            os.replace(source, destination)
+            return
+        except PermissionError:
+            if attempt + 1 >= _STATUS_REPLACE_ATTEMPTS:
+                raise
+            # Antivirus scanners and concurrent readers can briefly hold a handle
+            # without delete sharing. Keep the update atomic and retry briefly.
+            time.sleep(min(0.02 * (2 ** attempt), 0.25))
+
+
 def _write_status(path: Path, payload: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_suffix(path.suffix + '.tmp')
-    tmp.write_text(json.dumps(payload, ensure_ascii=False), encoding='utf-8')
-    os.replace(tmp, path)
+    try:
+        tmp.write_text(json.dumps(payload, ensure_ascii=False), encoding='utf-8')
+        _replace_status_file(tmp, path)
+    finally:
+        try:
+            tmp.unlink()
+        except FileNotFoundError:
+            pass
 
 
 def run_worker(engine: str, request: dict, status_path: str, stop_event_path: str) -> int:

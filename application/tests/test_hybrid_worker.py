@@ -3,7 +3,30 @@ import sys
 import time
 from pathlib import Path
 
+from mining import hybrid_worker
 from mining.hybrid_worker import run_worker
+
+
+def test_write_status_retries_transient_replace_permission_error(tmp_path, monkeypatch):
+    status = tmp_path / 'cpu' / 'status.json'
+    real_replace = hybrid_worker.os.replace
+    attempts = 0
+
+    def flaky_replace(source, destination):
+        nonlocal attempts
+        attempts += 1
+        if attempts <= 2:
+            raise PermissionError(5, 'Access is denied')
+        return real_replace(source, destination)
+
+    monkeypatch.setattr(hybrid_worker.os, 'replace', flaky_replace)
+    payload = {'engine': 'cpu', 'state': 'running', 'heartbeat_unix': 123.0}
+
+    hybrid_worker._write_status(status, payload)
+
+    assert json.loads(status.read_text(encoding='utf-8')) == payload
+    assert attempts == 3
+    assert not status.with_suffix(status.suffix + '.tmp').exists()
 
 
 def test_worker_launches_owned_child_and_stops_it(tmp_path):
