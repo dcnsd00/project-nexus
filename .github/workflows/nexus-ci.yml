@@ -195,7 +195,7 @@ jobs:
               Write-Host "Running isolated Windows pytest module: $Module"
               python -m pytest -vv --full-trace --disable-warnings --maxfail=1 $Module
               $ModuleExitCode = $LASTEXITCODE
-              Write-Host "Pytest exit code for $Module: $ModuleExitCode"
+              Write-Host "Pytest exit code for ${Module}: $ModuleExitCode"
               if ($ModuleExitCode -ne 0) { throw "Windows test module failed: $Module (exit $ModuleExitCode)" }
             }
           } finally {
@@ -223,7 +223,7 @@ jobs:
               Write-Host "Running isolated Windows pytest module: $Module"
               python -m pytest -vv --full-trace --disable-warnings --maxfail=1 $Module
               $ModuleExitCode = $LASTEXITCODE
-              Write-Host "Pytest exit code for $Module: $ModuleExitCode"
+              Write-Host "Pytest exit code for ${Module}: $ModuleExitCode"
               if ($ModuleExitCode -ne 0) { throw "Windows test module failed: $Module (exit $ModuleExitCode)" }
             }
           } finally {
@@ -251,7 +251,7 @@ jobs:
               Write-Host "Running isolated Windows pytest module: $Module"
               python -m pytest -vv --full-trace --disable-warnings --maxfail=1 $Module
               $ModuleExitCode = $LASTEXITCODE
-              Write-Host "Pytest exit code for $Module: $ModuleExitCode"
+              Write-Host "Pytest exit code for ${Module}: $ModuleExitCode"
               if ($ModuleExitCode -ne 0) { throw "Windows test module failed: $Module (exit $ModuleExitCode)" }
             }
           } finally {
@@ -279,7 +279,7 @@ jobs:
               Write-Host "Running isolated Windows pytest module: $Module"
               python -m pytest -vv --full-trace --disable-warnings --maxfail=1 $Module
               $ModuleExitCode = $LASTEXITCODE
-              Write-Host "Pytest exit code for $Module: $ModuleExitCode"
+              Write-Host "Pytest exit code for ${Module}: $ModuleExitCode"
               if ($ModuleExitCode -ne 0) { throw "Windows test module failed: $Module (exit $ModuleExitCode)" }
             }
           } finally {
@@ -307,7 +307,7 @@ jobs:
               Write-Host "Running isolated Windows pytest module: $Module"
               python -m pytest -vv --full-trace --disable-warnings --maxfail=1 $Module
               $ModuleExitCode = $LASTEXITCODE
-              Write-Host "Pytest exit code for $Module: $ModuleExitCode"
+              Write-Host "Pytest exit code for ${Module}: $ModuleExitCode"
               if ($ModuleExitCode -ne 0) { throw "Windows test module failed: $Module (exit $ModuleExitCode)" }
             }
           } finally {
@@ -335,7 +335,7 @@ jobs:
               Write-Host "Running isolated Windows pytest module: $Module"
               python -m pytest -vv --full-trace --disable-warnings --maxfail=1 $Module
               $ModuleExitCode = $LASTEXITCODE
-              Write-Host "Pytest exit code for $Module: $ModuleExitCode"
+              Write-Host "Pytest exit code for ${Module}: $ModuleExitCode"
               if ($ModuleExitCode -ne 0) { throw "Windows test module failed: $Module (exit $ModuleExitCode)" }
             }
           } finally {
@@ -363,7 +363,7 @@ jobs:
               Write-Host "Running isolated Windows pytest module: $Module"
               python -m pytest -vv --full-trace --disable-warnings --maxfail=1 $Module
               $ModuleExitCode = $LASTEXITCODE
-              Write-Host "Pytest exit code for $Module: $ModuleExitCode"
+              Write-Host "Pytest exit code for ${Module}: $ModuleExitCode"
               if ($ModuleExitCode -ne 0) { throw "Windows test module failed: $Module (exit $ModuleExitCode)" }
             }
           } finally {
@@ -391,7 +391,7 @@ jobs:
               Write-Host "Running isolated Windows pytest module: $Module"
               python -m pytest -vv --full-trace --disable-warnings --maxfail=1 $Module
               $ModuleExitCode = $LASTEXITCODE
-              Write-Host "Pytest exit code for $Module: $ModuleExitCode"
+              Write-Host "Pytest exit code for ${Module}: $ModuleExitCode"
               if ($ModuleExitCode -ne 0) { throw "Windows test module failed: $Module (exit $ModuleExitCode)" }
             }
           } finally {
@@ -419,7 +419,7 @@ jobs:
               Write-Host "Running isolated Windows pytest module: $Module"
               python -m pytest -vv --full-trace --disable-warnings --maxfail=1 $Module
               $ModuleExitCode = $LASTEXITCODE
-              Write-Host "Pytest exit code for $Module: $ModuleExitCode"
+              Write-Host "Pytest exit code for ${Module}: $ModuleExitCode"
               if ($ModuleExitCode -ne 0) { throw "Windows test module failed: $Module (exit $ModuleExitCode)" }
             }
           } finally {
@@ -447,7 +447,7 @@ jobs:
               Write-Host "Running isolated Windows pytest module: $Module"
               python -m pytest -vv --full-trace --disable-warnings --maxfail=1 $Module
               $ModuleExitCode = $LASTEXITCODE
-              Write-Host "Pytest exit code for $Module: $ModuleExitCode"
+              Write-Host "Pytest exit code for ${Module}: $ModuleExitCode"
               if ($ModuleExitCode -ne 0) { throw "Windows test module failed: $Module (exit $ModuleExitCode)" }
             }
           } finally {
@@ -475,7 +475,7 @@ jobs:
               Write-Host "Running isolated Windows pytest module: $Module"
               python -m pytest -vv --full-trace --disable-warnings --maxfail=1 $Module
               $ModuleExitCode = $LASTEXITCODE
-              Write-Host "Pytest exit code for $Module: $ModuleExitCode"
+              Write-Host "Pytest exit code for ${Module}: $ModuleExitCode"
               if ($ModuleExitCode -ne 0) { throw "Windows test module failed: $Module (exit $ModuleExitCode)" }
             }
           } finally {
@@ -503,7 +503,7 @@ jobs:
               Write-Host "Running isolated Windows pytest module: $Module"
               python -m pytest -vv --full-trace --disable-warnings --maxfail=1 $Module
               $ModuleExitCode = $LASTEXITCODE
-              Write-Host "Pytest exit code for $Module: $ModuleExitCode"
+              Write-Host "Pytest exit code for ${Module}: $ModuleExitCode"
               if ($ModuleExitCode -ne 0) { throw "Windows test module failed: $Module (exit $ModuleExitCode)" }
             }
           } finally {
