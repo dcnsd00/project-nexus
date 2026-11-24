@@ -175,10 +175,12 @@ jobs:
             Pop-Location
           }
       - name: Run remaining application test suite on Windows
+        timeout-minutes: 10
         shell: pwsh
         run: |
           $Root = "${{ needs.source-detection.outputs.root }}"
           $env:NEXUS_NATIVE_COMPILER = "msvc"
+          Write-Host "PYTEST_ADDOPTS=$env:PYTEST_ADDOPTS"
           Push-Location $Root
           try {
             python -m pytest -vv --full-trace --disable-warnings --maxfail=1 --ignore=tests/test_mining_solo_matrix_0105.py
