@@ -1,5 +1,3 @@
-from fastapi.testclient import TestClient
-
 from modules import gate_paper_trading as gate
 
 
@@ -21,8 +19,6 @@ class FakeGate:
 
 
 def test_config_declares_all_assets_and_disables_real_execution():
-    client = TestClient(gate.router)
-    # Direct route call avoids depending on the full application.
     config = gate.gate_config()
     assert config["assets"] == list(gate.ASSETS)
     assert len(config["assets"]) == 10
@@ -59,6 +55,7 @@ def test_paper_buy_and_sell_ledger_never_submits_real_order(tmp_path):
     portfolio = store.portfolio()
     assert portfolio["positions"] == []
     assert portfolio["cash_ron"] > 100
+    assert portfolio["realized_pnl_ron"] != 0
     assert portfolio["real_orders_enabled"] is False
 
 
@@ -89,6 +86,9 @@ def test_paper_sell_rejects_unowned_quantity(tmp_path):
 
 
 def test_market_detail_rejects_unconfigured_symbol():
-    client = TestClient(gate.router)
-    response = client.get("/api/gate/market/NOTREAL")
-    assert response.status_code == 404
+    try:
+        gate.gate_market_detail("NOTREAL")
+    except Exception as exc:
+        assert getattr(exc, "status_code", None) == 404
+    else:
+        raise AssertionError("Expected unconfigured asset rejection")
