@@ -4,7 +4,7 @@ on:
   push:
     branches: [main, "feature/**", "integration/**"]
   pull_request:
-    branches: [main]
+    branches: [main, "feature/edge-replay-protection-sqlite-v1"]
   workflow_dispatch:
 
 permissions:
