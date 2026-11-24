@@ -49,6 +49,19 @@ def test_rewards_deduplicate_tx_hash_and_payouts(tmp_path, monkeypatch):
     assert c.post('/api/intel/payouts',json=p).status_code==409
 
 
+def test_opportunity_values_are_parameterized_and_do_not_change_schema(tmp_path, monkeypatch):
+    c = client_for(tmp_path, monkeypatch)
+    hostile_text = "x'); DROP TABLE devices;--"
+    created = c.post(
+        "/api/intel/opportunities",
+        json={"name": hostile_text, "category": "pow"},
+    )
+    assert created.status_code == 200
+    rows = c.get("/api/intel/opportunities").json()
+    assert any(row["name"] == hostile_text for row in rows)
+    assert c.get("/api/intel/devices").status_code == 200
+
+
 def test_wallet_watch_is_read_only_and_status(tmp_path, monkeypatch):
     c=client_for(tmp_path,monkeypatch)
     r=c.post('/api/intel/wallet-watch',json={'chain':'Bitcoin','address':'bc1qexampleaddress123456789','label':'watch'}).json()
