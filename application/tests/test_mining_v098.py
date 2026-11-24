@@ -1,48 +1,10 @@
-import faulthandler
 import json
-import os
-import sys
-import threading
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-import psutil
 from fastapi.testclient import TestClient
 import pytest
 import nexus_master
-
-
-def _emit_thread_snapshot(stage):
-    process = psutil.Process(os.getpid())
-    threads = threading.enumerate()
-    try:
-        children = process.children(recursive=True)
-    except (psutil.Error, OSError):
-        children = []
-    print(
-        "[NEXUS_THREAD_DIAG] "
-        f"stage={stage} python_threads={len(threads)} "
-        f"os_threads={process.num_threads()} child_processes={len(children)}",
-        file=sys.__stderr__,
-        flush=True,
-    )
-    for thread in threads:
-        print(
-            f"[NEXUS_THREAD_DIAG] thread name={thread.name!r} "
-            f"ident={thread.ident} daemon={thread.daemon} alive={thread.is_alive()}",
-            file=sys.__stderr__,
-            flush=True,
-        )
-    for child in children:
-        try:
-            print(
-                f"[NEXUS_THREAD_DIAG] child pid={child.pid} "
-                f"name={child.name()} status={child.status()}",
-                file=sys.__stderr__,
-                flush=True,
-            )
-        except (psutil.Error, OSError):
-            pass
 
 
 @pytest.fixture(scope="module")
@@ -56,14 +18,10 @@ def client():
         yield
 
     nexus_master.app.router.lifespan_context = route_test_lifespan
-    _emit_thread_snapshot("before_testclient_enter")
-    faulthandler.dump_traceback_later(15, file=sys.__stderr__, repeat=False)
     try:
         with TestClient(nexus_master.app) as test_client:
-            _emit_thread_snapshot("after_testclient_enter")
             yield test_client
     finally:
-        faulthandler.cancel_dump_traceback_later()
         nexus_master.app.router.lifespan_context = original_lifespan
 
 
