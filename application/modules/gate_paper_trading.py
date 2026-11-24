@@ -50,7 +50,7 @@ class GatePublicClient:
             raise GateAPIError(type(exc).__name__) from exc
 
     def tickers(self) -> list[dict]:
-        data = self._get("/spot/tickers")
+        data = self._get("/spot/tickers", {"timezone": "utc0"})
         if not isinstance(data, list):
             raise GateAPIError("invalid_ticker_payload")
         wanted = {f"{asset}_{QUOTE}" for asset in ASSETS}
@@ -353,7 +353,7 @@ def gate_markets():
                 "last_usdt": float(row["last"]),
                 "bid_usdt": float(row.get("highest_bid") or 0),
                 "ask_usdt": float(row.get("lowest_ask") or 0),
-                "change_24h_pct": float(row.get("change_percentage") or 0),
+                "change_24h_pct": float(row.get("change_utc0", row.get("change_percentage")) or 0),
                 "high_24h_usdt": float(row.get("high_24h") or 0),
                 "low_24h_usdt": float(row.get("low_24h") or 0),
                 "base_volume_24h": float(row.get("base_volume") or 0),
