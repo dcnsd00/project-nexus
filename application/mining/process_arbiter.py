@@ -20,10 +20,46 @@ from typing import BinaryIO, Iterable
 from modules.data_paths import data_path
 
 
+def _windows_process_is_alive(pid: int) -> bool:
+    """Query a Windows process handle; os.kill(pid, 0) is not reliable there."""
+    try:
+        import ctypes
+        from ctypes import wintypes
+
+        kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+        open_process = kernel32.OpenProcess
+        open_process.argtypes = [wintypes.DWORD, wintypes.BOOL, wintypes.DWORD]
+        open_process.restype = wintypes.HANDLE
+        handle = open_process(0x1000, False, pid)  # PROCESS_QUERY_LIMITED_INFORMATION
+        if not handle:
+            error = ctypes.get_last_error()
+            if error in (87, 1168):  # ERROR_INVALID_PARAMETER / ERROR_NOT_FOUND
+                return False
+            # Access denied or an unexpected API failure is treated as alive:
+            # refusing a new mining lease is safer than starting a duplicate miner.
+            return True
+
+        try:
+            exit_code = wintypes.DWORD()
+            get_exit_code = kernel32.GetExitCodeProcess
+            get_exit_code.argtypes = [wintypes.HANDLE, ctypes.POINTER(wintypes.DWORD)]
+            get_exit_code.restype = wintypes.BOOL
+            if not get_exit_code(handle, ctypes.byref(exit_code)):
+                return True
+            return exit_code.value == 259  # STILL_ACTIVE
+        finally:
+            kernel32.CloseHandle(handle)
+    except Exception:
+        # Fail closed if Windows process metadata cannot be queried reliably.
+        return True
+
+
 def process_is_alive(pid: int | None) -> bool:
     """Return a conservative process-liveness result for a positive PID."""
     if isinstance(pid, bool) or not isinstance(pid, int) or pid <= 0:
         return False
+    if os.name == "nt":
+        return _windows_process_is_alive(pid)
     try:
         os.kill(pid, 0)
     except ProcessLookupError:
