@@ -134,7 +134,7 @@ class SQLiteEdgeStore:
         connection = sqlite3.connect(
             str(self.database), timeout=self.timeout_s
         )
-        connection.execute(f"PRAGMA busy_timeout = {int(self.timeout_s * 1000)}")
+        # sqlite3.connect(timeout=...) configures the busy timeout directly.
         connection.execute("PRAGMA foreign_keys = ON")
         return connection
 
