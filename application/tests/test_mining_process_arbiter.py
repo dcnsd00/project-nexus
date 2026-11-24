@@ -69,10 +69,21 @@ def test_os_lock_is_exclusive_across_processes(tmp_path):
     path = str(tmp_path / "mining.lock")
     arbiter = MiningProcessArbiter(path)
     assert arbiter.acquire("parent-process") is True
+    process_options = {
+        "capture_output": True,
+        "text": True,
+        "timeout": 10,
+        "stdin": subprocess.DEVNULL,
+        # Keep the lock-probe child out of the pytest/PowerShell console group
+        # on Windows so control events cannot interrupt the parent runner.
+        "creationflags": (
+            subprocess.CREATE_NEW_PROCESS_GROUP if os.name == "nt" else 0
+        ),
+    }
     try:
         child = subprocess.run(
             [sys.executable, "-c", _CHILD_ACQUIRE_SCRIPT, path],
-            capture_output=True, text=True, timeout=10,
+            **process_options,
         )
         assert child.returncode == 0, child.stderr
         assert child.stdout.strip() == "BUSY"
@@ -82,7 +93,7 @@ def test_os_lock_is_exclusive_across_processes(tmp_path):
     # Once the parent releases the lease, a different process can own it.
     child = subprocess.run(
         [sys.executable, "-c", _CHILD_ACQUIRE_SCRIPT, path],
-        capture_output=True, text=True, timeout=10,
+        **process_options,
     )
     assert child.returncode == 0, child.stderr
     assert child.stdout.strip() == "ACQUIRED"
