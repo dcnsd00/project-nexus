@@ -131,3 +131,15 @@ def test_candle_research_indicators_are_bounded_and_descriptive():
     assert result["sma50_usdt"] is not None
     assert result["rsi14"] == 100.0
     assert result["interpretation"].startswith("Descriptive indicators")
+
+
+def test_book_vwap_walks_depth_and_rejects_insufficient_liquidity():
+    book = {"asks": [["10", "1"], ["11", "1"]], "bids": [["9", "1"], ["8", "1"]]}
+    assert gate._book_vwap(book, "buy", 2) == 10.5
+    assert gate._book_vwap(book, "sell", 2) == 8.5
+    try:
+        gate._book_vwap(book, "buy", 3)
+    except gate.GateAPIError as exc:
+        assert str(exc) == "insufficient_visible_order_book_depth"
+    else:
+        raise AssertionError("Expected depth guard")
