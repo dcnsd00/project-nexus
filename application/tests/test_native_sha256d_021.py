@@ -28,18 +28,21 @@ def test_native_library_builds_and_reports_cpu_dispatch():
     assert status["portable_dispatch"] is True
 
 
-def test_all_supported_native_variants_find_genesis_with_thread_remainders():
+def test_all_supported_native_variants_verify_genesis_with_thread_remainders():
     status = native_status()
     if not status["available"]:
         pytest.skip(status.get("error") or "native C compiler unavailable")
+    # Start at the known genesis nonce: this validates the canonical digest and
+    # block-target path without spending CI time brute-scanning one million
+    # unrelated nonces. The 35-item range still exercises thread/vector tails.
     for variant in status["variants"]:
         result = scan_nonce_range_native(
-            GENESIS_HEADER, GENESIS_NONCE - 1_000_000, 1_000_032,
+            GENESIS_HEADER, GENESIS_NONCE, 35,
             GENESIS_TARGET, GENESIS_TARGET, variant=variant, threads=4,
         )
         assert result["status"] == "share_candidate", (variant, result)
         assert result["nonce"] == GENESIS_NONCE
-        assert result["checked"] == 1_000_032
+        assert result["checked"] == 35
         assert result["meets_block_target"] is True
         assert result["hash_internal_hex"] == hashlib.sha256(
             hashlib.sha256(GENESIS_HEADER[:76] + GENESIS_NONCE.to_bytes(4, "little")).digest()
