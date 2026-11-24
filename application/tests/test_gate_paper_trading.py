@@ -115,3 +115,19 @@ def test_paper_order_uses_gate_ask_and_never_calls_real_execution(monkeypatch, t
     assert result["execution_price_usdt"] > result["market_price_usdt"]
     assert result["simulated_only"] is True
     assert result["real_order_submitted"] is False
+
+
+def test_candle_research_indicators_are_bounded_and_descriptive():
+    candles = []
+    for i in range(60):
+        # Gate candle format: timestamp, volume, close, high, low, open, quote volume, trades.
+        close = 100.0 + i
+        candles.append([str(1700000000 + i * 900), "10", str(close),
+                        str(close + 1), str(close - 1), str(close - 0.5), "1000", "12"])
+    result = gate.analyze_candles(candles)
+    assert result["status"] == "ok"
+    assert result["candles_used"] == 60
+    assert result["sma20_usdt"] is not None
+    assert result["sma50_usdt"] is not None
+    assert result["rsi14"] == 100.0
+    assert result["interpretation"].startswith("Descriptive indicators")
