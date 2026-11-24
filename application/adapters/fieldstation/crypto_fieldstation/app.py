@@ -153,7 +153,6 @@ SERVER: ThreadingHTTPServer | None = None
 # It only starts a user-provided, locally placed ccminer-compatible executable.
 MINER_DIR = APP_DIR / "miners"
 MINER_BIN = MINER_DIR / "ccminer"
-MINER_DIR.mkdir(exist_ok=True)
 MINER_LOCK = threading.RLock()
 MINER_STOP_EVENT = threading.Event()
 MINER_PROC = None
