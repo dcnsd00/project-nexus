@@ -1,6 +1,12 @@
 import json
+import faulthandler
+import os
+import tempfile
+import threading
 from contextlib import asynccontextmanager
 from pathlib import Path
+
+import psutil
 
 from fastapi.testclient import TestClient
 import pytest
@@ -18,10 +24,42 @@ def client():
         yield
 
     nexus_master.app.router.lifespan_context = route_test_lifespan
+    diagnostic_root = Path(os.environ.get("RUNNER_TEMP", tempfile.gettempdir()))
+    diagnostic_root.mkdir(parents=True, exist_ok=True)
+    diagnostic_path = diagnostic_root / "nexus-thread-diagnostics.txt"
+    process = psutil.Process(os.getpid())
+    diagnostic_file = diagnostic_path.open("a", encoding="utf-8")
     try:
+        threads = threading.enumerate()
+        children = process.children(recursive=True)
+        diagnostic_file.write(
+            f"BEFORE TestClient: pid={os.getpid()} python_threads={len(threads)} "
+            f"os_threads={process.num_threads()} child_processes={len(children)}\\n"
+        )
+        for thread in threads:
+            diagnostic_file.write(
+                f"THREAD name={thread.name!r} ident={thread.ident} "
+                f"daemon={thread.daemon} alive={thread.is_alive()}\\n"
+            )
+        for child in children:
+            try:
+                diagnostic_file.write(
+                    f"CHILD pid={child.pid} name={child.name()} status={child.status()}\\n"
+                )
+            except (psutil.Error, OSError):
+                pass
+        diagnostic_file.flush()
+        faulthandler.dump_traceback_later(3, file=diagnostic_file, repeat=False)
         with TestClient(nexus_master.app) as test_client:
+            diagnostic_file.write(
+                f"AFTER TestClient: python_threads={threading.active_count()} "
+                f"os_threads={process.num_threads()}\\n"
+            )
+            diagnostic_file.flush()
             yield test_client
     finally:
+        faulthandler.cancel_dump_traceback_later()
+        diagnostic_file.close()
         nexus_master.app.router.lifespan_context = original_lifespan
 
 
