@@ -227,8 +227,26 @@ def add_opportunity(x: OpportunityIn):
     data["transferable"]=None if data["transferable"] is None else int(data["transferable"])
     for k in ("eligibility_verified","payout_verified"):
         data[k]=None if data[k] is None else int(data[k])
-    fields=list(data)
-    with _db() as c:c.execute(f"INSERT INTO opportunities(id,{','.join(fields)}) VALUES(?,{','.join('?' for _ in fields)})",[oid]+[data[k] for k in fields])
+    values = (
+        oid, data["name"], data["category"], data["network"], data["asset"],
+        data["payout_asset"], data["algorithm"], data["device_classes"],
+        data["estimated_tokens_day"], data["price_ron"], data["confidence"],
+        data["daily_fee_ron"], data["transferable"], data["eligibility_verified"],
+        data["payout_verified"], data["liquidity_usd"], data["min_payout"],
+        data["payout_days"], data["source_url"], data["source_checked_at"],
+        data["status"], data["notes"],
+    )
+    with _db() as c:
+        c.execute(
+            """INSERT INTO opportunities (
+                id, name, category, network, asset, payout_asset, algorithm,
+                device_classes, estimated_tokens_day, price_ron, confidence,
+                daily_fee_ron, transferable, eligibility_verified, payout_verified,
+                liquidity_usd, min_payout, payout_days, source_url, source_checked_at,
+                status, notes
+            ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+            values,
+        )
     _audit("opportunity.created",oid); return {"id":oid,"status":"created"}
 
 
@@ -243,8 +261,20 @@ def list_opportunities(status: str | None = None):
 @router.post("/devices")
 def add_device(x: DeviceIn):
     init_db(); did=uuid.uuid4().hex; d=x.model_dump(); d["capabilities"]=json.dumps(d["capabilities"]); d["enabled"]=int(d["enabled"])
-    fields=list(d)
-    with _db() as c:c.execute(f"INSERT INTO devices(id,{','.join(fields)}) VALUES(?,{','.join('?' for _ in fields)})",[did]+[d[k] for k in fields])
+    values = (
+        did, d["name"], d["device_type"], d["cpu_threads"], d["gpu_model"],
+        d["gpu_vram_mib"], d["ram_mib"], d["storage_gib"], d["watts_idle"],
+        d["watts_load"], d["tariff_ron_kwh"], d["capabilities"], d["enabled"],
+    )
+    with _db() as c:
+        c.execute(
+            """INSERT INTO devices (
+                id, name, device_type, cpu_threads, gpu_model, gpu_vram_mib,
+                ram_mib, storage_gib, watts_idle, watts_load, tariff_ron_kwh,
+                capabilities, enabled
+            ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+            values,
+        )
     _audit("device.registered",did); return {"id":did,"status":"registered"}
 
 
