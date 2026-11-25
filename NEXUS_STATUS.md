@@ -1,150 +1,82 @@
-# NEXUS MASTER — current integration and functional status
+# NEXUS MASTER — verified integration and functional status
+
 **Status date:** 2026-11-25  
 **Canonical repository:** `dcnsd00/project-nexus`  
-**Promotion PR:** [#9 — cumulative NEXUS MASTER 0.10.26 baseline to main](https://github.com/dcnsd00/project-nexus/pull/9)  
-**Current source branch:** `experiment/lfm3-core-security-lab-v1`  
-**Source HEAD at snapshot:** `a5f9659c37ca42d67c4dfe4fb987e467ff98f657`  
-**Application manifest:** `application/VERSION.json` — NEXUS MASTER `0.10.26`
+**Canonical branch:** `main`  
+**Current main HEAD:** `4dcde89374e48e9079a43dde19c4f70c2052a409`  
+**Application version:** `0.10.26` from `application/VERSION.json`  
+**Version source:** `application/nexus_master.py::_package_version()` reads the manifest; do not duplicate the version in another runtime constant.
 
-## Repository integration position
+## 1. Integration position
 
-- `main` is still at `529072b777d010ac47711dd6c821b30fef7ecdf9` until PR #9 is merged. It previously contained bootstrap documentation and CI, not the complete application source.
-- The source branch is descended from `integration/source-import-safe-0.10.25` at `30210464088ff51c32cabda90ae56b6a9ce20bc8`.
-- At the latest comparison before this snapshot, the source branch was 605 commits ahead of `main`, 0 behind; PR #9 covers 623 changed files. This consolidates the current main application line; it does not mean every integration is production-ready.
-- Development remains a modular monolith. Keep existing package ownership and paths; do not create a duplicate CORE or EDGE implementation.
+The cumulative NEXUS MASTER 0.10.26 baseline and the focused follow-up integrations are now on `main`.
 
-## Functional classification — do not overstate readiness
-
-| Area | Source state | Test / integration evidence | Remaining boundary |
+| PR | Scope | Result | Exact-head CI evidence |
 |---|---|---|---|
-| NEXUS MASTER application and runtime | Implemented in `application/`; runtime composition and service registry present | Current PR CI is the acceptance run; prior full green run is listed below | Current exact HEAD is not yet fully validated |
-| CORE local API | FastAPI local service; new loopback guard checks socket peer and Host, ignores forwarded-IP spoofing, fails closed; tests added | New guard tests are included in current PR CI | Loopback guard is not user authentication; keep CORE loopback-bound |
-| EDGE host runtime | Node/task/lease manager, HMAC-authenticated messages, SQLite-backed state, monotonic sequence/replay protection, credential encryption/provisioning hooks, rate limits and opt-in HTTPS/MQTTS gateway source | Dedicated manager, persistence, replay, gateway and transport tests are present; current CI must pass | Single-process limitations remain; no physical ESP32/ESP32-C5, hardware-in-the-loop or field validation |
-| Mining / Stratum | Native SHA-256d scanner and Python fallback; Stratum V1 worker and adapters present | Loopback mock pool exercises header/coinbase/Merkle assembly, nonce scan, submit and accept/reject paths | No public-pool test or BTC payout; local benchmark is not a claim of consumer-PC profitability |
-| Wallet / recovery | Local recovery/inspection modules and vault schema present; read-only boundaries documented | Local unit/API tests are included in the application suite | No raw private-key export, no public-chain broadcast, no live transaction or wallet payout validation |
-| RCSC / SHA-2 research | Research engines and RCSC service present; documented read-only collection boundary | Earlier RCSC/API and selected regression tests recorded as passing | Public data collection and independent provider replication are not verified in this build |
-| LFM3 local provider | Optional bounded adapter and tests present; explicit provider selection | Adapter tests are included in current application suite | Model weights and inference server are not in the repository and have not been installed or benchmarked; no live model inference is claimed |
-| Desktop / Windows | Windows installer, desktop launcher and native MSVC build path present | Windows jobs in current CI verify dependency preparation, native build, compatibility and sharded test modules | Not installed/validated on the owner's Windows laptop; WebView2/runtime and physical hardware checks remain separate |
-| Provider integrations | Registry/catalog contains 12 provider definitions; manifest says `live_verified: 0`, read-only, writes disabled | Contract tests are a separate open PR #6, not part of this baseline | Do not describe any provider as live-connected without adapter and credential validation |
-| Security deployment | Coraza/Caddy detection-only loopback scaffold; CrowdSec acquisition example; Headscale deny-all policy | Coraza build/Caddyfile checks are part of CI; policy tests present | WAF not deployed, CrowdSec engine/bouncer not installed, Headscale/VPN not running, no firewall enforcement enabled |
+| #9 | Cumulative 0.10.26 baseline | Merged | Run #771 — 14/14 jobs passed |
+| #15 | Fieldstation import boundary and optional dependency tests | Merged | Run #779 — success |
+| #16 | Provider registry contract tests | Merged | Run #788 — success |
+| #17 | Math Intelligence evidence validation | Merged | Run #802 — 14/14 jobs passed |
+| #18 | Gate public market research and 100 RON paper trading | Merged | Run #797 — success; focused Gate workflow #51 — success |
+| #19 | Fail-closed Windows process liveness and managed TestClient lifecycle | Merged | Run #804 — 14/14 jobs passed |
+| #20 | Residual Windows/runtime regression tests | Merged | Run #813 — 14/14 jobs passed |
 
-## Latest GitHub Actions evidence
+The latest full CI run, **#813**, passed on PR #20's exact pre-merge HEAD `fcad96e87ab0a0e488bd16375e7cda41ae1a403a`. It covered source detection, Python tests, Windows dependencies/runtime, MSVC native build, Windows compatibility, all eight Windows application shards, and Coraza/Caddy configuration validation. The merge commit now at `main` is `4dcde89374e48e9079a43dde19c4f70c2052a409`; the CI evidence above is for the exact PR head, not a separate push-triggered run on the merge commit.
 
-- Last fully green run documented before the most recent changes: **45570216391**, on `33a4cebec35b1ebb0fffc712350279cf5bb3db90`. It passed source detection, Linux Python tests, Windows dependency/runtime preparation, Windows compatibility, Windows application shards 1–8, and Coraza build/Caddyfile validation.
-- Fresh PR run **45579628710** was launched for PR #9 on source HEAD `a5f9659c37ca42d67c4dfe4fb987e467ff98f657`. At the time of this snapshot:
-  - source detection: SUCCESS;
-  - Windows dependency wheelhouse: SUCCESS;
-  - primary Linux Python test step: SUCCESS;
-  - Linux adapter/wallet/SHA-2 suites: IN PROGRESS;
-  - Windows runtime environment: IN PROGRESS;
-  - Coraza build/config validation: IN PROGRESS;
-  - Windows compatibility and eight application shards: not yet completed.
-- **Do not mark PR #9 fully tested or merge it until every required job finishes successfully on the final PR head.** If this status-only update causes CI to rerun, use the newer run associated with the final PR head, not run 45579628710, as the merge gate.
+Old PRs #4–#8 were closed after selective reconciliation. They were not merged wholesale:
+- #4 Windows TestClient/process lifecycle → #19 and residual tests in #20.
+- #5 Gate/paper trading → #18; remaining useful regression tests → #20.
+- #6 provider contracts → #16.
+- #7 Math Intelligence evidence validation → #17.
+- #8 Fieldstation import boundary → #15.
 
-## Security scan boundary
+Dependabot PRs #10 (`actions/upload-artifact`) and #11 (`actions/setup-python`) remain open and currently report non-mergeable. They are maintenance work, not blockers to the feature integrations above; rebase and validate them separately.
 
-`docs/SECURITY_TRIAGE_2026-11-25.md` records AIScan grade C (73/100), verdict `GO_WITH_CONDITIONS`, 0 critical, 0 high, 11 medium, 24 low and 8 informational findings at scan time. Twelve returned findings received detailed triage; 31 additional findings were not individually exposed in the scan response and remain untriaged. Static analysis is not proof of runtime security.
+## 2. Architecture and evidence rules
 
-## Separate work that is not yet part of this baseline
+NEXUS remains one **modular monolith**. Preserve current package ownership and paths; do not create parallel CORE, EDGE, mining, wallet, or provider implementations.
 
-PRs #4–#8 remain open against the old EDGE target and GitHub currently reports them as not mergeable; PR #5 is draft:
-- #4 — Windows TestClient lifecycle/regression runner;
-- #5 — Gate Info research and 100 RON paper trading;
-- #6 — provider integration contract tests;
-- #7 — Math Intelligence evidence validation;
-- #8 — Fieldstation import/runtime boundary.
+The module registry distinguishes source presence, route registration, and runtime-service registration. It explicitly leaves `operational_verified` and `system_operational_verified` false. A source file or registered route is not proof of operational behavior.
 
-Their unique deltas must be reconciled against the consolidated baseline, tested and promoted through the common integration line before they are described as part of `main`. Do not merge these old branches blindly; they contain conflicts with the newer runtime and workflow files.
+Use these terms precisely:
+- **PRESENT** — source or configuration exists.
+- **IMPLEMENTED** — behavior exists in code.
+- **TESTED** — named tests passed on a stated commit/CI run.
+- **INTEGRATED** — integration tests prove components connect at the software boundary.
+- **VALIDATED** — verified on the target Windows installation, physical hardware, or live external service.
 
-## Merge and validation rules
+## 3. Functional status and remaining boundaries
 
-- PR #9 is the single promotion path for the cumulative baseline. Merge only when all required PR checks pass on the final PR head.
-- A source file or API route is **PRESENT**, not automatically functional.
-- **IMPLEMENTED** means behavior exists in source; **TESTED** means named tests passed on a specific commit; **INTEGRATED** means runtime integration tests verify the connection; **VALIDATED** means confirmed on the target Windows installation, physical hardware or live service.
-- No live provider, wallet, pool payout, VPN, WAF enforcement, CrowdSec remediation, LFM3 runtime or ESP32 operation may be claimed without separate evidence.
+| Area | Current evidence on main | Remaining validation boundary |
+|---|---|---|
+| NEXUS MASTER / CORE | FastAPI application, lifecycle composition, service registry, local API loopback guard and safe error handling are present; full CI passed on the latest pre-merge PR head. | Loopback binding is not user authentication. Verify actual start/stop and install on the owner's Windows laptop. |
+| EDGE host runtime | Node/task/lease manager, HMAC-authenticated messages, SQLite persistence, monotonic sequence/replay protection, credential encryption hooks, rate limits and opt-in HTTPS/MQTTS paths are present with tests. | No physical ESP32/ESP32-C5, hardware-in-the-loop, multi-site field test, or production broker validation is claimed. |
+| Mining / Stratum | Native SHA-256d scanner and exact Python fallback; Stratum V1 job/header/coinbase/Merkle/nonce/submit paths; hybrid worker and process arbitration. Loopback mock-pool and Windows tests are included. | No public-pool payout, BTC reward, sustained real pool session, or profitability claim. CI does not validate the owner's GPU/CPU hardware. |
+| Wallet / recovery | Local wallet/recovery and vault modules with read-only boundaries and tests. | No private-key export, live signing, public-chain broadcast, real transaction, or payout validation. |
+| Gate research / paper trading | Public-only Gate spot client for BTC, ETH, SOL, BNB, XRP, AIOZ, GRASS, TAO, NEAR and FIL. Descriptive indicators and local SQLite paper ledger seeded with 100 RON. | Paper BUY/SELL only. No account credentials, real orders, transfers, wallet signing, or financial outcome is claimed. Market availability/liquidity must be rechecked when used. |
+| Provider integrations | Registry contains 12 provider definitions. Contract tests enforce readiness semantics, secret non-disclosure, `live_connection_verified=false`, and `writes_enabled=false`. | No provider is live-connected or credential-validated. A configured endpoint alone is not a validated adapter. |
+| Math Intelligence | Candidate evidence rejects booleans/non-finite/overflowing hashrates, invalid counters and non-boolean equivalence claims. Tests preserve `auto_apply=false`. | Findings remain research/manual-review evidence; no automatic mining optimization is activated. |
+| Earnings Intelligence | Local opportunity/device/telemetry/reward ledger; SQL parameterization regression test is included. | Reward estimates are not verified payouts. No wallet signing, claims, or automatic mining start. |
+| Fieldstation | Import-time optional miner-directory side effect removed; import/runtime boundary tests and loopback default are present. | Local-only research tool; no wallet signing, seed/private-key storage, or transaction broadcast. No live hardware/chain workflow is claimed. |
+| Desktop / Windows | Installer/launcher and MSVC native build path are present. Latest full CI passed Windows dependency preparation, native build, compatibility, and eight test shards. | Not installed or acceptance-tested on the owner's actual Windows laptop. WebView2, driver, antivirus, local device and hardware checks remain separate. |
+| LFM3 | Optional adapter and tests are present. | Model weights and inference server are external and have not been installed or benchmarked. No live local inference is claimed. |
+| RCSC / SHA-2 research | Research engines and read-only collection boundaries are present with unit/API tests. | No independent external replication of public-data results is claimed. |
+| Security deployment | Coraza-enabled Caddy build/config validation passes in CI; CrowdSec acquisition example and Headscale deny-all policy are present. | WAF is not deployed/enforcing on the user's host; CrowdSec engine/bouncer and Headscale/VPN are not installed or active. No firewall remediation is claimed. |
 
----
+## 4. Security scan history
 
-> **Current verified state — 2026-11-24.** This snapshot supersedes the dated status block below. GitHub remains the source of truth for branch heads, PRs and CI.
->
-> - Repository: `dcnsd00/project-nexus`.
-> - `main` remains untouched at `529072b777d010ac47711dd6c821b30fef7ecdf9`.
-> - EDGE foundation branch: `feature/edge-replay-protection-sqlite-v1`, HEAD `9cdecd6ba24c7e44e26fb77d78580150d2018167`. Its latest change enables NEXUS CI for pull requests targeting this feature branch; no EDGE runtime code was changed by that workflow commit.
-> - PR #4 — Windows lifecycle, branch `feature/windows-testclient-lifecycle-01026`, latest head `988caf75264c4352fa68b05a28f6bb28dda55f14`. Added Windows process-handle liveness detection and a regression test for invalid/current PIDs. CI run [45463040219](https://github.com/dcnsd00/project-nexus/actions/runs/45463040219): source detection and Linux Python tests SUCCESS; dedicated Windows lifecycle regression modules and isolated API test module SUCCESS, including the stale orphan-PID test; Windows compatibility batch 7/12 remains in progress. Do not mark PR #4 fully tested yet.
-> - PR #5 — Gate Info / Paper Trading, branch `feature/gate-info-paper-trading-100ron`, latest head `549c9da5c70784bf5547a45c12740e74b14d6489`. The native SHA-256d Genesis test checks the known nonce over a 35-item tail range instead of scanning 1,000,032 unrelated nonce values in CI; independent non-multiple range and block-candidate tests remain. Focused Gate run [45463099607](https://github.com/dcnsd00/project-nexus/actions/runs/45463099607) SUCCESS. Full NEXUS run [45463099635](https://github.com/dcnsd00/project-nexus/actions/runs/45463099635): source detection and Linux Python tests SUCCESS; Windows compatibility batch 7/12 is in progress. This is the former timeout batch; no failure is reported at this snapshot. Do not mark PR #5 fully tested yet.
-> - PR #6 — Provider integration contract tests, branch `feature/nexus-integrations-contract-tests-v1`, head `15e06246e75fa167a8c3649ff30242e6f543b2a3`. Tests unique provider IDs, unconfigured/partial/complete credentials, no credential echo, read-only status and catalog/status response semantics. CI run [45463294846](https://github.com/dcnsd00/project-nexus/actions/runs/45463294846): source detection and Linux Python tests SUCCESS; Windows remaining application suite in progress. No live provider adapter is claimed.
-> - PR #7 — Math Intelligence hardening, branch `feature/nexus-math-intelligence-hardening-v1`, head `e07307db9d4ab0c2b662cf50c82a072dc7f6a2dd`. Adds finite-number and non-negative integer validation for measured candidate evidence, strict boolean equivalence evidence, overflow handling and regression tests. Automatic application remains disabled. CI run [45463308801](https://github.com/dcnsd00/project-nexus/actions/runs/45463308801): source detection and Linux Python tests SUCCESS; Windows remaining application suite in progress.
-> - PR #8 — Fieldstation runtime boundary, branch `feature/nexus-fieldstation-runtime-validation-v1`, head `f9fd1df7b793eb63fc061e59298c1264bbda7f61`. Removes import-time creation of the optional `miners` directory and adds tests for import behavior, loopback binding and explicit port configuration. CI run [45463306245](https://github.com/dcnsd00/project-nexus/actions/runs/45463306245): source detection and Linux Python tests SUCCESS; Windows remaining application suite in progress.
-> - No PR was merged in this increment. No code or configuration was committed to `main`.
-> - Legacy branch disposition: `feature/edge-persistence-protocol-v1`, `feature/nexus-edge-foundation` and `integration/nexus-master-0.10.25` are divergent and materially behind the current EDGE base; use them only for selective recovery after diff review. `feature/core-lifecycle-isolation-registry-uniqueness` has no unique delta against the current integration line and its work is already represented in the active source. Do not revive these as competing bases.
-> - Validation boundary: GitHub Actions is the only current CI evidence. The local container could not reach GitHub, so no local execution is claimed. Hardware, public providers, live mining, live payouts and field ESP32/LoRaWAN operation remain unvalidated.
->
-# NEXUS — repository status
+`docs/SECURITY_TRIAGE_2026-11-25.md` records a historical VisionEdge AIScan result from an earlier experiment-branch snapshot, not the current `main` HEAD:
+- Grade C (73/100), verdict `GO_WITH_CONDITIONS`.
+- 0 critical, 0 high, 11 medium, 24 low, 8 informational findings.
+- Twelve returned findings received detailed triage; 31 additional findings were reported without individual details and remain untriaged.
+- Static analysis is not proof of runtime security. The report's branch/commit and CI references are historical and must not be presented as a current-main scan.
 
-Updated: 2026-11-17
+## 5. Next acceptance work
 
-## Canonical development workflow
-- GitHub is the canonical development, integration and CI verification environment.
-- Implement changes on focused feature branches from the latest integration baseline.
-- Use connected plugins and auxiliary development tools for research, code generation and specialist work; all candidate code must be committed to GitHub and tested there before integration.
-- Require compilation, unit/integration tests and applicable security checks in GitHub Actions.
-- Integrate through pull requests. Do not modify `main` directly.
-- Local archives are source/backup artifacts; local test results are supplementary and never replace GitHub CI evidence.
+1. Install the cumulative Windows package on the actual target laptop and record version, startup, shutdown, logs and rollback evidence.
+2. Verify the local dashboard against the live local API; distinguish simulated/demo values from hardware telemetry and provider data.
+3. Perform hardware-in-the-loop EDGE checks with the actual ESP32/ESP32-C5 devices before claiming node operation.
+4. Validate any provider adapter individually with documented authentication, freshness, response schema and read-only behavior before marking it live.
+5. Keep public pool, wallet signing/broadcast, WAF enforcement, VPN and CrowdSec disabled until their separate security and operational acceptance checks pass.
 
-## Repository
-- Repository: dcnsd00/project-nexus
-- Default branch: main (not modified by this increment)
-- Active application branch: integration/source-import-safe-0.10.25
-- Source bundle: NEXUS MASTER 0.10.25, 519 project files plus manifest.
-- Source bundle SHA-256: 642c882557993a86db21583e8efaef359dd01f8f9b28440462ba8a723c924d50
-
-## Completed increment — CORE resilience and Module Registry integrity
-- Feature branch: feature/core-lifecycle-isolation-registry-uniqueness
-- Pull request: [#3](https://github.com/dcnsd00/project-nexus/pull/3), merged into the active integration branch.
-- Merge commit: fd332d91c54df2accd4dad4b74920575e5729d1d
-- Lifecycle Manager now isolates failures of noncritical services; independent services continue.
-- Dependents of failed or unavailable services are marked BLOCKED.
-- Failure of a critical service or a critical service's dependency still aborts startup and rolls back services already started.
-- Cleanup attempts both stop and shutdown and records cleanup failures without masking the primary startup failure.
-- Removed the duplicate `earnings_intelligence` registry entry; retained `/api/intel`, matching the actual router.
-- Module Registry rejects empty or duplicate module IDs.
-- Added regression tests for optional service isolation, blocked dependents, critical rollback and registry uniqueness.
-
-## GitHub Actions evidence
-All runs below completed with conclusion SUCCESS:
-- Run 44039323668 — feature code commit: 495 passed, 1 warning.
-- Run 44039699684 — status/changelog commit: 495 passed, 1 warning.
-- Run 44040117420 — final feature branch head: 495 passed, 1 warning.
-- Run 44040373918 — post-merge integration branch commit fd332d9: 495 passed, 1 warning.
-- Each run completed source detection, Python 3.12 dependency installation, Python compileall and the full pytest suite.
-- The existing workflow reports a Node.js 20 deprecation warning for `actions/checkout@v4` and `actions/setup-python@v5`; it did not fail the jobs.
-- Validation scope: GitHub-hosted Linux CI. Windows installation, physical hardware, ESP32 communication, live mining and payouts remain unvalidated.
-
-## Active increment — NEXUS EDGE protocol anti-replay and SQLite
-
-- Feature branch: `feature/edge-replay-protection-sqlite-v1`
-- Base: `integration/source-import-safe-0.10.25`; `main` remains untouched.
-- Added `application/nexus_edge/replay_guard.py`: in-memory and SQLite-backed replay guard implementations.
-- Heartbeats now sign and carry a monotonically increasing per-node sequence; duplicate and out-of-order sequences are rejected.
-- SQLite uses an atomic write transaction and persists only sequence counters, not HMAC secret material.
-- NEXUS Runtime injects the SQLite replay guard at the canonical `NEXUS_DATA_DIR/db/edge_replay.sqlite3` path.
-- Updated EDGE foundation documentation to distinguish implemented replay protection from still-ephemeral node/task state.
-- Initial full CI exposed one legacy test call using the old heartbeat signature; corrected in commit `057b0402a90ed97d29272e7ff8685df0dddcb011`.
-- Current branch head is being re-tested. Do not treat this increment as tested or integrated until the latest full CI run completes successfully.
-- Still pending: durable node/task/lease persistence, key provisioning/rotation, protocol versioning, transport, ESP32 firmware and physical validation.
-
-## Next engineering increment
-1. Create a separate feature branch for NEXUS EDGE persistence and protocol hardening.
-2. Define storage interfaces and migration/version contracts before implementation; test restart recovery and crash consistency.
-3. Add message protocol versioning, monotonic sequence numbers/nonces, key provisioning and rotation hooks.
-4. Add MQTT/HTTPS transport with TLS and a local broker integration test only after persistence and protocol tests pass.
-5. Develop ESP32-C5 firmware as a separate component/branch; connect physical nodes only after host-side protocol tests pass.
-6. Continue Mining, Wallet, RCSC, Math and Strategy Engine integration as focused GitHub branches with CI evidence.
-7. Promote changes to main only through a separately reviewed pull request after all integration gates pass.
-
-## Status vocabulary
-- PRESENT: source file exists on a named branch.
-- IMPLEMENTED: behavior exists in source.
-- TESTED: named GitHub Actions test job passed.
-- INTEGRATED: runtime integration test verifies the connection.
-- VALIDATED: confirmed on target Windows installation, physical hardware or live service.
+GitHub branches, commits, PRs and CI are the source of truth for implementation status. This document is a snapshot and must be refreshed after material integration changes.
