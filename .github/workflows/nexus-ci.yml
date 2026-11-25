@@ -49,11 +49,11 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-      - name: Set up Python 3.12
+      - name: Set up Python 3.12.10
         uses: actions/setup-python@v5
         with:
-          python-version: "3.12"
-      - name: Download pinned Windows dependency wheelhouse
+          python-version: "3.12.10"
+      - name: Download Windows dependency wheelhouse
         shell: pwsh
         run: |
           $Root = "${{ needs.source-detection.outputs.root }}"
@@ -61,11 +61,39 @@ jobs:
           New-Item -ItemType Directory -Force -Path $Wheelhouse | Out-Null
           python -m pip download --disable-pip-version-check --prefer-binary -r (Join-Path $Root "requirements-dev.txt") -r (Join-Path $Root "requirements-edge.txt") -d $Wheelhouse
           if ($LASTEXITCODE -ne 0) { throw "Windows dependency wheelhouse download failed." }
-      - name: Upload Windows dependency wheelhouse
+      - name: Build reusable Windows test environment
+        shell: pwsh
+        run: |
+          $Root = "${{ needs.source-detection.outputs.root }}"
+          $Wheelhouse = Join-Path $env:RUNNER_TEMP "nexus-wheelhouse"
+          $Venv = Join-Path $Root "ci-venv"
+          python -m venv $Venv
+          if ($LASTEXITCODE -ne 0) { throw "Could not create Windows test virtual environment." }
+          $Python = Join-Path $Venv "Scripts/python.exe"
+          & $Python -m pip install --no-index --find-links $Wheelhouse -r (Join-Path $Root "requirements-dev.txt") -r (Join-Path $Root "requirements-edge.txt")
+          if ($LASTEXITCODE -ne 0) { throw "Could not install dependencies into Windows test environment." }
+      - name: Configure MSVC x64 build environment
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+      - name: Build native SHA-256d library
+        shell: pwsh
+        run: |
+          $Root = "${{ needs.source-detection.outputs.root }}"
+          $NativeBuild = Join-Path $Root "mining/native/build"
+          New-Item -ItemType Directory -Force -Path $NativeBuild | Out-Null
+          $NativeDll = Join-Path $NativeBuild "nexus_miner.dll"
+          $NativeSource = Join-Path $Root "mining/native/miner.c"
+          & cl.exe /nologo /O2 /LD /DNEXUS_LIBRARY "/Fe:$NativeDll" "/Fo:$NativeBuild\\" $NativeSource
+          if ($LASTEXITCODE -ne 0) { throw "MSVC native SHA-256d build failed." }
+          if (-not (Test-Path $NativeDll)) { throw "MSVC did not create nexus_miner.dll." }
+      - name: Upload reusable Windows test environment
         uses: actions/upload-artifact@v4
         with:
-          name: nexus-windows-wheelhouse
-          path: ${{ runner.temp }}/nexus-wheelhouse
+          name: nexus-windows-runtime
+          path: |
+            ${{ needs.source-detection.outputs.root }}/ci-venv/
+            ${{ needs.source-detection.outputs.root }}/mining/native/build/nexus_miner.dll
           if-no-files-found: error
           retention-days: 1
 
@@ -142,70 +170,49 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-      - name: Set up Python 3.12
+      - name: Set up Python 3.12.10
         uses: actions/setup-python@v5
         with:
-          python-version: "3.12"
+          python-version: "3.12.10"
       - name: Set up Node.js for dashboard validation
         uses: actions/setup-node@v4
         with:
           node-version: "24"
-      - name: Download Windows dependency wheelhouse
+      - name: Download reusable Windows test environment
         uses: actions/download-artifact@v4
         with:
-          name: nexus-windows-wheelhouse
-          path: ${{ runner.temp }}/nexus-wheelhouse
-      - name: Install dependencies from local wheelhouse
-        shell: pwsh
-        run: |
-          $Root = "${{ needs.source-detection.outputs.root }}"
-          $Wheelhouse = Join-Path $env:RUNNER_TEMP "nexus-wheelhouse"
-          python -m pip install --no-index --find-links $Wheelhouse -r (Join-Path $Root "requirements-dev.txt") -r (Join-Path $Root "requirements-edge.txt")
-          if ($LASTEXITCODE -ne 0) { throw "Windows dependency installation from wheelhouse failed." }
-      - name: Configure MSVC x64 build environment
-        uses: ilammy/msvc-dev-cmd@v1
-        with:
-          arch: x64
-      - name: Build native SHA-256d library on Windows
-        shell: pwsh
-        run: |
-          $Root = "${{ needs.source-detection.outputs.root }}"
-          $NativeBuild = Join-Path $Root "mining/native/build"
-          New-Item -ItemType Directory -Force -Path $NativeBuild | Out-Null
-          $NativeDll = Join-Path $NativeBuild "nexus_miner.dll"
-          $NativeSource = Join-Path $Root "mining/native/miner.c"
-          & cl.exe /nologo /O2 /LD /DNEXUS_LIBRARY "/Fe:$NativeDll" "/Fo:$NativeBuild\\" $NativeSource
-          if ($LASTEXITCODE -ne 0) { throw "MSVC native SHA-256d build failed." }
-          if (-not (Test-Path $NativeDll)) { throw "MSVC did not create nexus_miner.dll." }
-          Write-Host "Native SHA-256d library built: $NativeDll"
+          name: nexus-windows-runtime
+          path: ${{ github.workspace }}/${{ needs.source-detection.outputs.root }}
       - name: Compile Python sources
         shell: pwsh
         run: |
           $Root = "${{ needs.source-detection.outputs.root }}"
-          python -m compileall -q $Root
+          $Python = Join-Path $Root "ci-venv/Scripts/python.exe"
+          & $Python -m compileall -q $Root
           if ($LASTEXITCODE -ne 0) { throw "Python compilation failed." }
       - name: Validate dashboard and wallet JavaScript
         shell: pwsh
         run: |
           $Root = "${{ needs.source-detection.outputs.root }}"
-          python (Join-Path $Root "tools_check_dashboard_js.py") $Root
+          $Python = Join-Path $Root "ci-venv/Scripts/python.exe"
+          & $Python (Join-Path $Root "tools_check_dashboard_js.py") $Root
           if ($LASTEXITCODE -ne 0) { throw "Dashboard JavaScript validation failed." }
       - name: Run isolated Windows API test modules
         shell: pwsh
         run: |
           $Root = "${{ needs.source-detection.outputs.root }}"
-          $Compiler = Get-Command cl.exe -ErrorAction Stop
-          Write-Host "Native C compiler: $($Compiler.Source)"
-          $env:NEXUS_NATIVE_COMPILER = "msvc"
           $RootPath = (Resolve-Path $Root).Path
+          $Python = Join-Path $RootPath "ci-venv/Scripts/python.exe"
+          $env:NEXUS_NATIVE_COMPILER = "msvc"
           $env:NEXUS_NATIVE_MINER_LIB = Join-Path $RootPath "mining/native/build/nexus_miner.dll"
           Push-Location $RootPath
           try {
-            python -m pytest -vv --full-trace --disable-warnings tests/test_mining_solo_matrix_0105.py tests/test_mining_v098.py tests/test_native_sha256d_021.py
+            & $Python -m pytest -vv --full-trace --disable-warnings tests/test_mining_solo_matrix_0105.py tests/test_mining_v098.py tests/test_native_sha256d_021.py
             if ($LASTEXITCODE -ne 0) { throw "Isolated Windows mining catalog API modules failed." }
           } finally {
             Pop-Location
           }
+
   windows-application-shards:
     needs: [source-detection, windows-dependencies]
     if: needs.source-detection.outputs.available == 'true'
@@ -219,47 +226,26 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-      - name: Set up Python 3.12
+      - name: Set up Python 3.12.10
         uses: actions/setup-python@v5
         with:
-          python-version: "3.12"
-      - name: Download Windows dependency wheelhouse
+          python-version: "3.12.10"
+      - name: Download reusable Windows test environment
         uses: actions/download-artifact@v4
         with:
-          name: nexus-windows-wheelhouse
-          path: ${{ runner.temp }}/nexus-wheelhouse
-      - name: Install dependencies from local wheelhouse
-        shell: pwsh
-        run: |
-          $Root = "${{ needs.source-detection.outputs.root }}"
-          $Wheelhouse = Join-Path $env:RUNNER_TEMP "nexus-wheelhouse"
-          python -m pip install --no-index --find-links $Wheelhouse -r (Join-Path $Root "requirements-dev.txt") -r (Join-Path $Root "requirements-edge.txt")
-          if ($LASTEXITCODE -ne 0) { throw "Windows dependency installation from wheelhouse failed." }
-      - name: Configure MSVC x64 build environment
-        uses: ilammy/msvc-dev-cmd@v1
-        with:
-          arch: x64
-      - name: Build native SHA-256d library
-        shell: pwsh
-        run: |
-          $Root = "${{ needs.source-detection.outputs.root }}"
-          $NativeBuild = Join-Path $Root "mining/native/build"
-          New-Item -ItemType Directory -Force -Path $NativeBuild | Out-Null
-          $NativeDll = Join-Path $NativeBuild "nexus_miner.dll"
-          $NativeSource = Join-Path $Root "mining/native/miner.c"
-          & cl.exe /nologo /O2 /LD /DNEXUS_LIBRARY "/Fe:$NativeDll" "/Fo:$NativeBuild\\" $NativeSource
-          if ($LASTEXITCODE -ne 0) { throw "MSVC native SHA-256d build failed." }
-          if (-not (Test-Path $NativeDll)) { throw "MSVC did not create nexus_miner.dll." }
+          name: nexus-windows-runtime
+          path: ${{ github.workspace }}/${{ needs.source-detection.outputs.root }}
       - name: Run Windows test shard ${{ matrix.shard }}
         shell: pwsh
         run: |
           $Root = "${{ needs.source-detection.outputs.root }}"
           $RootPath = (Resolve-Path $Root).Path
+          $Python = Join-Path $RootPath "ci-venv/Scripts/python.exe"
           $env:NEXUS_NATIVE_COMPILER = "msvc"
           $env:NEXUS_NATIVE_MINER_LIB = Join-Path $RootPath "mining/native/build/nexus_miner.dll"
           Push-Location $RootPath
           try {
-            $Collected = python -m pytest --collect-only -q --ignore=tests/test_mining_solo_matrix_0105.py --ignore=tests/test_mining_v098.py --ignore=tests/test_native_sha256d_021.py
+            $Collected = & $Python -m pytest --collect-only -q --ignore=tests/test_mining_solo_matrix_0105.py --ignore=tests/test_mining_v098.py --ignore=tests/test_native_sha256d_021.py
             if ($LASTEXITCODE -ne 0) { throw "Windows pytest collection failed." }
             $NodeIds = @($Collected | ForEach-Object { "$_".Trim() } | Where-Object { $_ -match '^tests[\\/].+::' })
             if ($NodeIds.Count -eq 0) { throw "No Windows test node IDs were collected." }
@@ -271,14 +257,11 @@ jobs:
             $End = [Math]::Min($Start + $ShardSize, $NodeIds.Count)
             $ShardNodeIds = @($NodeIds[$Start..($End - 1)])
             Write-Host "Running Windows shard ${{ matrix.shard }} with $($ShardNodeIds.Count) tests."
-            python -m pytest -vv --full-trace --disable-warnings --maxfail=1 $ShardNodeIds
+            & $Python -m pytest -vv --full-trace --disable-warnings --maxfail=1 $ShardNodeIds
             if ($LASTEXITCODE -ne 0) { throw "Windows test shard ${{ matrix.shard }} failed." }
           } finally {
             Pop-Location
           }
-
-
-
 
   coraza-waf-build:
     runs-on: ubuntu-latest
