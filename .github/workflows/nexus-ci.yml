@@ -61,6 +61,31 @@ jobs:
           New-Item -ItemType Directory -Force -Path $Wheelhouse | Out-Null
           python -m pip download --disable-pip-version-check --prefer-binary -r (Join-Path $Root "requirements-dev.txt") -r (Join-Path $Root "requirements-edge.txt") -d $Wheelhouse
           if ($LASTEXITCODE -ne 0) { throw "Windows dependency wheelhouse download failed." }
+      - name: Upload Windows dependency wheelhouse
+        uses: actions/upload-artifact@v4
+        with:
+          name: nexus-windows-wheelhouse
+          path: ${{ runner.temp }}/nexus-wheelhouse
+          if-no-files-found: error
+          retention-days: 1
+
+  windows-runtime:
+    needs: [source-detection, windows-runtime]
+    if: needs.source-detection.outputs.available == 'true'
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Python 3.12.10
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12.10"
+      - name: Download Windows dependency wheelhouse
+        uses: actions/download-artifact@v4
+        with:
+          name: nexus-windows-wheelhouse
+          path: ${{ runner.temp }}/nexus-wheelhouse
       - name: Build reusable Windows test environment
         shell: pwsh
         run: |
@@ -96,6 +121,7 @@ jobs:
             ${{ needs.source-detection.outputs.root }}/mining/native/build/nexus_miner.dll
           if-no-files-found: error
           retention-days: 1
+
 
   python-tests:
     needs: source-detection
