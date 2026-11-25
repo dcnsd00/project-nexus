@@ -174,3 +174,19 @@ jobs:
           } finally {
             Pop-Location
           }
+
+
+  coraza-waf-build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Go 1.26.0
+        uses: actions/setup-go@v7
+        with:
+          go-version: "1.26.0"
+          cache: false
+      - name: Build Coraza-enabled Caddy and validate configuration
+        shell: bash
+        run: bash deployment/security/coraza/build.sh
