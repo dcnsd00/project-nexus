@@ -173,3 +173,8 @@ No single CAPTCHA, WAF, VPN, or model can reliably identify every automated clie
 - CrowdSec: https://github.com/crowdsecurity/crowdsec
 - Headscale: https://github.com/juanfont/headscale
 - WireGuard tools: https://github.com/WireGuard/wireguard-tools
+
+
+## 8. Latest verification and scan triage
+
+See [SECURITY_TRIAGE_2026-11-25.md](SECURITY_TRIAGE_2026-11-25.md) for the latest AIScan counts, manual triage of returned findings, and the current CI evidence. The scan's unreturned findings remain open for review.
