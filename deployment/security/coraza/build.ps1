@@ -18,31 +18,35 @@ if ([version]$Matches[1] -lt [version]"1.26.0") {
     throw "Go 1.26.0 or newer is required. Found $($Matches[1])."
 }
 
-$xcaddy = Get-Command xcaddy -ErrorAction SilentlyContinue
-if (-not $xcaddy) {
-    Write-Host "Installing pinned xcaddy $XcaddyVersion..."
-    & go install "github.com/caddyserver/xcaddy/cmd/xcaddy@$XcaddyVersion"
-    if ($LASTEXITCODE -ne 0) {
-        throw "Could not install xcaddy $XcaddyVersion."
-    }
+$goBin = (& go env GOBIN).Trim()
+if (-not $goBin) {
+    $goPath = (& go env GOPATH).Trim()
+    $goBin = Join-Path $goPath "bin"
+}
+New-Item -ItemType Directory -Force -Path $goBin | Out-Null
 
-    $goBin = (& go env GOBIN).Trim()
-    if (-not $goBin) {
-        $goPath = (& go env GOPATH).Trim()
-        $goBin = Join-Path $goPath "bin"
-    }
-    $env:PATH = "$goBin;$env:PATH"
-    $xcaddy = Get-Command xcaddy -ErrorAction SilentlyContinue
+Write-Host "Installing pinned xcaddy $XcaddyVersion..."
+& go install "github.com/caddyserver/xcaddy/cmd/xcaddy@$XcaddyVersion"
+if ($LASTEXITCODE -ne 0) {
+    throw "Could not install xcaddy $XcaddyVersion."
 }
 
-if (-not $xcaddy) {
-    throw "xcaddy was not found after installation."
+$xcaddyPath = Join-Path $goBin "xcaddy.exe"
+if (-not (Test-Path $xcaddyPath)) {
+    $xcaddyPath = Join-Path $goBin "xcaddy"
+}
+if (-not (Test-Path $xcaddyPath)) {
+    throw "Pinned xcaddy executable was not created in $goBin."
+}
+$xcaddyVersionText = (& $xcaddyPath version) -join " "
+if ($LASTEXITCODE -ne 0 -or $xcaddyVersionText -notmatch [regex]::Escape($XcaddyVersion)) {
+    throw "Expected xcaddy $XcaddyVersion, found: $xcaddyVersionText"
 }
 
 Push-Location $PSScriptRoot
 try {
     Write-Host "Building Caddy $CaddyVersion with Coraza Caddy $CorazaCaddyVersion..."
-    & xcaddy build $CaddyVersion --with "github.com/corazawaf/coraza-caddy/v2@$CorazaCaddyVersion" --output $Output
+    & $xcaddyPath build $CaddyVersion --with "github.com/corazawaf/coraza-caddy/v2@$CorazaCaddyVersion" --output $Output
     if ($LASTEXITCODE -ne 0) {
         throw "xcaddy build failed."
     }
