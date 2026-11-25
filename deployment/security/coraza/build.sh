@@ -20,6 +20,7 @@ if [[ "$(printf '%s\n' "1.26.0" "$GO_VERSION" | sort -V | head -n1)" != "1.26.0"
 fi
 
 mkdir -p "$TOOLS_BIN"
+mkdir -p "$SCRIPT_DIR/logs"
 GOBIN="$TOOLS_BIN" go install "github.com/caddyserver/xcaddy/cmd/xcaddy@$XCADDY_VERSION"
 "$TOOLS_BIN/xcaddy" build "$CADDY_VERSION" \
   --with "github.com/corazawaf/coraza-caddy/v2@$CORAZA_CADDY_VERSION" \
