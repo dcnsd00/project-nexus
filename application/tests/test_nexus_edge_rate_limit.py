@@ -112,3 +112,38 @@ def test_rate_limiter_fails_closed_at_capacity_without_evicting_live_buckets():
     assert "ip:198.51.100.0" in middleware._buckets
     # A known identity continues to use its existing bucket at capacity.
     assert middleware._consume(["ip:198.51.100.0"], 10.0) is None
+
+
+
+def test_rate_limiter_hashes_operator_bearer_identity():
+    import hashlib
+
+    middleware = EdgeRateLimitMiddleware(
+        lambda *_: None,
+        max_requests=10,
+        window_seconds=60,
+        max_keys=100,
+    )
+    token = b"nexus-operator-test-secret"
+    keys = middleware._keys(
+        {"client": ("198.51.100.10", 12345), "path": "/v1/edge/nodes/esp32-node-09/heartbeat"},
+        {b"authorization": b"Bearer " + token},
+    )
+    assert f"operator:{hashlib.sha256(token).hexdigest()}" in keys
+    assert "nexus-operator-test-secret" not in " ".join(keys)
+    assert "node:esp32-node-09" in keys
+
+
+def test_rate_limiter_fails_closed_for_invalid_trusted_proxy_cidr():
+    try:
+        EdgeRateLimitMiddleware(
+            lambda *_: None,
+            max_requests=10,
+            window_seconds=60,
+            max_keys=100,
+            trusted_proxy_cidrs=("not-a-cidr",),
+        )
+    except ValueError as exc:
+        assert "invalid network" in str(exc)
+    else:
+        raise AssertionError("invalid trusted proxy CIDR must be rejected")
