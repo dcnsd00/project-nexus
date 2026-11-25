@@ -222,20 +222,18 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - name: Install dependencies
+      - name: Download Windows dependency wheelhouse
+        uses: actions/download-artifact@v4
+        with:
+          name: nexus-windows-wheelhouse
+          path: ${{ runner.temp }}/nexus-wheelhouse
+      - name: Install dependencies from local wheelhouse
         shell: pwsh
         run: |
           $Root = "${{ needs.source-detection.outputs.root }}"
-          python -m pip install --upgrade pip
-          if (Test-Path (Join-Path $Root "requirements-dev.txt")) {
-            python -m pip install -r (Join-Path $Root "requirements-dev.txt")
-          } else {
-            python -m pip install -r (Join-Path $Root "requirements.txt")
-            python -m pip install pytest
-          }
-          if (Test-Path (Join-Path $Root "requirements-edge.txt")) {
-            python -m pip install -r (Join-Path $Root "requirements-edge.txt")
-          }
+          $Wheelhouse = Join-Path $env:RUNNER_TEMP "nexus-wheelhouse"
+          python -m pip install --no-index --find-links $Wheelhouse -r (Join-Path $Root "requirements-dev.txt") -r (Join-Path $Root "requirements-edge.txt")
+          if ($LASTEXITCODE -ne 0) { throw "Windows dependency installation from wheelhouse failed." }
       - name: Configure MSVC x64 build environment
         uses: ilammy/msvc-dev-cmd@v1
         with:
