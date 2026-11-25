@@ -277,6 +277,26 @@ jobs:
             Pop-Location
           }
 
+  randomx-reference-tests:
+    name: RandomX upstream reference vectors
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure official vendored RandomX reference
+        run: |
+          cmake -S application/vendor/randomx-1.2.3 -B build/randomx-reference -DCMAKE_BUILD_TYPE=Release -DARCH=default
+
+      - name: Build upstream randomx-tests target
+        run: |
+          cmake --build build/randomx-reference --target randomx-tests --parallel 2
+
+      - name: Execute upstream RandomX reference test vectors
+        run: |
+          build/randomx-reference/randomx-tests
+
   coraza-waf-build:
     runs-on: ubuntu-latest
     timeout-minutes: 20
