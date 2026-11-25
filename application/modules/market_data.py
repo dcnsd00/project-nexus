@@ -11,6 +11,7 @@ import re
 import time
 from datetime import datetime, timezone
 from typing import Any, Protocol
+from urllib.parse import urlsplit
 
 import httpx
 from fastapi import APIRouter, HTTPException, Query
@@ -96,7 +97,24 @@ class _PublicProvider:
     ):
         if timeout <= 0 or max_retries < 0 or stale_after_s < 1:
             raise ValueError("invalid_market_data_client_limits")
-        self.base_url = (base_url or self.default_base_url).rstrip("/")
+        candidate = (base_url or self.default_base_url).rstrip("/")
+        parsed = urlsplit(candidate)
+        allowed_hosts = {
+            "binance": {"data-api.binance.vision", "api.binance.com"},
+            "gate": {"api.gateio.ws"},
+        }.get(self.provider_id, set())
+        expected_path = "/api/v4" if self.provider_id == "gate" else ""
+        try:
+            safe_port = parsed.port in (None, 443)
+        except ValueError:
+            safe_port = False
+        if (
+            parsed.scheme != "https" or parsed.hostname not in allowed_hosts
+            or not safe_port or parsed.username or parsed.password
+            or parsed.query or parsed.fragment or parsed.path.rstrip("/") != expected_path
+        ):
+            raise ValueError("unsupported_public_market_data_base_url")
+        self.base_url = candidate
         self.timeout = float(timeout)
         self.max_retries = int(max_retries)
         self.stale_after_s = int(stale_after_s)
