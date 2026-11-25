@@ -153,18 +153,35 @@ def test_direct_controller_and_hybrid_supervisor_are_mutually_exclusive(tmp_path
     })
 
     supervisor = hybrid_module.HybridSupervisor(runtime_root=tmp_path / "hybrid-first")
+    fake_worker_pid = 987655
+    fake_worker_instance_id = "fake-hybrid-worker-instance"
+    fake_processes = {}
+
+    def fake_process_is_alive(pid):
+        if pid == fake_worker_pid:
+            process = fake_processes.get("cpu")
+            return process is not None and process.returncode is None
+        return False
+
+    monkeypatch.setattr(hybrid_module, "process_is_alive", fake_process_is_alive)
 
     def fake_hybrid_launch(engine, request, restart_count=0):
         runtime = tmp_path / "hybrid-first" / "standard" / engine
         runtime.mkdir(parents=True, exist_ok=True)
         status_path = runtime / "status.json"
         stop_path = runtime / "stop"
-        status_path.write_text(json.dumps({"state": "running", "pid": 987655, "heartbeat_unix": time.time()}), encoding="utf-8")
-        process = _FakeHybridWorkerProcess()
+        status_path.write_text(json.dumps({
+            "state": "running",
+            "pid": fake_worker_pid,
+            "worker_instance_id": fake_worker_instance_id,
+            "heartbeat_unix": time.time(),
+        }), encoding="utf-8")
+        process = _FakeHybridWorkerProcess(pid=fake_worker_pid)
+        fake_processes[engine] = process
         supervisor._workers[engine] = {
             "process": process, "status_path": status_path, "stop_path": stop_path,
             "request": dict(request), "runtime": runtime, "started_at": 1.0,
-            "restart_count": restart_count,
+            "restart_count": restart_count, "worker_instance_id": fake_worker_instance_id,
         }
         supervisor._sync_arbiter(release_when_idle=False)
 
