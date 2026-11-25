@@ -8,6 +8,7 @@ import signal
 import os
 import threading
 import time
+import uuid
 from pathlib import Path
 from typing import Any
 
@@ -44,8 +45,11 @@ class HybridSupervisor:
                 status_data = json.loads(item['status_path'].read_text(encoding='utf-8'))
             except (OSError, ValueError, TypeError):
                 status_data = {}
+            worker_pid = status_data.get('pid')
+            if isinstance(worker_pid, int) and not isinstance(worker_pid, bool) and process_is_alive(worker_pid):
+                pids.add(worker_pid)
             child_pid = status_data.get('miner_pid')
-            if isinstance(child_pid, int) and process_is_alive(child_pid):
+            if isinstance(child_pid, int) and not isinstance(child_pid, bool) and process_is_alive(child_pid):
                 pids.add(child_pid)
         MINING_PROCESS_ARBITER.update_processes(self._arbiter_owner, pids)
         if release_when_idle and not pids and not self._switching:
@@ -126,6 +130,8 @@ class HybridSupervisor:
                 pass
         req = dict(request)
         req.setdefault('log_path', str(runtime / 'worker.log'))
+        worker_instance_id = uuid.uuid4().hex
+        req['worker_instance_id'] = worker_instance_id
         if mode == 'development' and (req.get('executor') != 'development_pow' or 'command' in req):
             raise ValueError('development mode accepts only the isolated development_pow executor')
         request_path = runtime / 'request.json'
@@ -140,7 +146,8 @@ class HybridSupervisor:
                                    creationflags=(subprocess.CREATE_NEW_PROCESS_GROUP if os.name == 'nt' else 0))
         worker_log.close()
         self._workers[engine] = {'process': process, 'status_path': status_path, 'stop_path': stop_path,
-                                 'request': req, 'runtime': runtime, 'started_at': time.time(), 'restart_count': restart_count}
+                                 'request': req, 'runtime': runtime, 'started_at': time.time(),
+                                 'restart_count': restart_count, 'worker_instance_id': worker_instance_id}
         self._sync_arbiter(release_when_idle=False)
 
     def stop(self, engine: str | None = None, *, release_lease: bool = True) -> dict:
@@ -163,10 +170,16 @@ class HybridSupervisor:
                     except Exception:
                         worker_status = {}
                     if worker_status.get('state') in ('starting', 'running'):
+                        worker_pid = worker_status.get('pid')
                         child_pid = worker_status.get('miner_pid')
-                        if os.name == 'nt' and child_pid:
-                            subprocess.run(['taskkill', '/PID', str(child_pid), '/T', '/F'], capture_output=True, timeout=3)
-                        elif os.name != 'nt':
+                        if os.name == 'nt':
+                            for target_pid in (worker_pid, child_pid):
+                                if (isinstance(target_pid, int) and not isinstance(target_pid, bool)
+                                        and target_pid > 0 and target_pid != proc.pid
+                                        and process_is_alive(target_pid)):
+                                    subprocess.run(['taskkill', '/PID', str(target_pid), '/T', '/F'],
+                                                   capture_output=True, timeout=3)
+                        else:
                             try: os.killpg(proc.pid, signal.SIGTERM)
                             except ProcessLookupError: pass
                 try:
@@ -328,11 +341,33 @@ class HybridSupervisor:
                     proc = item['process']
                     data = {}
                 heartbeat = data.get('heartbeat_unix')
-                worker_pid_matches = data.get('pid') == proc.pid
-                stale = bool(proc.poll() is None and worker_pid_matches and (not isinstance(heartbeat, (int, float)) or time.time() - heartbeat > self.heartbeat_timeout))
+                worker_pid = data.get('pid')
+                worker_pid_valid = (
+                    isinstance(worker_pid, int) and not isinstance(worker_pid, bool) and worker_pid > 0
+                )
+                worker_instance_matches = (
+                    data.get('worker_instance_id') == item.get('worker_instance_id')
+                )
+                if os.name == 'nt' and worker_pid_valid and worker_instance_matches:
+                    worker_process_alive = process_is_alive(worker_pid)
+                    worker_pid_matches = worker_process_alive
+                else:
+                    worker_process_alive = proc.poll() is None
+                    worker_pid_matches = worker_pid_valid and worker_pid == proc.pid and worker_instance_matches
+                stale = bool(
+                    worker_pid_matches
+                    and (not isinstance(heartbeat, (int, float))
+                         or time.time() - heartbeat > self.heartbeat_timeout)
+                )
                 state = data.get('state', 'starting')
                 if proc.poll() is not None and state in ('starting', 'running'):
                     state = 'failed'
+                elif worker_instance_matches and worker_pid_valid and not worker_process_alive and state in ('starting', 'running'):
+                    state = 'failed'
+                    data['last_error'] = data.get('last_error') or 'worker_process_exited'
+                elif data.get('worker_instance_id') and not worker_instance_matches and state in ('starting', 'running'):
+                    state = 'failed'
+                    data['last_error'] = 'worker_identity_mismatch'
                 elif stale:
                     if not read_only:
                         self.stop(engine)
@@ -340,9 +375,18 @@ class HybridSupervisor:
                         proc = item['process']
                     state = 'failed'
                     data['last_error'] = 'stale_heartbeat'
-                engines[engine] = {**data, 'state': state, 'pid': proc.pid,
-                                   'process_alive': proc.poll() is None, 'exit_code': proc.poll(),
-                                   'runtime_dir': str(item['runtime']), 'restart_count': item.get('restart_count', 0)}
+                display_pid = worker_pid if worker_pid_valid and worker_instance_matches else proc.pid
+                engines[engine] = {
+                    **data,
+                    'state': state,
+                    'pid': display_pid,
+                    'supervisor_pid': proc.pid,
+                    'process_alive': worker_process_alive,
+                    'launcher_alive': proc.poll() is None,
+                    'exit_code': proc.poll(),
+                    'runtime_dir': str(item['runtime']),
+                    'restart_count': item.get('restart_count', 0),
+                }
             states = [x['state'] for x in engines.values()]
             if not self._mode:
                 mode_state = 'stopped'
