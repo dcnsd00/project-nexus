@@ -33,7 +33,7 @@ def test_binance_ticker_and_24h_snapshot_include_source_and_freshness(monkeypatc
                 "weightedAvgPrice": "64900", "openPrice": "64900",
                 "highPrice": "66000", "lowPrice": "64000",
                 "volume": "12", "quoteVolume": "780000",
-                "tradeCount": 123, "bidPrice": "65000", "askPrice": "65001",
+                "count": 123, "bidPrice": "65000", "askPrice": "65001",
                 "closeTime": now_ms,
             })
         raise AssertionError(url)
@@ -176,3 +176,29 @@ def test_provider_status_is_read_only_and_does_not_fetch():
     assert status["real_orders_enabled"] is False
     assert status["wallet_signing_enabled"] is False
     assert status["transfers_enabled"] is False
+
+
+def test_market_data_api_route_uses_provider_contract_and_maps_rate_limits(monkeypatch):
+    from fastapi import HTTPException
+
+    class FakeProvider:
+        provider_id = "binance"
+        base_url = "https://example.invalid"
+
+        def ticker(self, symbol):
+            raise market_data.MarketDataError("rate_limited", retry_after_s=2)
+
+    monkeypatch.setitem(market_data.PROVIDERS, "binance", FakeProvider())
+    with pytest.raises(HTTPException) as caught:
+        market_data.market_data_ticker("binance", "BTC")
+
+    assert caught.value.status_code == 429
+    assert caught.value.headers["Retry-After"] == "2"
+
+
+def test_market_data_api_route_rejects_unknown_provider():
+    from fastapi import HTTPException
+
+    with pytest.raises(HTTPException) as caught:
+        market_data.market_data_ticker("unknown", "BTC")
+    assert caught.value.status_code == 404
