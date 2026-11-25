@@ -12,13 +12,13 @@
 | Critical | 0 |
 | High | 0 |
 | Medium | 11 |
-| Low | 25 |
+| Low | 24 |
 | Informational | 8 |
 
 **Reported grade:** C (73/100)  
 **Reported verdict:** `GO_WITH_CONDITIONS` — no P0/P1 findings; lower-priority findings remain.
 
-AIScan returned detailed locations for 12 findings and reported 32 additional findings without exposing their individual details in this result. The 32 undisclosed findings remain untriaged; this report does not claim to close them.
+AIScan returned detailed locations for 12 findings and reported 31 additional findings without exposing their individual details in this result. The 31 undisclosed findings remain untriaged; this report does not claim to close them.
 
 ## 2. Detailed manual triage of returned findings
 
@@ -57,9 +57,9 @@ The interpolated value is `int(self.timeout_s * 1000)`. The constructor rejects 
 
 ### 2.4 Mutable GitHub Action reference — 1 low finding
 
-Locations returned by AIScan: `.github/workflows/nexus-ci.yml`, Windows MSVC setup, and `.github/workflows/nexus-desktop-package.yml:31`.
+Locations returned by AIScan: `.github/workflows/nexus-ci.yml`, Windows MSVC setup, and `.github/workflows/nexus-desktop-package.yml:31`, and `.github/workflows/nexus-full-benchmark.yml:37`.
 
-**Remediation applied:** pinned `ilammy/msvc-dev-cmd` to immutable commit `0b201ec74fa43914dc39ae48a89fd1d8cb592756` in both `.github/workflows/nexus-ci.yml` and `.github/workflows/nexus-desktop-package.yml`, with the upstream release label `v1.13.0`.
+**Remediation applied:** pinned `ilammy/msvc-dev-cmd` to immutable commit `0b201ec74fa43914dc39ae48a89fd1d8cb592756` in `.github/workflows/nexus-ci.yml`, `.github/workflows/nexus-desktop-package.yml`, and `.github/workflows/nexus-full-benchmark.yml`, with the upstream release label `v1.13.0`.
 
 The referenced upstream release is signed and identifies this commit as v1.13.0. This change is limited to the action reference; it does not change the MSVC architecture input or build behavior.
 
