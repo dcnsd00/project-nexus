@@ -14,6 +14,22 @@ uvicorn app.main:app --host 127.0.0.1 --port 8765
 ```
 Open `http://127.0.0.1:8765`.
 
+## Network boundary
+
+CORE installs an ASGI loopback guard in addition to the documented loopback
+bind. Requests are accepted only when both the TCP peer and the Host authority
+are loopback addresses or `localhost`. A request from a LAN/WAN peer is
+rejected with HTTP 403 even if it forges `X-Forwarded-For` or supplies a
+loopback Host value. Proxy headers are not used as client identity.
+
+Any future private-network access must pass through the NEXUS Caddy/Coraza
+proxy. Caddy rewrites the upstream Host authority to `127.0.0.1:8765`, while
+the local proxy remains the TCP peer seen by CORE.
+
+This guard is an exposure boundary, **not user authentication**. It does not
+protect against other software already running on the same host. Keep CORE
+bound to loopback and do not expose the listener directly to LAN/WAN.
+
 ## Milestone 0.5 additions
 
 - Plugin Manager: 26 integration definitions across AI, EVM, Bitcoin, Solana, Binance public data, DePIN, NFT/IPFS, banking sandbox, GitHub/GitLab, Microsoft/Google, messaging, monitoring, SageMath and Wolfram.

@@ -102,6 +102,25 @@ NEXUS_EDGE_TRUSTED_PROXY_CIDRS=
 
 Forwarded client addresses are ignored unless the immediate TCP peer belongs to an explicitly configured trusted proxy CIDR. When trusted, the limiter walks the forwarded chain from right to left, skips trusted proxy addresses, and selects the first untrusted address; it does not blindly trust the left-most header value. Configure only the exact proxy ranges you control. The limiter is process-local and fixed-window; it does not coordinate counters across multiple workers or hosts. Its key cache is bounded and fails closed for new identities when full instead of evicting active buckets, preventing identity churn from resetting another client's live limit. A multi-worker or distributed deployment must also enforce shared limits at the reverse-proxy/WAF layer (or use a shared backend). This feature is not proof of protection against every automated client.
 
+### NEXUS CORE loopback request guard
+
+The local CORE FastAPI application now installs
+`LoopbackOnlyMiddleware`. It checks the actual ASGI socket peer and requires
+the Host authority to be `localhost` or a loopback IP address. It ignores
+`X-Forwarded-For` for identity and fails closed for missing, duplicate or
+malformed Host values. Remote HTTP requests receive 403; remote WebSocket
+requests are closed with policy code 1008.
+
+The normal launch remains `127.0.0.1:8765`. The Caddy pilot explicitly rewrites
+the upstream Host authority to `127.0.0.1:8765`, so future access through a
+private proxy interface can remain possible without exposing CORE directly.
+The standard Starlette TestClient scope pair is permitted only for tests.
+
+This is an exposure guard, not user authentication and not a defence against
+malicious software already running on the same host. Keep CORE loopback-bound;
+any LAN/WAN or VPN exposure must go through a tested reverse proxy and separate
+authentication/authorization controls.
+
 ### Coraza WAF pilot scaffold
 
 The experimental branch now contains `deployment/security/coraza/`:

@@ -7,6 +7,7 @@ from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, Field
 import httpx
 from . import lfm3_local
+from .network_guard import LoopbackOnlyMiddleware
 from . import math_engine, banking_sandbox, plugin_registry
 
 DB=os.getenv("NEXUS_DB","./data/nexus.db")
@@ -32,6 +33,8 @@ def init():
 async def lifespan(app):
     init(); audit("system.start","NEXUS started"); yield
 app=FastAPI(title="PROJECT NEXUS",version="0.5.0",lifespan=lifespan)
+# Enforce local-only exposure even if the server bind is misconfigured.
+app.add_middleware(LoopbackOnlyMiddleware)
 class Task(BaseModel):
     title:str=Field(min_length=1,max_length=180); description:str=""; domain:str="core"; priority:str="normal"
 class Note(BaseModel):

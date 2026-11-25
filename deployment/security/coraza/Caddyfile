@@ -51,5 +51,7 @@ http://127.0.0.1:8780 {
         `
     }
 
-    reverse_proxy 127.0.0.1:8765
+    reverse_proxy 127.0.0.1:8765 {
+        header_up Host 127.0.0.1:8765
+    }
 }
