@@ -10,10 +10,31 @@ from typing import Any
 
 
 def _write_status(path: Path, payload: dict[str, Any]) -> None:
+    """Atomically publish worker state, retrying transient Windows file locks.
+
+    The supervisor polls status.json while the worker updates it. On Windows,
+    a concurrent reader or endpoint scanner can temporarily prevent
+    os.replace() from replacing the destination. Keep the temporary file in
+    the same directory (same volume) and retry only PermissionError; all other
+    filesystem errors remain visible to the caller.
+    """
     path.parent.mkdir(parents=True, exist_ok=True)
-    tmp = path.with_suffix(path.suffix + '.tmp')
+    tmp = path.with_suffix(path.suffix + f'.{os.getpid()}.tmp')
     tmp.write_text(json.dumps(payload, ensure_ascii=False), encoding='utf-8')
-    os.replace(tmp, path)
+    try:
+        for attempt in range(12):
+            try:
+                os.replace(tmp, path)
+                return
+            except PermissionError:
+                if attempt == 11:
+                    raise
+                time.sleep(min(0.01 * (2 ** attempt), 0.1))
+    finally:
+        try:
+            tmp.unlink()
+        except FileNotFoundError:
+            pass
 
 
 def run_worker(engine: str, request: dict, status_path: str, stop_event_path: str) -> int:
