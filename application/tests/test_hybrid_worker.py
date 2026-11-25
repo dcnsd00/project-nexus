@@ -78,3 +78,27 @@ def test_worker_status_write_retries_transient_permission_error(tmp_path, monkey
         "pid": 123,
     }
     assert not status.with_suffix(".json." + str(__import__("os").getpid()) + ".tmp").exists()
+
+
+def test_write_status_retries_transient_replace_permission_error(tmp_path, monkeypatch):
+    import mining.hybrid_worker as hybrid_worker
+
+    status = tmp_path / "cpu" / "status.json"
+    real_replace = hybrid_worker.os.replace
+    attempts = 0
+
+    def flaky_replace(source, destination):
+        nonlocal attempts
+        attempts += 1
+        if attempts <= 2:
+            raise PermissionError(5, "Access is denied")
+        return real_replace(source, destination)
+
+    monkeypatch.setattr(hybrid_worker.os, "replace", flaky_replace)
+    payload = {"engine": "cpu", "state": "running", "heartbeat_unix": 123.0}
+    hybrid_worker._write_status(status, payload)
+
+    assert json.loads(status.read_text(encoding="utf-8")) == payload
+    assert attempts == 3
+    temp_path = status.with_suffix(status.suffix + f".{hybrid_worker.os.getpid()}.tmp")
+    assert not temp_path.exists()

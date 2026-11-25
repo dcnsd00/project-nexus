@@ -56,3 +56,16 @@ def test_wallet_watch_is_read_only_and_status(tmp_path, monkeypatch):
     status=c.get('/api/intel/status').json()
     assert status['provider_connectors_live']==0
     assert status['private_keys_accepted'] is False
+
+
+def test_opportunity_values_are_parameterized_and_do_not_change_schema(tmp_path, monkeypatch):
+    c = client_for(tmp_path, monkeypatch)
+    hostile_text = "x'); DROP TABLE devices;--"
+    created = c.post(
+        "/api/intel/opportunities",
+        json={"name": hostile_text, "category": "pow"},
+    )
+    assert created.status_code == 200
+    rows = c.get("/api/intel/opportunities").json()
+    assert any(row["name"] == hostile_text for row in rows)
+    assert c.get("/api/intel/devices").status_code == 200
