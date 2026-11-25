@@ -186,7 +186,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2, 3, 4]
+        shard: [1, 2, 3, 4, 5, 6, 7, 8]
     runs-on: windows-latest
     timeout-minutes: 20
     steps:
@@ -238,7 +238,7 @@ jobs:
             if ($LASTEXITCODE -ne 0) { throw "Windows pytest collection failed." }
             $NodeIds = @($Collected | ForEach-Object { "$_".Trim() } | Where-Object { $_ -match '^tests[\\/].+::' })
             if ($NodeIds.Count -eq 0) { throw "No Windows test node IDs were collected." }
-            $ShardCount = 4
+            $ShardCount = 8
             $ShardIndex = [int]"${{ matrix.shard }}" - 1
             $ShardSize = [Math]::Ceiling($NodeIds.Count / $ShardCount)
             $Start = $ShardIndex * $ShardSize
