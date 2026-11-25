@@ -60,13 +60,14 @@ The audited branch already contains these implementation elements:
 - operator bearer-token authentication for provisioning and management endpoints;
 - node provisioning, credential rotation, revocation, capability checks, and task leases;
 - opt-in HTTPS gateway and MQTTS adapter;
+- opt-in HTTPS gateway rate limiting (enabled by default): 120 requests per 60 seconds per source-IP and authenticated identity bucket, with bounded in-memory state;
 - gateway documentation requiring a TLS terminator and loopback binding for the local pilot.
 
 These are source-level capabilities, not proof of a hardened internet deployment. The documented scheduler is single-process; standalone and MASTER-mounted gateway modes must not run simultaneously against the same database.
 
 ### Gaps found in the reviewed gateway surface
 
-- no native per-IP or per-identity rate limiter was found in the EDGE gateway;
+- a native in-process EDGE gateway rate limiter has now been added on this experimental branch; it applies bounded fixed-window limits by source IP and, when present, node ID or hashed operator bearer identity. It is defense in depth, not a distributed limiter;
 - no integrated WAF or bot-behavior detection service was found;
 - no VPN/control-plane integration was found;
 - no endpoint detection/response agent was found;
@@ -84,6 +85,22 @@ The components below should remain separate services or adapters. Do not copy a 
 | Behavioral bot / IP reputation | https://github.com/crowdsecurity/crowdsec | MIT; log and HTTP behavior detection plus decisions API | Feed proxy and gateway logs to the engine; enforce decisions through a suitable firewall or reverse-proxy bouncer. It detects observable behavior and rule matches, not the identity or intent of every arbitrary AI agent. Windows event-log acquisition exists; do not assume full feature parity with Linux. |
 | Private mesh VPN | https://github.com/juanfont/headscale | BSD-3-Clause; self-hosted Tailscale control server | Use with supported Tailscale clients on Windows/Linux. Headscale coordinates the mesh; clients provide the device-side networking. It is not itself a generic WireGuard client for ESP32. ESP32-C5 compatibility remains unverified. |
 | VPN data plane | https://github.com/WireGuard/wireguard-tools | GPL-2.0; WireGuard configuration tools | Native WireGuard is an alternative for a manually managed site-to-site or hub-and-spoke VPN. Keep private keys outside NEXUS source and use OS/network tooling for lifecycle. |
+
+### EDGE gateway rate-limit configuration
+
+The experimental gateway now applies an in-process fixed-window limiter by default. Defaults are 120 requests per 60 seconds, with a bounded 10,000-key cache. It counts both the source IP and an additional identity bucket when the request contains a node ID path or bearer token. Bearer tokens are hashed before being used as bucket keys; raw token values are not retained by the limiter.
+
+Optional environment settings:
+
+```text
+NEXUS_EDGE_RATE_LIMIT_ENABLED=true
+NEXUS_EDGE_RATE_LIMIT_REQUESTS=120
+NEXUS_EDGE_RATE_LIMIT_WINDOW_S=60
+NEXUS_EDGE_RATE_LIMIT_MAX_KEYS=10000
+NEXUS_EDGE_TRUSTED_PROXY_CIDRS=
+```
+
+Forwarded client addresses are ignored unless the immediate TCP peer belongs to an explicitly configured trusted proxy CIDR. Configure only the exact proxy ranges you control. The limiter is process-local and fixed-window; it does not coordinate counters across multiple workers or hosts. A multi-worker or distributed deployment must also enforce shared limits at the reverse-proxy/WAF layer (or use a shared backend). This feature is not proof of protection against every automated client.
 
 ### Headscale deployment warning
 
