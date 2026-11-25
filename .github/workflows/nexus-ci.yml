@@ -98,7 +98,7 @@ jobs:
           & $Python -m pip install --no-index --find-links $Wheelhouse -r (Join-Path $Root "requirements-dev.txt") -r (Join-Path $Root "requirements-edge.txt")
           if ($LASTEXITCODE -ne 0) { throw "Could not install dependencies into Windows test environment." }
       - name: Configure MSVC x64 build environment
-        uses: ilammy/msvc-dev-cmd@v1
+        uses: ilammy/msvc-dev-cmd@0b201ec74fa43914dc39ae48a89fd1d8cb592756 # v1.13.0
         with:
           arch: x64
       - name: Build native SHA-256d library
