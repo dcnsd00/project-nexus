@@ -6,7 +6,7 @@ pilot. It does not install CrowdSec, create firewall rules, or start a bouncer.
 ## Data path
 
 1. Caddy writes JSON access logs to
-   `deployment/security/coraza/logs/access.log`.
+   `deployment/security/coraza/logs/access.log` and rotates older files in the same directory.
 2. CrowdSec reads that file using the official `crowdsecurity/caddy`
    collection and its HTTP behavior scenarios.
 3. The Security Engine creates decisions; it does not block traffic by itself.
@@ -19,19 +19,19 @@ pilot.
 ## Configure the Windows acquisition
 
 1. Install the CrowdSec Security Engine using its official Windows installer.
-2. Copy `acquis-windows.yaml.example` into the CrowdSec acquisition
+2. Review the CrowdSec Central API enrollment and data-sharing settings during installation; the Windows installer may register the engine with the Central API. Copy `acquis-windows.yaml.example` into the CrowdSec acquisition
    configuration at `C:\ProgramData\CrowdSec\config\acquis.yaml`,
    merging it with any existing acquisition entries rather than overwriting
    unrelated sources.
 3. Replace the placeholder path with the absolute path to
-   `deployment/security/coraza/logs/access.log`.
+   `deployment/security/coraza/logs/*.log` (including rotated files).
 4. From an elevated PowerShell prompt, install the Caddy collection:
 
 ```powershell
 & "C:\Program Files\CrowdSec\cscli.exe" collections install crowdsecurity/caddy
 ```
 
-5. Restart the CrowdSec service and verify that the Caddy access log is being
+5. Restart the CrowdSec service and verify that the Caddy access logs are being
    parsed before enabling any remediation component.
 
 The official `crowdsecurity/caddy` collection includes the Caddy log parser and
