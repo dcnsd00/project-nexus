@@ -72,3 +72,22 @@ def test_woolypooly_vtc_pool_has_operator_published_endpoint():
     assert pool['port'] == 3102
     assert pool['ssl_port'] is None
     assert pool['mode'] == 'PPLNS'
+
+
+def test_pool_tcp_test_redacts_raw_socket_exception_details(monkeypatch):
+    import socket
+
+    sensitive = "TOKEN=private-secret /private/internal/path"
+    def fail_connection(address, timeout=0):
+        raise OSError(sensitive)
+
+    monkeypatch.setattr(socket, "create_connection", fail_connection)
+    response = client.post("/api/mining/pool-test", json={
+        "pool_id": "veinpool-vtc-eu",
+        "use_ssl": False,
+    })
+    assert response.status_code == 200
+    data = response.json()
+    assert data["ok"] is False
+    assert data["detail"] == "Network connection failed"
+    assert sensitive not in response.text

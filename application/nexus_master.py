@@ -1,7 +1,7 @@
 from __future__ import annotations
 from uuid import uuid4
 from contextlib import asynccontextmanager
-import json, logging, os, platform, shutil, subprocess, sys
+import json, logging, os, platform, shutil, socket, ssl, subprocess, sys
 from pathlib import Path
 from fastapi import HTTPException
 from fastapi.responses import HTMLResponse
@@ -1161,13 +1161,25 @@ def mining_pool_test(req: PoolTestRequest):
     try:
         raw=socket.create_connection((host,int(port)),timeout=4)
         if req.use_ssl:
-            import ssl
             with ssl.create_default_context().wrap_socket(raw,server_hostname=host): pass
         else:
             raw.close()
         return {"ok":True,"host":host,"port":int(port),"tls_requested":req.use_ssl,"tcp_reachable":True,"tls_handshake":bool(req.use_ssl),"latency_ms":round((__import__('time').perf_counter()-started)*1000,2),"scope":"TCP/TLS handshake only; does not authenticate Stratum or prove mining shares."}
     except Exception as exc:
-        return {"ok":False,"host":host,"port":int(port),"tls_requested":req.use_ssl,"tcp_reachable":False,"error":type(exc).__name__,"detail":str(exc)[:240],"scope":"TCP/TLS handshake only; no miner was started."}
+        if isinstance(exc, socket.gaierror):
+            safe_detail = "DNS lookup failed"
+        elif isinstance(exc, TimeoutError):
+            safe_detail = "Connection timed out"
+        elif isinstance(exc, ConnectionRefusedError):
+            safe_detail = "Connection refused"
+        elif isinstance(exc, ssl.SSLError):
+            safe_detail = "TLS handshake failed"
+        elif isinstance(exc, OSError):
+            safe_detail = "Network connection failed"
+        else:
+            safe_detail = "Connection test failed"
+        _LOGGER.warning("Pool connectivity test failed; exception_type=%s", type(exc).__name__)
+        return {"ok":False,"host":host,"port":int(port),"tls_requested":req.use_ssl,"tcp_reachable":False,"error":type(exc).__name__,"detail":safe_detail,"scope":"TCP/TLS handshake only; no miner was started."}
 
 @app.get("/api/nexus/dashboard-data")
 def nexus_dashboard_data():
