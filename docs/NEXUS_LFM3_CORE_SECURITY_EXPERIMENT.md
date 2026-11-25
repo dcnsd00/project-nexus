@@ -69,7 +69,7 @@ These are source-level capabilities, not proof of a hardened internet deployment
 
 - no WAF is active in the NEXUS runtime; a separate loopback-only Coraza/Caddy pilot scaffold has been added under `deployment/security/coraza/`, but it has not yet been built or run;
 - no CrowdSec engine or remediation bouncer is installed or active; a Windows acquisition template for Caddy JSON logs is prepared under `deployment/security/crowdsec/`;
-- no VPN/control-plane integration was found;
+- no VPN/control-plane is deployed or connected; a deny-all Headscale policy scaffold has been added under `deployment/security/headscale/`, but no Headscale service, client, peer keys, routes, or ACL allow rules are provisioned;
 - no endpoint detection/response agent was found;
 - the operator bearer token is a static configured secret; production use needs secret rotation, least-privilege handling, and protected delivery;
 - reverse proxy, TLS, firewall, and public exposure controls are deployment responsibilities and are not automatically provisioned by the current gateway.
@@ -122,6 +122,15 @@ The Windows Firewall remediation component requires .NET 10 according to current
 
 The upstream Coraza Caddy module embeds CRS when `load_owasp_crs` is enabled. Its release metadata at the selected version identifies Coraza `3.8.1` and CRS `4.30.0`. Version pins must be reviewed against upstream advisories before updates.
 
+### Headscale policy scaffold
+
+The experimental branch includes:
+- `deployment/security/headscale/policy.example.hujson`: valid JSON/huJSON with an explicit empty `grants` array (deny all);
+- `deployment/security/headscale/README.md`: Windows/Linux mesh boundary, ESP32 transport assumptions, and rollout gates;
+- `application/tests/test_headscale_security_policy.py`: verifies the policy parses and remains deny-all.
+
+This is a configuration guardrail, not an active VPN. It intentionally allows no peer traffic until reviewed least-privilege rules are added. No Headscale daemon, Tailscale client, WireGuard interface, peer key, DNS record, firewall route, or tunnel has been provisioned.
+
 ### Headscale deployment warning
 
 Headscale documentation states that when no policy is loaded, node-to-node traffic is allowed. An explicit least-privilege ACL/Grants policy is therefore a prerequisite. The project also warns that reverse-proxy deployment is not supported or encouraged; if used, its WebSocket, TLS, and trusted-proxy requirements must be followed. Do not expose the control plane before policy and proxy validation.
@@ -172,6 +181,7 @@ No single CAPTCHA, WAF, VPN, or model can reliably identify every automated clie
 - OWASP CRS: https://github.com/coreruleset/coreruleset
 - CrowdSec: https://github.com/crowdsecurity/crowdsec
 - Headscale: https://github.com/juanfont/headscale
+- Headscale ACL/Grants policy behavior: https://headscale.net/stable/ref/acls/
 - WireGuard tools: https://github.com/WireGuard/wireguard-tools
 
 
