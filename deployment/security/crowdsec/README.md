@@ -20,7 +20,7 @@ pilot.
 
 1. Install the CrowdSec Security Engine using its official Windows installer.
 2. Copy `acquis-windows.yaml.example` into the CrowdSec acquisition
-   configuration at `C:\\ProgramData\\CrowdSec\\config\\acquis.yaml`,
+   configuration at `C:\ProgramData\CrowdSec\config\acquis.yaml`,
    merging it with any existing acquisition entries rather than overwriting
    unrelated sources.
 3. Replace the placeholder path with the absolute path to
@@ -28,7 +28,7 @@ pilot.
 4. From an elevated PowerShell prompt, install the Caddy collection:
 
 ```powershell
-& "C:\\Program Files\\CrowdSec\\cscli.exe" collections install crowdsecurity/caddy
+& "C:\Program Files\CrowdSec\cscli.exe" collections install crowdsecurity/caddy
 ```
 
 5. Restart the CrowdSec service and verify that the Caddy access log is being
