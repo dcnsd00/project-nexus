@@ -82,7 +82,7 @@ jobs:
         with:
           python-version: "3.12.10"
       - name: Download Windows dependency wheelhouse
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: nexus-windows-wheelhouse
           path: ${{ runner.temp }}/nexus-wheelhouse
@@ -199,7 +199,7 @@ jobs:
         with:
           node-version: "24"
       - name: Download reusable Windows test environment
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: nexus-windows-runtime
           path: ${{ github.workspace }}
@@ -245,7 +245,7 @@ jobs:
     timeout-minutes: 20
     steps:
       - name: Download reusable Windows test environment
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: nexus-windows-runtime
           path: ${{ github.workspace }}
