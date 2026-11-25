@@ -171,90 +171,87 @@ jobs:
           $Compiler = Get-Command cl.exe -ErrorAction Stop
           Write-Host "Native C compiler: $($Compiler.Source)"
           $env:NEXUS_NATIVE_COMPILER = "msvc"
-          $env:NEXUS_NATIVE_MINER_LIB = (Resolve-Path (Join-Path $Root "mining/native/build/nexus_miner.dll")).Path
-          Push-Location $Root
+          $RootPath = (Resolve-Path $Root).Path
+          $env:NEXUS_NATIVE_MINER_LIB = Join-Path $RootPath "mining/native/build/nexus_miner.dll"
+          Push-Location $RootPath
           try {
             python -m pytest -vv --full-trace --disable-warnings tests/test_mining_solo_matrix_0105.py tests/test_mining_v098.py tests/test_native_sha256d_021.py
             if ($LASTEXITCODE -ne 0) { throw "Isolated Windows mining catalog API modules failed." }
           } finally {
             Pop-Location
           }
-      - name: Collect remaining Windows tests into four shards
+  windows-application-shards:
+    needs: source-detection
+    if: needs.source-detection.outputs.available == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install dependencies
         shell: pwsh
         run: |
           $Root = "${{ needs.source-detection.outputs.root }}"
+          python -m pip install --upgrade pip
+          if (Test-Path (Join-Path $Root "requirements-dev.txt")) {
+            python -m pip install -r (Join-Path $Root "requirements-dev.txt")
+          } else {
+            python -m pip install -r (Join-Path $Root "requirements.txt")
+            python -m pip install pytest
+          }
+          if (Test-Path (Join-Path $Root "requirements-edge.txt")) {
+            python -m pip install -r (Join-Path $Root "requirements-edge.txt")
+          }
+      - name: Configure MSVC x64 build environment
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+      - name: Build native SHA-256d library
+        shell: pwsh
+        run: |
+          $Root = "${{ needs.source-detection.outputs.root }}"
+          $NativeBuild = Join-Path $Root "mining/native/build"
+          New-Item -ItemType Directory -Force -Path $NativeBuild | Out-Null
+          $NativeDll = Join-Path $NativeBuild "nexus_miner.dll"
+          $NativeSource = Join-Path $Root "mining/native/miner.c"
+          & cl.exe /nologo /O2 /LD /DNEXUS_LIBRARY "/Fe:$NativeDll" "/Fo:$NativeBuild\\" $NativeSource
+          if ($LASTEXITCODE -ne 0) { throw "MSVC native SHA-256d build failed." }
+          if (-not (Test-Path $NativeDll)) { throw "MSVC did not create nexus_miner.dll." }
+      - name: Run Windows test shard ${{ matrix.shard }}
+        shell: pwsh
+        run: |
+          $Root = "${{ needs.source-detection.outputs.root }}"
+          $RootPath = (Resolve-Path $Root).Path
           $env:NEXUS_NATIVE_COMPILER = "msvc"
-          $env:NEXUS_NATIVE_MINER_LIB = (Resolve-Path (Join-Path $Root "mining/native/build/nexus_miner.dll")).Path
-          Push-Location $Root
+          $env:NEXUS_NATIVE_MINER_LIB = Join-Path $RootPath "mining/native/build/nexus_miner.dll"
+          Push-Location $RootPath
           try {
             $Collected = python -m pytest --collect-only -q --ignore=tests/test_mining_solo_matrix_0105.py --ignore=tests/test_mining_v098.py --ignore=tests/test_native_sha256d_021.py
             if ($LASTEXITCODE -ne 0) { throw "Windows pytest collection failed." }
             $NodeIds = @($Collected | ForEach-Object { "$_".Trim() } | Where-Object { $_ -match '^tests[\\/].+::' })
             if ($NodeIds.Count -eq 0) { throw "No Windows test node IDs were collected." }
             $ShardCount = 4
+            $ShardIndex = [int]"${{ matrix.shard }}" - 1
             $ShardSize = [Math]::Ceiling($NodeIds.Count / $ShardCount)
-            for ($i = 0; $i -lt $ShardCount; $i++) {
-              $Start = $i * $ShardSize
-              $Path = Join-Path $env:RUNNER_TEMP "nexus-windows-shard-$($i + 1).txt"
-              if ($Start -lt $NodeIds.Count) {
-                $End = [Math]::Min($Start + $ShardSize, $NodeIds.Count)
-                @($NodeIds[$Start..($End - 1)]) | Set-Content -Path $Path -Encoding utf8
-              } else {
-                New-Item -ItemType File -Force -Path $Path | Out-Null
-              }
-              Write-Host "Windows shard $($i + 1): $([Math]::Min($ShardSize, [Math]::Max(0, $NodeIds.Count - $Start))) tests"
-            }
+            $Start = $ShardIndex * $ShardSize
+            if ($Start -ge $NodeIds.Count) { throw "Windows shard ${{ matrix.shard }} is empty." }
+            $End = [Math]::Min($Start + $ShardSize, $NodeIds.Count)
+            $ShardNodeIds = @($NodeIds[$Start..($End - 1)])
+            Write-Host "Running Windows shard ${{ matrix.shard }} with $($ShardNodeIds.Count) tests."
+            python -m pytest -vv --full-trace --disable-warnings --maxfail=1 $ShardNodeIds
+            if ($LASTEXITCODE -ne 0) { throw "Windows test shard ${{ matrix.shard }} failed." }
           } finally {
             Pop-Location
           }
-      - name: Run Windows test shard 1
-        shell: pwsh
-        run: |
-          $Root = "${{ needs.source-detection.outputs.root }}"
-          $env:NEXUS_NATIVE_MINER_LIB = (Resolve-Path (Join-Path $Root "mining/native/build/nexus_miner.dll")).Path
-          $NodeIds = @(Get-Content (Join-Path $env:RUNNER_TEMP "nexus-windows-shard-1.txt") | Where-Object { $_.Trim() })
-          if ($NodeIds.Count -eq 0) { throw "Windows test shard 1 is empty." }
-          Push-Location $Root
-          try {
-            python -m pytest -vv --full-trace --disable-warnings --maxfail=1 $NodeIds
-            if ($LASTEXITCODE -ne 0) { throw "Windows test shard 1 failed." }
-          } finally { Pop-Location }
-      - name: Run Windows test shard 2
-        shell: pwsh
-        run: |
-          $Root = "${{ needs.source-detection.outputs.root }}"
-          $env:NEXUS_NATIVE_MINER_LIB = (Resolve-Path (Join-Path $Root "mining/native/build/nexus_miner.dll")).Path
-          $NodeIds = @(Get-Content (Join-Path $env:RUNNER_TEMP "nexus-windows-shard-2.txt") | Where-Object { $_.Trim() })
-          if ($NodeIds.Count -eq 0) { throw "Windows test shard 2 is empty." }
-          Push-Location $Root
-          try {
-            python -m pytest -vv --full-trace --disable-warnings --maxfail=1 $NodeIds
-            if ($LASTEXITCODE -ne 0) { throw "Windows test shard 2 failed." }
-          } finally { Pop-Location }
-      - name: Run Windows test shard 3
-        shell: pwsh
-        run: |
-          $Root = "${{ needs.source-detection.outputs.root }}"
-          $env:NEXUS_NATIVE_MINER_LIB = (Resolve-Path (Join-Path $Root "mining/native/build/nexus_miner.dll")).Path
-          $NodeIds = @(Get-Content (Join-Path $env:RUNNER_TEMP "nexus-windows-shard-3.txt") | Where-Object { $_.Trim() })
-          if ($NodeIds.Count -eq 0) { throw "Windows test shard 3 is empty." }
-          Push-Location $Root
-          try {
-            python -m pytest -vv --full-trace --disable-warnings --maxfail=1 $NodeIds
-            if ($LASTEXITCODE -ne 0) { throw "Windows test shard 3 failed." }
-          } finally { Pop-Location }
-      - name: Run Windows test shard 4
-        shell: pwsh
-        run: |
-          $Root = "${{ needs.source-detection.outputs.root }}"
-          $env:NEXUS_NATIVE_MINER_LIB = (Resolve-Path (Join-Path $Root "mining/native/build/nexus_miner.dll")).Path
-          $NodeIds = @(Get-Content (Join-Path $env:RUNNER_TEMP "nexus-windows-shard-4.txt") | Where-Object { $_.Trim() })
-          if ($NodeIds.Count -eq 0) { throw "Windows test shard 4 is empty." }
-          Push-Location $Root
-          try {
-            python -m pytest -vv --full-trace --disable-warnings --maxfail=1 $NodeIds
-            if ($LASTEXITCODE -ne 0) { throw "Windows test shard 4 failed." }
-          } finally { Pop-Location }
+
 
 
 
