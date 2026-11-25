@@ -24,7 +24,7 @@ pilot.
    merging it with any existing acquisition entries rather than overwriting
    unrelated sources.
 3. Replace the placeholder path with the absolute path to
-   `deployment/security/coraza/logs/*.log` (including rotated files).
+   `deployment/security/coraza/logs/access.log*` (including rotated files).
 4. From an elevated PowerShell prompt, install the Caddy collection:
 
 ```powershell
