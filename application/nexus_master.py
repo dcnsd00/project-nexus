@@ -1510,8 +1510,9 @@ def unmineable_assets(refresh: bool = False):
         data["known_payout_routes"]=unmineable_catalog.payout_routes().get("routes",[])
         return data
     except Exception as exc:
+        safe_error = _safe_network_error_summary(exc, "Upstream metadata unavailable")
         return {"provider":"unMineable","status":"live_metadata_unavailable","auth_required":False,
-                "error":f"{type(exc).__name__}: {_safe_network_error_summary(exc, \"Upstream metadata unavailable\")}",
+                "error":f"{type(exc).__name__}: {safe_error}",
                 "known_payout_routes":unmineable_catalog.payout_routes().get("routes",[]),
                 "warning":"Nu s-a înlocuit catalogul cu o listă goală. Activele necitite rămân UNKNOWN, nu inactive."}
 
