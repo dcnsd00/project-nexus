@@ -6,6 +6,15 @@
 http://127.0.0.1:8780 {
     bind 127.0.0.1
 
+    log {
+        output file ./logs/access.log {
+            roll_size 50MiB
+            roll_keep 10
+            roll_keep_for 720h
+        }
+        format json
+    }
+
     coraza_waf {
         load_owasp_crs
         directives `
