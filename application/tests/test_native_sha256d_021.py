@@ -168,3 +168,21 @@ def test_python_fallback_prioritizes_block_candidate_over_pool_share():
     assert result["nonce"] == start_nonce
     assert result["meets_share_target"] is True
     assert result["meets_block_target"] is True
+
+
+def test_all_supported_native_variants_verify_genesis_with_thread_remainders():
+    status = native_status()
+    if not status["available"]:
+        pytest.skip(status.get("error") or "native C compiler unavailable")
+    for variant in status["variants"]:
+        result = scan_nonce_range_native(
+            GENESIS_HEADER, GENESIS_NONCE, 35,
+            GENESIS_TARGET, GENESIS_TARGET, variant=variant, threads=4,
+        )
+        assert result["status"] == "share_candidate", (variant, result)
+        assert result["nonce"] == GENESIS_NONCE
+        assert result["checked"] == 35
+        assert result["meets_block_target"] is True
+        assert result["hash_internal_hex"] == hashlib.sha256(
+            hashlib.sha256(GENESIS_HEADER[:76] + GENESIS_NONCE.to_bytes(4, "little")).digest()
+        ).hexdigest()
