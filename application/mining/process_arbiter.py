@@ -20,10 +20,48 @@ from typing import BinaryIO, Iterable
 from modules.data_paths import data_path
 
 
+def _windows_process_is_alive(pid: int) -> bool:
+    """Query Windows process state without sending a termination signal.
+
+    On Windows, os.kill(pid, 0) is not a safe liveness probe because
+    non-console signals are implemented with TerminateProcess. Use
+    OpenProcess/GetExitCodeProcess instead.
+    """
+    import ctypes
+    from ctypes import wintypes
+
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    process_query_limited_information = 0x1000
+    still_active = 259
+    error_access_denied = 5
+    error_invalid_parameter = 87
+
+    handle = kernel32.OpenProcess(
+        process_query_limited_information, False, pid
+    )
+    if not handle:
+        error = ctypes.get_last_error()
+        if error == error_access_denied:
+            return True
+        if error == error_invalid_parameter:
+            return False
+        return False
+
+    try:
+        exit_code = wintypes.DWORD()
+        if not kernel32.GetExitCodeProcess(handle, ctypes.byref(exit_code)):
+            return ctypes.get_last_error() == error_access_denied
+        return exit_code.value == still_active
+    finally:
+        kernel32.CloseHandle(handle)
+
+
 def process_is_alive(pid: int | None) -> bool:
     """Return a conservative process-liveness result for a positive PID."""
     if isinstance(pid, bool) or not isinstance(pid, int) or pid <= 0:
         return False
+    if os.name == "nt":
+        return _windows_process_is_alive(pid)
     try:
         os.kill(pid, 0)
     except ProcessLookupError:
