@@ -45,6 +45,7 @@ if ($LASTEXITCODE -ne 0 -or $xcaddyVersionText -notmatch [regex]::Escape($Xcaddy
 
 Push-Location $PSScriptRoot
 try {
+    New-Item -ItemType Directory -Force -Path (Join-Path $PSScriptRoot "logs") | Out-Null
     Write-Host "Building Caddy $CaddyVersion with Coraza Caddy $CorazaCaddyVersion..."
     & $xcaddyPath build $CaddyVersion --with "github.com/corazawaf/coraza-caddy/v2@$CorazaCaddyVersion" --output $Output
     if ($LASTEXITCODE -ne 0) {
