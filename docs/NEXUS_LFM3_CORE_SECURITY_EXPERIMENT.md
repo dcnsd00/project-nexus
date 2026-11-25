@@ -65,10 +65,10 @@ The audited branch already contains these implementation elements:
 
 These are source-level capabilities, not proof of a hardened internet deployment. The documented scheduler is single-process; standalone and MASTER-mounted gateway modes must not run simultaneously against the same database.
 
-### Gaps found in the reviewed gateway surface
+### Remaining gaps in the reviewed gateway surface
 
-- a native in-process EDGE gateway rate limiter has now been added on this experimental branch; it applies bounded fixed-window limits by source IP and, when present, node ID or hashed operator bearer identity. It is defense in depth, not a distributed limiter;
-- no integrated WAF or bot-behavior detection service was found;
+- no WAF is active in the NEXUS runtime; a separate loopback-only Coraza/Caddy pilot scaffold has been added under `deployment/security/coraza/`, but it has not yet been built or run;
+- no bot-behavior detection service is integrated;
 - no VPN/control-plane integration was found;
 - no endpoint detection/response agent was found;
 - the operator bearer token is a static configured secret; production use needs secret rotation, least-privilege handling, and protected delivery;
@@ -101,6 +101,18 @@ NEXUS_EDGE_TRUSTED_PROXY_CIDRS=
 ```
 
 Forwarded client addresses are ignored unless the immediate TCP peer belongs to an explicitly configured trusted proxy CIDR. When trusted, the limiter walks the forwarded chain from right to left, skips trusted proxy addresses, and selects the first untrusted address; it does not blindly trust the left-most header value. Configure only the exact proxy ranges you control. The limiter is process-local and fixed-window; it does not coordinate counters across multiple workers or hosts. A multi-worker or distributed deployment must also enforce shared limits at the reverse-proxy/WAF layer (or use a shared backend). This feature is not proof of protection against every automated client.
+
+### Coraza WAF pilot scaffold
+
+The experimental branch now contains `deployment/security/coraza/`:
+
+- `Caddyfile`: Coraza WAF + embedded OWASP CRS in front of the documented local CORE endpoint `127.0.0.1:8765`; listener is restricted to `127.0.0.1:8780`;
+- `build.ps1` and `build.sh`: reproducible custom Caddy build with pinned Caddy `v2.11.9`, Coraza Caddy module `v2.6.2`, and xcaddy `v0.4.7`;
+- `README.md`: local pilot steps and promotion gates.
+
+The Caddy configuration uses `SecRuleEngine DetectionOnly`; this inspects traffic without blocking on CRS matches during initial validation. The scripts validate the custom binary's WAF module and Caddyfile but do not start the proxy. No WAF binary has been built or installed on the user's machine in this work. Requests made directly to CORE's port 8765 bypass the proxy; the current loopback pilot is not remote protection. For any future VPN exposure, the proxy must bind only to the private interface and firewall the backend port against direct remote access.
+
+The upstream Coraza Caddy module embeds CRS when `load_owasp_crs` is enabled. Its release metadata at the selected version identifies Coraza `3.8.1` and CRS `4.30.0`. Version pins must be reviewed against upstream advisories before updates.
 
 ### Headscale deployment warning
 
@@ -144,6 +156,9 @@ No single CAPTCHA, WAF, VPN, or model can reliably identify every automated clie
 - LFM3 official model card: https://huggingface.co/LiquidAI/LFM3-1.7B
 - llama.cpp: https://github.com/ggml-org/llama.cpp
 - Coraza: https://github.com/corazawaf/coraza
+- Coraza Caddy connector: https://github.com/corazawaf/coraza-caddy
+- xcaddy builder: https://github.com/caddyserver/xcaddy
+- Caddy: https://github.com/caddyserver/caddy
 - OWASP CRS: https://github.com/coreruleset/coreruleset
 - CrowdSec: https://github.com/crowdsecurity/crowdsec
 - Headscale: https://github.com/juanfont/headscale
