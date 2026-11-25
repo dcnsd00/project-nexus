@@ -11,11 +11,13 @@ if (-not $go) {
 }
 
 $goVersionText = (& go version) -join " "
-if ($goVersionText -notmatch 'go version go([0-9]+\.[0-9]+\.[0-9]+)') {
+if ($goVersionText -match 'go version go([0-9]+\.[0-9]+\.[0-9]+)') {
+    $detectedGoVersion = $Matches[1]
+} else {
     throw "Could not parse Go version: $goVersionText"
 }
-if ([version]$Matches[1] -lt [version]"1.26.0") {
-    throw "Go 1.26.0 or newer is required. Found $($Matches[1])."
+if ([version]$detectedGoVersion -lt [version]"1.26.0") {
+    throw "Go 1.26.0 or newer is required. Found $detectedGoVersion."
 }
 
 $goBin = (& go env GOBIN).Trim()
