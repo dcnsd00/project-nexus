@@ -21,51 +21,33 @@ from modules.data_paths import data_path
 
 
 def _windows_process_is_alive(pid: int) -> bool:
-    """Query Windows process state without sending a termination signal.
-
-    On Windows, os.kill(pid, 0) is not a safe liveness probe because
-    non-console signals are implemented with TerminateProcess. Use
-    OpenProcess/GetExitCodeProcess instead.
-    """
-    import ctypes
-    from ctypes import wintypes
-
-    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
-    kernel32.OpenProcess.argtypes = [
-        wintypes.DWORD, wintypes.BOOL, wintypes.DWORD
-    ]
-    kernel32.OpenProcess.restype = wintypes.HANDLE
-    kernel32.GetExitCodeProcess.argtypes = [
-        wintypes.HANDLE, ctypes.POINTER(wintypes.DWORD)
-    ]
-    kernel32.GetExitCodeProcess.restype = wintypes.BOOL
-    kernel32.CloseHandle.argtypes = [wintypes.HANDLE]
-    kernel32.CloseHandle.restype = wintypes.BOOL
-
-    process_query_limited_information = 0x1000
-    still_active = 259
-    error_access_denied = 5
-    error_invalid_parameter = 87
-
-    handle = kernel32.OpenProcess(
-        process_query_limited_information, False, pid
-    )
-    if not handle:
-        error = ctypes.get_last_error()
-        if error == error_access_denied:
-            return True
-        if error == error_invalid_parameter:
-            return False
-        return False
-
+    """Fail closed when Windows process state cannot be queried safely."""
     try:
-        exit_code = wintypes.DWORD()
-        if not kernel32.GetExitCodeProcess(handle, ctypes.byref(exit_code)):
-            return ctypes.get_last_error() == error_access_denied
-        return exit_code.value == still_active
-    finally:
-        kernel32.CloseHandle(handle)
+        import ctypes
+        from ctypes import wintypes
 
+        kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+        kernel32.OpenProcess.argtypes = [wintypes.DWORD, wintypes.BOOL, wintypes.DWORD]
+        kernel32.OpenProcess.restype = wintypes.HANDLE
+        kernel32.GetExitCodeProcess.argtypes = [wintypes.HANDLE, ctypes.POINTER(wintypes.DWORD)]
+        kernel32.GetExitCodeProcess.restype = wintypes.BOOL
+        kernel32.CloseHandle.argtypes = [wintypes.HANDLE]
+        kernel32.CloseHandle.restype = wintypes.BOOL
+
+        handle = kernel32.OpenProcess(0x1000, False, pid)
+        if not handle:
+            # Only definitive "PID does not exist" errors are considered dead.
+            return ctypes.get_last_error() not in (87, 1168)
+
+        try:
+            exit_code = wintypes.DWORD()
+            if not kernel32.GetExitCodeProcess(handle, ctypes.byref(exit_code)):
+                return True
+            return exit_code.value == 259  # STILL_ACTIVE
+        finally:
+            kernel32.CloseHandle(handle)
+    except Exception:
+        return True
 
 def process_is_alive(pid: int | None) -> bool:
     """Return a conservative process-liveness result for a positive PID."""
