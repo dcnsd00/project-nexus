@@ -2,7 +2,7 @@
 
 **Target:** `dcnsd00/project-nexus`  
 **Branch:** `experiment/lfm3-core-security-lab-v1`  
-**Commit scanned:** scanner identified the branch; GitHub independently confirmed HEAD `9a773af00567b0fc84cd79b268b8f93958131e69` at scan time. The scanner response itself did not include a commit SHA.  
+**Commit scanned:** scanner identified the branch; GitHub independently confirmed HEAD `7400d02c3f8a414db7feba1ce9283c300f22ae5b` at scan time. The scanner response itself did not include a commit SHA.  
 **Scanner:** VisionEdge AIScan full GitHub repository scan
 
 ## 1. Scan result
@@ -57,16 +57,16 @@ The interpolated value is `int(self.timeout_s * 1000)`. The constructor rejects 
 
 ### 2.4 Mutable GitHub Action reference — 1 low finding
 
-Locations returned by AIScan: `.github/workflows/nexus-ci.yml`, Windows MSVC setup, and `.github/workflows/nexus-desktop-package.yml:31`, and `.github/workflows/nexus-full-benchmark.yml:37`.
+The latest scan returned `.github/workflows/nexus-full-benchmark.yml:37`. Earlier scan results also identified `.github/workflows/nexus-ci.yml` and `.github/workflows/nexus-desktop-package.yml:31`; both earlier references have since been pinned and are no longer returned by the latest scan.
 
 **Remediation applied:** pinned `ilammy/msvc-dev-cmd` to immutable commit `0b201ec74fa43914dc39ae48a89fd1d8cb592756` in `.github/workflows/nexus-ci.yml`, `.github/workflows/nexus-desktop-package.yml`, and `.github/workflows/nexus-full-benchmark.yml`, with the upstream release label `v1.13.0`.
 
-The referenced upstream release is signed and identifies this commit as v1.13.0. This change is limited to the action reference; it does not change the MSVC architecture input or build behavior.
+The referenced upstream release is signed and identifies this commit as v1.13.0. The same immutable commit is used in the main CI, desktop packaging and full benchmark workflows. These changes affect only the action references, not the MSVC architecture inputs or build behavior.
 
 ## 3. Residual status
 
 - The 9 research-randomness reports, 2 SQL reports, and 1 action-pin report received individual review.
-- The action-pin item is remediated in both returned workflow locations on this branch.
+- The three returned MSVC action references across the sequential scans have now been pinned on this branch.
 - The 11 medium findings are not all fixed: 11 is the scanner's total count, and only the returned locations above were manually triaged. The SQL/randomness call sites are assessed as false positives, not vulnerabilities.
 - The remaining 25 low and 8 informational findings have not been individually reviewed in this report.
 - No claim is made that static scanning proves runtime security or that every finding in the scan has been closed.
@@ -81,7 +81,7 @@ The last fully green GitHub Actions run before the latest WAF/log and packaging 
 - Windows application shards 1–8: PASS;
 - Coraza WAF build and Caddyfile validation: PASS.
 
-A newer run `45577952724` was running on commit `9a773af00567b0fc84cd79b268b8f93958131e69` when this report was updated. Its Linux tests, Coraza build and Windows runtime preparation had not all completed yet. A subsequent run is required to validate the later desktop-workflow pin and final log changes.
+Run `45578415772` was queued on commit `60ef246a172981f76bb9b83568c9e3d8147131f4` after the latest scan and the final workflow pin. This report update creates another commit, so CI for the final branch head must be checked separately; do not infer a pass from the earlier fully green run.
 
 ## 5. Operational boundaries
 
