@@ -6,7 +6,7 @@ pilot. It does not install CrowdSec, create firewall rules, or start a bouncer.
 ## Data path
 
 1. Caddy writes JSON access logs to
-   `deployment/security/coraza/logs/access.log` and rotates older files in the
+   `deployment/security/coraza/logs/access*.log` (active plus rolled files) in the
    same directory using names such as `access-<timestamp>-size.log`.
 2. Rotated access logs are kept uncompressed so the acquisition can parse them.
 3. CrowdSec reads active and rotated access logs using the official
