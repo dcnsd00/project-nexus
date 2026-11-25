@@ -4,6 +4,7 @@ import time
 from pathlib import Path
 
 from mining.hybrid_worker import run_worker
+import mining.hybrid_worker as hybrid_worker
 
 
 def test_worker_launches_owned_child_and_stops_it(tmp_path):
@@ -55,3 +56,25 @@ def test_worker_propagates_child_exit_code_and_uses_isolated_log(tmp_path):
     assert data['state'] == 'failed'
     assert data['child_exit_code'] == 9
     assert log.exists()
+
+
+
+def test_worker_status_write_retries_transient_permission_error(tmp_path, monkeypatch):
+    status = tmp_path / "gpu" / "status.json"
+    real_replace = hybrid_worker.os.replace
+    attempts = {"count": 0}
+
+    def flaky_replace(source, destination):
+        attempts["count"] += 1
+        if attempts["count"] <= 2:
+            raise PermissionError("simulated transient Windows sharing violation")
+        return real_replace(source, destination)
+
+    monkeypatch.setattr(hybrid_worker.os, "replace", flaky_replace)
+    hybrid_worker._write_status(status, {"state": "running", "pid": 123})
+    assert attempts["count"] == 3
+    assert json.loads(status.read_text(encoding="utf-8")) == {
+        "state": "running",
+        "pid": 123,
+    }
+    assert not status.with_suffix(".json." + str(__import__("os").getpid()) + ".tmp").exists()
