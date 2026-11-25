@@ -1,6 +1,6 @@
 # Replace this placeholder with the absolute path to the NEXUS Caddy access log.
-# Example: C:\Users\<user>\source\project-nexus\deployment\security\coraza\logs\access.log
+# Example: C:\Users\<user>\source\project-nexus\deployment\security\coraza\logs\*.log
 filenames:
-  - 'C:\PATH\TO\project-nexus\deployment\security\coraza\logs\access.log'
+  - 'C:\PATH\TO\project-nexus\deployment\security\coraza\logs\*.log'
 labels:
   type: caddy
