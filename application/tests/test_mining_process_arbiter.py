@@ -6,7 +6,8 @@ import time
 
 import pytest
 
-from mining.process_arbiter import MiningProcessArbiter
+from mining.process_arbiter import MiningProcessArbiter, process_is_alive
+import mining.process_arbiter as process_arbiter_module
 
 
 _CHILD_ACQUIRE_SCRIPT = r"""
@@ -207,3 +208,23 @@ def test_direct_controller_and_hybrid_supervisor_are_mutually_exclusive(tmp_path
     direct.stop()
     direct_supervisor.stop_mode()
     assert arbiter.held is False
+
+
+
+def test_windows_process_liveness_uses_non_destructive_api(monkeypatch):
+    calls = []
+
+    def windows_probe(pid):
+        calls.append(pid)
+        return True
+
+    def forbidden_kill(*args, **kwargs):
+        raise AssertionError("os.kill must not be used for Windows liveness checks")
+
+    with monkeypatch.context() as patch:
+        patch.setattr(process_arbiter_module.os, "name", "nt")
+        patch.setattr(process_arbiter_module, "_windows_process_is_alive", windows_probe)
+        patch.setattr(process_arbiter_module.os, "kill", forbidden_kill)
+        assert process_is_alive(43210) is True
+        assert process_is_alive(0) is False
+    assert calls == [43210]
