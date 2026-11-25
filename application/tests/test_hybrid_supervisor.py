@@ -1,7 +1,9 @@
 import sys
 import time
+import os
 
 from mining.hybrid_supervisor import HybridSupervisor
+from mining.process_arbiter import process_is_alive
 
 
 def _cmd():
@@ -114,11 +116,10 @@ def test_stale_heartbeat_is_not_reported_as_running(tmp_path, monkeypatch):
     import json
     item = sup._workers['cpu']
     worker_status = json.loads(item['status_path'].read_text(encoding='utf-8'))
-    assert worker_status.get('pid') == item['process'].pid, {
-        'worker_status_pid': worker_status.get('pid'),
-        'supervisor_process_pid': item['process'].pid,
-        'worker_status': worker_status,
-    }
+    assert worker_status.get('worker_instance_id') == item['worker_instance_id']
+    assert process_is_alive(worker_status.get('pid'))
+    if os.name != 'nt':
+        assert worker_status.get('pid') == item['process'].pid
     observed_now = time.time()
     with monkeypatch.context() as patch:
         patch.setattr(supervisor_module.time, 'time', lambda: observed_now + 30)
@@ -203,11 +204,10 @@ def test_read_only_status_reports_stale_without_stopping_worker(tmp_path, monkey
     item = sup._workers['cpu']
     import json
     worker_status = json.loads(item['status_path'].read_text(encoding='utf-8'))
-    assert worker_status.get('pid') == item['process'].pid, {
-        'worker_status_pid': worker_status.get('pid'),
-        'supervisor_process_pid': item['process'].pid,
-        'worker_status': worker_status,
-    }
+    assert worker_status.get('worker_instance_id') == item['worker_instance_id']
+    assert process_is_alive(worker_status.get('pid'))
+    if os.name != 'nt':
+        assert worker_status.get('pid') == item['process'].pid
 
     observed_now = time.time()
     with monkeypatch.context() as patch:
