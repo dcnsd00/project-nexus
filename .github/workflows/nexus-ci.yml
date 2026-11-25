@@ -148,7 +148,7 @@ jobs:
           New-Item -ItemType Directory -Force -Path $NativeBuild | Out-Null
           $NativeDll = Join-Path $NativeBuild "nexus_miner.dll"
           $NativeSource = Join-Path $Root "mining/native/miner.c"
-          & cl.exe /nologo /O2 /LD /DNEXUS_LIBRARY "/Fe:$NativeDll" "/Fo:$NativeBuild\" $NativeSource
+          & cl.exe /nologo /O2 /LD /DNEXUS_LIBRARY "/Fe:$NativeDll" "/Fo:$NativeBuild\\" $NativeSource
           if ($LASTEXITCODE -ne 0) { throw "MSVC native SHA-256d build failed." }
           if (-not (Test-Path $NativeDll)) { throw "MSVC did not create nexus_miner.dll." }
           Write-Host "Native SHA-256d library built: $NativeDll"
