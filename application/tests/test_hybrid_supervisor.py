@@ -99,18 +99,22 @@ def test_gpu_switch_keeps_cpu_pid_and_rolls_back_failed_candidate(tmp_path):
     sup.stop_mode()
 
 
-def test_stale_heartbeat_is_not_reported_as_running(tmp_path):
-    import json
+def test_stale_heartbeat_is_not_reported_as_running(tmp_path, monkeypatch):
+    import mining.hybrid_supervisor as supervisor_module
+
     sup = HybridSupervisor(runtime_root=tmp_path, heartbeat_timeout=1)
     sup.start({'cpu': {'command': _cmd()}}, mode='standard')
     deadline = time.time() + 5
     while time.time() < deadline and sup.status()['engines']['cpu']['state'] != 'running':
         time.sleep(.05)
-    item = sup._workers['cpu']
-    data = json.loads(item['status_path'].read_text())
-    data['heartbeat_unix'] = time.time() - 30
-    item['status_path'].write_text(json.dumps(data))
-    stale = sup.status()['engines']['cpu']
+
+    # Advance only the supervisor's clock. The worker runs in a separate
+    # process, so this deterministically simulates an expired heartbeat
+    # without racing its periodic status-file writes.
+    observed_now = time.time()
+    with monkeypatch.context() as patch:
+        patch.setattr(supervisor_module.time, 'time', lambda: observed_now + 30)
+        stale = sup.status()['engines']['cpu']
     assert stale['state'] == 'failed'
     assert stale['last_error'] == 'stale_heartbeat'
     assert stale['process_alive'] is False
@@ -180,19 +184,20 @@ def test_mode_reports_degraded_when_one_lane_fails_and_other_runs(tmp_path):
     sup.stop_mode()
 
 
-def test_read_only_status_reports_stale_without_stopping_worker(tmp_path):
-    import json
+def test_read_only_status_reports_stale_without_stopping_worker(tmp_path, monkeypatch):
+    import mining.hybrid_supervisor as supervisor_module
+
     sup = HybridSupervisor(runtime_root=tmp_path, heartbeat_timeout=1)
     sup.start({'cpu': {'command': _cmd()}}, mode='standard')
     deadline = time.time() + 5
     while time.time() < deadline and sup.status()['engines']['cpu']['state'] != 'running':
         time.sleep(.05)
     item = sup._workers['cpu']
-    data = json.loads(item['status_path'].read_text())
-    data['heartbeat_unix'] = time.time() - 30
-    item['status_path'].write_text(json.dumps(data))
 
-    result = sup.status(read_only=True)['engines']['cpu']
+    observed_now = time.time()
+    with monkeypatch.context() as patch:
+        patch.setattr(supervisor_module.time, 'time', lambda: observed_now + 30)
+        result = sup.status(read_only=True)['engines']['cpu']
     assert result['state'] == 'failed'
     assert result['last_error'] == 'stale_heartbeat'
     assert result['process_alive'] is True
