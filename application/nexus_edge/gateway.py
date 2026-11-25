@@ -18,6 +18,7 @@ from .manager import EdgeError, EdgeManager, EdgePersistenceError, sign_message
 from .replay_guard import SQLiteReplayGuard
 from .sqlite_store import SQLiteEdgeStore
 from .transports import transport_matrix
+from .rate_limit import EdgeRateLimitMiddleware, rate_limit_settings
 
 
 class ProvisionRequest(BaseModel):
@@ -90,6 +91,9 @@ def create_edge_app(manager: EdgeManager | None = None, *,
                 runtime_lock.release()
         raise
     app = FastAPI(title="NEXUS EDGE Gateway", version="1.0.0")
+    rate_settings = rate_limit_settings(values)
+    if rate_settings["enabled"]:
+        app.add_middleware(EdgeRateLimitMiddleware, **{k: v for k, v in rate_settings.items() if k != "enabled"})
     runtime_lock = getattr(edge, "_runtime_lock", None)
     if owns_manager and runtime_lock is not None:
         app.router.on_shutdown.append(runtime_lock.release)
