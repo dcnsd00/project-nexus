@@ -93,3 +93,22 @@ def test_rate_limiter_ignores_spoofed_leftmost_forwarded_address():
     # already contained a spoofed value supplied by the connecting client.
     headers = {b"x-forwarded-for": b"203.0.113.200, 198.51.100.22"}
     assert middleware._source_ip(scope, headers) == "198.51.100.22"
+
+
+
+def test_rate_limiter_fails_closed_at_capacity_without_evicting_live_buckets():
+    middleware = EdgeRateLimitMiddleware(
+        lambda *_: None,
+        max_requests=120,
+        window_seconds=60,
+        max_keys=100,
+    )
+    for index in range(100):
+        assert middleware._consume([f"ip:198.51.100.{index}"], 10.0) is None
+
+    assert len(middleware._buckets) == 100
+    assert middleware._consume(["ip:203.0.113.250"], 10.0) == 60
+    assert len(middleware._buckets) == 100
+    assert "ip:198.51.100.0" in middleware._buckets
+    # A known identity continues to use its existing bucket at capacity.
+    assert middleware._consume(["ip:198.51.100.0"], 10.0) is None
