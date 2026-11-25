@@ -86,3 +86,52 @@ Run `45578415772` was queued on commit `60ef246a172981f76bb9b83568c9e3d8147131f4
 ## 5. Operational boundaries
 
 The Coraza Caddy pilot is built/validated in CI but is not installed or started on the user's machine. The WAF remains DetectionOnly and loopback-only in the scaffold. CrowdSec is represented by an acquisition template and README only; its Security Engine and Windows Firewall remediation component are not installed or active. No VPN is configured or exposed. The local LFM3 model/runtime has not yet been installed or benchmarked.
+
+
+## 6. Current-main scan — 2026-11-25
+
+**Target:** `dcnsd00/project-nexus` / `main`  
+**Exact HEAD:** `516bb3ca7859159c962b455e55cded01e51d9224`  
+**Scanner:** VisionEdge AIScan full GitHub repository scan  
+**Grade:** B (78/100)  
+**Verdict:** `GO_WITH_CONDITIONS`
+
+| Severity | Count |
+|---|---:|
+| Critical | 0 |
+| High | 0 |
+| Medium | 11 |
+| Low | 17 |
+| Informational | 9 |
+
+AIScan returned 12 detailed findings and indicated 25 additional findings without individual detail in the response. The 25 not individually returned are not marked resolved by this document.
+
+### 6.1 Medium findings — manual review
+
+**Nine deterministic randomness findings.** Locations include the SHA-256d research/benchmark and result-verification modules under `application/nexus_research/nexus_sha`, `application/research/sha2_independent/nexus_sha`, and the legacy MULTIMINER X research lab. The inspected calls use explicitly seeded `random.Random` instances to produce repeatable benchmark samples, nonce windows, or verification subsets. They do not generate authentication tokens, encryption keys, session identifiers, node secrets or security challenges.
+
+**Disposition:** Provisional false positives for the inspected call sites. Preserve deterministic seeds for reproducibility. Any future security credential or unpredictable challenge must use a cryptographically secure generator and a separate code path.
+
+**Earnings Intelligence SQL identifier.** Location: `application/modules/earnings_intelligence.py:219`. The table name is selected from a fixed tuple of internal table identifiers; request/provider data cannot populate the identifier. Query values remain bound parameters.
+
+**EDGE SQLite busy-timeout PRAGMA.** Location: `application/nexus_edge/sqlite_store.py:137`. The interpolated expression is `int(self.timeout_s * 1000)`, a numeric conversion of local configuration. SQLite PRAGMA does not accept a bind parameter for this setting. No user-controlled SQL string was identified. A finite-positive timeout validation remains a robustness improvement, not a confirmed injection fix.
+
+**Disposition for the two SQL findings:** No SQL injection confirmed at the inspected call sites. Keep the fixed identifier allowlist and numeric conversion; add/retain tests that prevent untrusted identifiers or raw SQL values from entering these paths.
+
+### 6.2 Low findings and remaining review
+
+One detailed low finding concerns open version ranges in `application/core/PROJECT-NEXUS-LOCAL/requirements.txt`. The application requirements also use bounded version ranges rather than an exact hash-locked environment. This is a reproducibility and dependency-drift risk; it is not by itself proof of a vulnerable package. Add pip Dependabot coverage and generate a reviewed lockfile with hashes before claiming deterministic dependency resolution.
+
+The remaining 16 low and 9 informational findings were not individually exposed in the current scan response and remain untriaged. No claim is made that the entire low/informational backlog is resolved.
+
+### 6.3 Comparison with earlier snapshots
+
+The earlier grade C/73 scan in this file targeted an older LFM3 experiment-branch snapshot. The 24 November Notion snapshot targeted a different branch/commit and reported a different finding distribution. These are separate scans; count/grade differences are not a security trend unless target commit, scanner version, scan configuration and detailed findings are aligned.
+
+### 6.4 Current targeted scan
+
+PR #23's shared market-data adapter and Gate paper-trading refactor received a targeted AIScan result of grade A/100 with zero findings. This is scoped to those files and does not replace the full repository scan.
+
+### 6.5 CI coverage gap
+
+Current GitHub Actions includes Coraza/Caddy configuration validation but no dedicated Gitleaks, Trivy filesystem/dependency, or CodeQL workflow. Dependabot currently covers GitHub Actions only; pip ecosystems are not configured. These remain explicit follow-up items. Do not claim supply-chain scanning is complete until the workflows are added, run, and findings triaged.
