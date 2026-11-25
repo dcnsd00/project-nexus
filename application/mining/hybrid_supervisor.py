@@ -373,6 +373,10 @@ class HybridSupervisor:
                         self.stop(engine)
                         item = self._workers.get(engine, item)
                         proc = item['process']
+                        if os.name == 'nt' and worker_pid_valid and worker_instance_matches:
+                            worker_process_alive = process_is_alive(worker_pid)
+                        else:
+                            worker_process_alive = proc.poll() is None
                     state = 'failed'
                     data['last_error'] = 'stale_heartbeat'
                 display_pid = worker_pid if worker_pid_valid and worker_instance_matches else proc.pid
