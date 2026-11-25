@@ -6,15 +6,23 @@ pilot. It does not install CrowdSec, create firewall rules, or start a bouncer.
 ## Data path
 
 1. Caddy writes JSON access logs to
-   `deployment/security/coraza/logs/access.log` and rotates older files in the same directory.
-2. CrowdSec reads that file using the official `crowdsecurity/caddy`
-   collection and its HTTP behavior scenarios.
+   `deployment/security/coraza/logs/access.log` and rotates older files in the
+   same directory using names such as `access-<timestamp>-size.log`.
+2. Rotated access logs are kept uncompressed so the acquisition can parse them.
+3. CrowdSec reads active and rotated access logs using the official
+   `crowdsecurity/caddy` collection and its HTTP behavior scenarios.
 3. The Security Engine creates decisions; it does not block traffic by itself.
 4. A remediation component (bouncer) is required to enforce decisions.
 
-Caddy's access logger redacts sensitive request headers such as Authorization
-and Cookie by default. Do not enable Caddy's `log_credentials` option for this
-pilot.
+Caddy's access logger redacts standard sensitive request headers such as
+Authorization, Proxy-Authorization, Cookie and Set-Cookie by default. Do not
+enable Caddy's `log_credentials` option. The NEXUS Caddyfile also replaces
+values for a fixed list of common credential-like query parameters, but this
+is not generic secret detection: do not place credentials in URLs.
+
+The acquisition file intentionally matches `access*.log`, which includes the
+active `access.log` and uncompressed rolled files `access-*.log`. It does not
+match the separate Coraza serial audit log.
 
 ## Configure the Windows acquisition
 
@@ -24,7 +32,7 @@ pilot.
    merging it with any existing acquisition entries rather than overwriting
    unrelated sources.
 3. Replace the placeholder path with the absolute path to
-   `deployment/security/coraza/logs/access.log*` (including rotated files).
+   `deployment/security/coraza/logs/access*.log` (including rotated files).
 4. From an elevated PowerShell prompt, install the Caddy collection:
 
 ```powershell

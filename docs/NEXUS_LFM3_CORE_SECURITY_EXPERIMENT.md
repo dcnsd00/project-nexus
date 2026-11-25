@@ -67,7 +67,7 @@ These are source-level capabilities, not proof of a hardened internet deployment
 
 ### Remaining gaps in the reviewed gateway surface
 
-- no WAF is active in the NEXUS runtime; a separate loopback-only Coraza/Caddy pilot scaffold has been added under `deployment/security/coraza/`, but it has not yet been built or run;
+- no WAF is active in the NEXUS runtime; a separate loopback-only Coraza/Caddy pilot scaffold has been added under `deployment/security/coraza/`; its Caddyfile and custom binary build have passed CI validation, but the proxy has not been installed or started on the user's machine;
 - no CrowdSec engine or remediation bouncer is installed or active; a Windows acquisition template for Caddy JSON logs is prepared under `deployment/security/crowdsec/`;
 - no VPN/control-plane is deployed or connected; a deny-all Headscale policy scaffold has been added under `deployment/security/headscale/`, but no Headscale service, client, peer keys, routes, or ACL allow rules are provisioned;
 - no endpoint detection/response agent was found;
@@ -112,7 +112,9 @@ The experimental branch now contains `deployment/security/coraza/`:
 
 The Caddy configuration uses `SecRuleEngine DetectionOnly`; this inspects traffic without blocking on CRS matches during initial validation. The scripts validate the custom binary's WAF module and Caddyfile but do not start the proxy. No WAF binary has been built or installed on the user's machine in this work. Requests made directly to CORE's port 8765 bypass the proxy; the current loopback pilot is not remote protection. For any future VPN exposure, the proxy must bind only to the private interface and firewall the backend port against direct remote access.
 
-Caddy access logging is enabled in JSON format at `logs/access.log`, with rotation (50 MiB, 10 files, 30 days). Caddy redacts sensitive headers such as Authorization and Cookie by default; do not enable `log_credentials`. The CrowdSec acquisition template watches the log directory, including rotated files, and labels entries as `caddy`.
+Caddy access logs are JSON at `logs/access.log`, rotated at 50 MiB with up to 10 rolled files and a 30-day age limit. Rolled files are deliberately uncompressed for the CrowdSec file acquisition. The Caddy log encoder redacts standard sensitive headers by default and replaces values for a documented list of credential-like query keys. This is a finite list, not generic secret detection; credentials must not be placed in URL paths or unlisted query parameters.
+
+The Coraza audit configuration uses `SecAuditLogParts AHZ`: A (transaction header), H (audit trailer) and Z (final boundary). It deliberately omits B/C request headers and bodies and K (the full matched-rules list), so the current audit log does not contain complete rule IDs/messages for rule-by-rule triage. For synthetic-only diagnostics, K can be enabled temporarily in an isolated test config; treat those logs as sensitive. The serial Coraza audit log is separate from Caddy's access log and has no rotation procedure in this scaffold. External rotation/retention and restrictive file permissions must be tested before sustained use.
 
 ### CrowdSec Windows detection scaffold
 

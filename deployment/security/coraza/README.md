@@ -10,12 +10,29 @@ FastAPI service. It is not installed or activated automatically.
 - The Caddy listener is explicitly loopback-only; it is not exposed to LAN/WAN.
 - OWASP CRS is embedded through the official Coraza Caddy module.
 - `SecRuleEngine DetectionOnly` is intentional for the first pilot. Requests
-  are inspected and relevant rule matches are logged, not blocked by CRS rules.
-- Coraza audit events are written as JSON to `./logs/audit.log`; Caddy access
-  logs are written to `./logs/access.log` with size-based rotation.
-- Audit parts are limited to transaction metadata, rule-match trailer and
-  boundary (`AHZ`). Request headers and bodies are intentionally excluded to
-  avoid persisting Authorization, Cookie or submitted data in the audit log.
+  are inspected, but CRS matches do not block requests.
+- Caddy access logs are JSON at `./logs/access.log`. The query filter replaces
+  values for common credential-like keys (access/refresh/id tokens, API keys,
+  client secrets, passwords, signatures, OAuth codes and state) with
+  `REDACTED`.
+- Caddy redacts standard sensitive headers such as Authorization,
+  Proxy-Authorization, Cookie and Set-Cookie by default. This configuration
+  does not enable the `log_credentials` global option.
+- Query filtering is an explicit key list, not a general secret detector.
+  Secrets in an unlisted query parameter or in URL path segments could still
+  appear in the access log; applications must not place credentials in URLs.
+- Access log rotation is configured for 50 MiB, retains up to 10 rolled files
+  and 30 days, and keeps rolled files uncompressed so the CrowdSec file
+  acquisition can parse them.
+- Coraza audit events are JSON in `./logs/audit.log`. Audit parts are
+  deliberately limited to `AHZ`: A (transaction header), H (audit trailer)
+  and Z (final boundary). This omits B/C request headers and bodies, and K
+  (the full matched-rules list). Therefore the current audit file does **not**
+  expose complete rule IDs/messages for detailed rule-by-rule diagnosis.
+- The serial Coraza audit file has no rotation policy in this scaffold. Before
+  sustained use, configure and test an external retention/rotation procedure
+  with Caddy stopped, restrictive filesystem permissions and sufficient free
+  space.
 - The NEXUS EDGE in-process rate limiter remains a separate defense layer.
 - This does not configure VPN, Windows Firewall, DNS, certificates, or a
   public listener.
@@ -76,10 +93,11 @@ present, and validates the Caddyfile. It does not start Caddy.
 3. Use `http://127.0.0.1:8780` for requests that should pass through the WAF.
 4. Confirm that the application remains reachable only on loopback. Do not
    change either listener to `0.0.0.0` for this pilot.
-5. Inspect `./logs/audit.log` for Coraza rule matches and
-   `./logs/access.log` for request access records. Protect and rotate the
-   audit log as an operational log; the Caddy access-log rotation setting does
-   not rotate Coraza's separate audit file.
+5. Inspect `./logs/access.log` for request access records and the filtered URI.
+   Inspect `./logs/audit.log` for relevant transaction metadata; do not expect
+   rule IDs because K is intentionally excluded.
+6. Protect the audit file with restrictive filesystem permissions and apply a
+   tested external retention procedure before running this pilot continuously.
 
 Requests made directly to `127.0.0.1:8765` bypass the WAF. The loopback-only
 pilot is intended for local validation, not for protecting a remotely
@@ -100,3 +118,10 @@ Do not change `DetectionOnly` to `On` until:
 
 Do not expose the WAF or CORE directly to the public internet as part of this
 experimental package.
+
+## Upstream documentation
+
+- Caddy access-log filtering and query redaction:
+  https://caddyserver.com/docs/caddyfile/directives/log
+- Coraza audit-log parts:
+  https://www.coraza.io/docs/seclang/directives/

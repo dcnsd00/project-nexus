@@ -118,7 +118,7 @@ jobs:
           name: nexus-windows-runtime
           path: |
             ${{ needs.source-detection.outputs.root }}/
-            deployment/security/headscale/policy.example.hujson
+            deployment/security/
           if-no-files-found: error
           retention-days: 1
 
