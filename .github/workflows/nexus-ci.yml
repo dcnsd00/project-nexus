@@ -70,7 +70,7 @@ jobs:
           retention-days: 1
 
   windows-runtime:
-    needs: [source-detection, windows-runtime]
+    needs: [source-detection, windows-dependencies]
     if: needs.source-detection.outputs.available == 'true'
     runs-on: windows-latest
     timeout-minutes: 20
@@ -189,7 +189,7 @@ jobs:
           (cd "$RESEARCH" && PYTHONPATH="$ROOT:$RESEARCH" python research_main.py test --out-dir "$RUNNER_TEMP/nexus-sha2-results")
 
   windows-compatibility:
-    needs: [source-detection, windows-dependencies]
+    needs: [source-detection, windows-runtime]
     if: needs.source-detection.outputs.available == 'true'
     runs-on: windows-latest
     timeout-minutes: 30
@@ -240,7 +240,7 @@ jobs:
           }
 
   windows-application-shards:
-    needs: [source-detection, windows-dependencies]
+    needs: [source-detection, windows-runtime]
     if: needs.source-detection.outputs.available == 'true'
     strategy:
       fail-fast: false
