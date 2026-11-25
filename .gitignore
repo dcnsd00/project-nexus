@@ -1,0 +1,11 @@
+# Local source-import archive; do not commit the ZIP
+NEXUS_MASTER_0.10.25_SOURCE_IMPORT_BUNDLE_WALLET_MINING.zip
+
+# Local secrets and runtime artifacts
+.env
+.env.*
+!.env.example
+*.sqlite3
+*.db
+__pycache__/
+.pytest_cache/

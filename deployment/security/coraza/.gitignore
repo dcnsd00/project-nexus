@@ -1,0 +1,8 @@
+# Local custom Caddy binary and builder tools
+/caddy
+/caddy.exe
+/.tools/
+
+# Runtime logs (never commit access/audit traffic)
+/logs/access*.log
+/logs/audit.log*

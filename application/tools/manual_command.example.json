@@ -1,0 +1,9 @@
+{
+  "miner_id": "trex",
+  "pool_id": "2miners-rvn-eu",
+  "wallet": "INTRODU_ADRESA_RVN",
+  "worker": "rig1",
+  "algorithm": "KawPoW",
+  "device": "GPU",
+  "use_ssl": false
+}

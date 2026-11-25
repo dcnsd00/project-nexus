@@ -1,0 +1,57 @@
+{
+    order coraza_waf first
+    admin off
+}
+
+http://127.0.0.1:8780 {
+    bind 127.0.0.1
+
+    log {
+        output file ./logs/access.log {
+            roll_size 50MiB
+            roll_keep 10
+            roll_keep_for 720h
+            roll_uncompressed
+        }
+        format filter {
+            request>uri query {
+                replace access_token REDACTED
+                replace refresh_token REDACTED
+                replace id_token REDACTED
+                replace token REDACTED
+                replace api_key REDACTED
+                replace apikey REDACTED
+                replace key REDACTED
+                replace client_secret REDACTED
+                replace password REDACTED
+                replace secret REDACTED
+                replace signature REDACTED
+                replace sig REDACTED
+                replace code REDACTED
+                replace state REDACTED
+            }
+            wrap json
+        }
+    }
+
+    coraza_waf {
+        load_owasp_crs
+        directives `
+            Include @coraza.conf-recommended
+            Include @crs-setup.conf.example
+            Include @owasp_crs/*.conf
+            SecRuleEngine DetectionOnly
+            SecAuditEngine RelevantOnly
+            SecAuditLogType Serial
+            SecAuditLog ./logs/audit.log
+            SecAuditLogFormat JSON
+            # A=transaction header, H=audit trailer, Z=final boundary.
+            # Deliberately omit B/C request data and K matched-rules detail.
+            SecAuditLogParts AHZ
+        `
+    }
+
+    reverse_proxy 127.0.0.1:8765 {
+        header_up Host 127.0.0.1:8765
+    }
+}

@@ -1,0 +1,186 @@
+import unittest
+
+from nexus_edge import EdgeError, EdgeManager, sign_message
+
+
+class Clock:
+    def __init__(self, value=1_800_000_000.0):
+        self.value = value
+
+    def __call__(self):
+        return self.value
+
+    def advance(self, seconds):
+        self.value += seconds
+
+
+class EdgeManagerTests(unittest.TestCase):
+    def setUp(self):
+        self.clock = Clock()
+        self.manager = EdgeManager(clock=self.clock, heartbeat_ttl_s=30, lease_s=10)
+        self.secret = b"nexus-edge-test-secret-32-bytes!!"
+        self.manager.register_node("edge-c5-001", ["telemetry", "math.verify"], self.secret)
+        self.sequence = 0
+        self.beat()
+
+    def beat(self):
+        ts = self.clock()
+        self.sequence += 1
+        msg = {"kind": "heartbeat", "protocol_version": 1, "node_id": "edge-c5-001", "timestamp": ts, "sequence": self.sequence}
+        return self.manager.heartbeat("edge-c5-001", ts, self.sequence, sign_message(self.secret, msg))
+
+    def test_authenticated_node_registration_and_heartbeat(self):
+        self.assertTrue(self.manager.node_status("edge-c5-001")["online"])
+
+    def test_rejects_weak_secret(self):
+        with self.assertRaises(EdgeError):
+            self.manager.register_node("edge-c5-002", ["telemetry"], b"short")
+
+    def test_rejects_duplicate_node(self):
+        with self.assertRaises(EdgeError):
+            self.manager.register_node("edge-c5-001", ["telemetry"], self.secret)
+
+    def test_rejects_invalid_heartbeat_signature(self):
+        with self.assertRaises(EdgeError):
+            self.manager.heartbeat("edge-c5-001", self.clock(), 2, "0" * 64)
+
+    def test_rejects_replayed_heartbeat_sequence(self):
+        with self.assertRaises(EdgeError):
+            self.manager.heartbeat("edge-c5-001", self.clock(), 1, sign_message(self.secret, {"kind": "heartbeat", "protocol_version": 1, "node_id": "edge-c5-001", "timestamp": self.clock(), "sequence": 1}))
+
+
+    def test_rejects_non_numeric_and_non_finite_protocol_timestamps(self):
+        for timestamp in ("NaN", "Infinity", True, float("nan"), float("inf")):
+            with self.subTest(timestamp=timestamp):
+                with self.assertRaisesRegex(EdgeError, "timestamp must be a finite number"):
+                    self.manager.heartbeat(
+                        "edge-c5-001", timestamp, 2, "0" * 64,
+                    )
+
+
+    def test_authenticated_request_rejects_oversized_or_non_object_payload(self):
+        timestamp = self.clock()
+        oversized = {"data": "x" * 256}
+        message = {
+            "kind": "node_request", "protocol_version": 1, "action": "telemetry.push",
+            "node_id": "edge-c5-002", "timestamp": timestamp,
+            "sequence": 2, "payload": oversized,
+        }
+        tiny = EdgeManager(clock=self.clock, max_payload_bytes=128)
+        tiny.register_node("edge-c5-002", ["telemetry"], self.secret)
+        with self.assertRaisesRegex(EdgeError, "payload exceeds configured size limit"):
+            tiny.authenticate_request(
+                "edge-c5-002", "telemetry.push", timestamp, 2, oversized,
+                sign_message(self.secret, message),
+            )
+
+        with self.assertRaisesRegex(EdgeError, "payload must be a JSON object"):
+            self.manager.authenticate_request(
+                "edge-c5-001", "telemetry.push", timestamp, 2, ["not", "an", "object"], "0" * 64,
+            )
+
+    def test_rejects_stale_heartbeat(self):
+        old = self.clock() - 60
+        msg = {"kind": "heartbeat", "protocol_version": 1, "node_id": "edge-c5-001", "timestamp": old, "sequence": 2}
+        with self.assertRaises(EdgeError):
+            self.manager.heartbeat("edge-c5-001", old, 2, sign_message(self.secret, msg))
+
+    def test_capability_scheduling_and_signed_result(self):
+        task = self.manager.submit_task("math.verify", {"input": "abc"}, ["math.verify"])
+        claimed = self.manager.claim_task("edge-c5-001")
+        self.assertEqual(claimed["task_id"], task["task_id"])
+        assignment_nonce = claimed["assignment_nonce"]
+        self.assertTrue(assignment_nonce)
+        self.manager.start_task("edge-c5-001", task["task_id"])
+        result = {"digest": "ba7816bf"}
+        msg = {"kind": "task_result", "protocol_version": 1, "node_id": "edge-c5-001",
+               "task_id": task["task_id"], "assignment_nonce": assignment_nonce,
+               "result": result}
+        completed = self.manager.complete_task(
+            "edge-c5-001", task["task_id"], result, assignment_nonce,
+            sign_message(self.secret, msg)
+        )
+        self.assertEqual(completed["state"], "SUCCEEDED")
+        self.assertEqual(len(completed["result_sha256"]), 64)
+
+    def test_rejects_forged_result(self):
+        task = self.manager.submit_task("math.verify", {"input": "x"}, ["math.verify"])
+        claim = self.manager.claim_task("edge-c5-001")
+        self.manager.start_task("edge-c5-001", task["task_id"])
+        with self.assertRaises(EdgeError):
+            self.manager.complete_task(
+                "edge-c5-001", task["task_id"], {"ok": True},
+                claim["assignment_nonce"], "bad",
+            )
+
+    def test_stale_result_is_rejected_after_lease_reassignment(self):
+        task = self.manager.submit_task(
+            "math.verify", {"input": "stale-result"}, ["math.verify"]
+        )
+        first_claim = self.manager.claim_task("edge-c5-001")
+        first_nonce = first_claim["assignment_nonce"]
+        self.manager.start_task("edge-c5-001", task["task_id"])
+
+        self.clock.advance(11)
+        self.assertEqual(self.manager.reap_expired(), {"expired": 0, "requeued": 1})
+        second_claim = self.manager.claim_task("edge-c5-001")
+        second_nonce = second_claim["assignment_nonce"]
+        self.assertNotEqual(first_nonce, second_nonce)
+        self.manager.start_task("edge-c5-001", task["task_id"])
+
+        result = {"verified": True}
+        stale_message = {
+            "kind": "task_result", "protocol_version": 1, "node_id": "edge-c5-001",
+            "task_id": task["task_id"], "assignment_nonce": first_nonce,
+            "result": result,
+        }
+        with self.assertRaisesRegex(EdgeError, "assignment nonce mismatch"):
+            self.manager.complete_task(
+                "edge-c5-001", task["task_id"], result, first_nonce,
+                sign_message(self.secret, stale_message),
+            )
+
+        current_message = dict(stale_message, assignment_nonce=second_nonce)
+        completed = self.manager.complete_task(
+            "edge-c5-001", task["task_id"], result, second_nonce,
+            sign_message(self.secret, current_message),
+        )
+        self.assertEqual(completed["state"], "SUCCEEDED")
+
+    def test_task_is_not_assigned_without_capability(self):
+        self.manager.register_node("edge-data-002", ["telemetry"], b"x" * 32)
+        ts = self.clock()
+        msg = {"kind": "heartbeat", "protocol_version": 1, "node_id": "edge-data-002", "timestamp": ts, "sequence": 1}
+        self.manager.heartbeat("edge-data-002", ts, 1, sign_message(b"x" * 32, msg))
+        self.manager.submit_task("math.verify", {"input": "x"}, ["math.verify"])
+        self.assertIsNone(self.manager.claim_task("edge-data-002"))
+
+    def test_expired_lease_requeues_task(self):
+        task = self.manager.submit_task("telemetry.collect", {"sensor": "temp"}, ["telemetry"])
+        self.manager.claim_task("edge-c5-001")
+        self.manager.start_task("edge-c5-001", task["task_id"])
+        self.clock.advance(11)
+        self.assertEqual(self.manager.reap_expired(), {"expired": 0, "requeued": 1})
+        self.assertEqual(self.manager.task_status(task["task_id"])["state"], "QUEUED")
+
+    def test_deadline_expires_task(self):
+        task = self.manager.submit_task("telemetry.collect", {}, ["telemetry"], ttl_s=2)
+        self.clock.advance(3)
+        self.assertEqual(self.manager.reap_expired(), {"expired": 1, "requeued": 0})
+        self.assertEqual(self.manager.task_status(task["task_id"])["state"], "EXPIRED")
+
+    def test_payload_size_limit(self):
+        tiny = EdgeManager(max_payload_bytes=128, clock=self.clock)
+        with self.assertRaises(EdgeError):
+            tiny.submit_task("math.verify", {"data": "x" * 256}, ["math.verify"])
+
+    def test_snapshot_discloses_pilot_limits(self):
+        snap = self.manager.snapshot()
+        self.assertEqual(snap["mode"], "in_memory_pilot")
+        self.assertFalse(snap["network_io_enabled"])
+        self.assertFalse(snap["wallet_access_enabled"])
+        self.assertFalse(snap["miner_autostart_enabled"])
+
+
+if __name__ == "__main__":
+    unittest.main()

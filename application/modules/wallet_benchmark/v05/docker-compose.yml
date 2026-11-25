@@ -1,0 +1,95 @@
+name: nexus-v05-local-lab
+
+services:
+  bitcoin-regtest:
+    # Convenience image built from Bitcoin Core release binaries; image is not
+    # maintained/endorsed by the Bitcoin Core project. Regtest only.
+    image: bitcoin/bitcoin:32.1
+    command:
+      - -printtoconsole
+      - -regtest=1
+      - -server=1
+      - -listen=0
+      - -dnsseed=0
+      - -upnp=0
+      - -txindex=1
+      - -fallbackfee=0.0002
+      - -rpcbind=0.0.0.0
+      - -rpcallowip=172.30.88.0/24
+      - -rpcuser=nexus_local
+      - -rpcpassword=nexus-local-regtest-only-DoNotReuse
+      - -rpcport=18443
+      - -port=18444
+    ports:
+      - "127.0.0.1:18443:18443"
+    networks:
+      - nexus-isolated
+    restart: "no"
+
+  anvil-eth:
+    image: ghcr.io/foundry-rs/foundry:v1.4.0
+    command: >-
+      anvil --host 0.0.0.0 --port 8545 --chain-id 31337
+      --accounts 10 --balance 10000
+      --mnemonic "test test test test test test test test test test test junk"
+      --silent
+    ports:
+      - "127.0.0.1:18545:8545"
+    networks: [nexus-isolated]
+    restart: "no"
+
+  anvil-base:
+    image: ghcr.io/foundry-rs/foundry:v1.4.0
+    command: >-
+      anvil --host 0.0.0.0 --port 8545 --chain-id 8453
+      --accounts 10 --balance 10000
+      --mnemonic "test test test test test test test test test test test junk"
+      --silent
+    ports:
+      - "127.0.0.1:18546:8545"
+    networks: [nexus-isolated]
+    restart: "no"
+
+  anvil-bnb:
+    image: ghcr.io/foundry-rs/foundry:v1.4.0
+    command: >-
+      anvil --host 0.0.0.0 --port 8545 --chain-id 56
+      --accounts 10 --balance 10000
+      --mnemonic "test test test test test test test test test test test junk"
+      --silent
+    ports:
+      - "127.0.0.1:18547:8545"
+    networks: [nexus-isolated]
+    restart: "no"
+
+  anvil-polygon:
+    image: ghcr.io/foundry-rs/foundry:v1.4.0
+    command: >-
+      anvil --host 0.0.0.0 --port 8545 --chain-id 137
+      --accounts 10 --balance 10000
+      --mnemonic "test test test test test test test test test test test junk"
+      --silent
+    ports:
+      - "127.0.0.1:18548:8545"
+    networks: [nexus-isolated]
+    restart: "no"
+
+  anvil-arbitrum:
+    image: ghcr.io/foundry-rs/foundry:v1.4.0
+    command: >-
+      anvil --host 0.0.0.0 --port 8545 --chain-id 42161
+      --accounts 10 --balance 10000
+      --mnemonic "test test test test test test test test test test test junk"
+      --silent
+    ports:
+      - "127.0.0.1:18549:8545"
+    networks: [nexus-isolated]
+    restart: "no"
+
+networks:
+  nexus-isolated:
+    driver: bridge
+    internal: true
+    ipam:
+      config:
+        - subnet: 172.30.88.0/24

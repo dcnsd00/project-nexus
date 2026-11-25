@@ -1,24 +1,24 @@
-# NEXUS source import security scan — corrected revision (2026-11-12)
+# NEXUS source import security review — 2026-11-12
 
-The earlier bundle contained fixed passphrase literals in wallet tests and a fixed local Bitcoin Core regtest RPC password. These were reviewed and removed from the corrected bundle.
-
-Remediation in local source:
+## Remediations carried into the current bundle
+The original source review identified fixed passphrase literals in wallet test fixtures and a fixed local Bitcoin Core regtest RPC password. The current cumulative bundle includes the following remediations:
 - `tests/test_keystore_recovery_20.py`: test passphrase generated with `secrets.token_urlsafe(32)`.
-- `tests/test_wallet_recovery_integration_016.py`: test passphrases generated at runtime; the vault unlock test reuses the same generated value within its test.
-- `modules/blockchain_regtest/nexus_v05_integration.py` and `modules/wallet_benchmark/v05/nexus_v05_integration.py`: RPC password is read from `NEXUS_REGTEST_RPC_PASSWORD`; execution fails explicitly if it is not configured.
+- `tests/test_wallet_recovery_integration_016.py`: test passphrases generated at runtime and reused only within the test.
+- `modules/blockchain_regtest/nexus_v05_integration.py` and `modules/wallet_benchmark/v05/nexus_v05_integration.py`: RPC password read from `NEXUS_REGTEST_RPC_PASSWORD`; execution fails if it is not configured.
 
-Validation on corrected local source:
-- `python -m compileall -q .`: PASS.
-- `python -m pytest -q tests/rcsc tests/test_keystore_recovery_20.py tests/test_wallet_recovery_integration_016.py --disable-warnings --maxfail=1`: **69 passed in 9.00s**.
-- The focused wallet tests alone: 36 passed in 9.77s.
+## Evidence and scope
+- Focused wallet + RCSC validation on the remediated source: 69 passed in 9.00s.
+- Current cumulative bundle also includes later RCSC, lifecycle, runtime, wallet read-only adapter, and mining status adapter changes.
+- Current bundle inventory: 519 project files + manifest = 520 ZIP entries.
+- Current bundle SHA-256: `642c882557993a86db21583e8efaef359dd01f8f9b28440462ba8a723c924d50`.
+- Current Library path: `/NEXUS/NEXUS_MASTER_0.10.25_SOURCE_IMPORT_BUNDLE_WALLET_MINING.zip`.
 
-Corrected archive:
-- 513 source/configuration/documentation/test files plus manifest (514 ZIP file entries).
-- SHA-256: `fafd5dd81fc0911cbb3e0c54aaa2dd6ef021010e60da31871eaa2f789a9ec55e`.
-- Library path: `/NEXUS/NEXUS_MASTER_0.10.25_SOURCE_IMPORT_BUNDLE(1).zip`.
-- Import helper and Android guide now pin this hash and filename.
+## Required checks before merge
+1. Run the repository secret scanner on the extracted `application/` tree.
+2. Inspect every finding; do not suppress findings without evidence.
+3. Confirm no wallet seeds, private keys, API tokens, production credentials, local databases, or personal data are staged.
+4. Run compileall and the full pytest suite in Codespaces.
+5. Review the diff before opening or merging a pull request.
 
-Limitations:
-- This is a heuristic source review, not a formal secret-scanning guarantee.
-- The corrected archive is prepared but still has not been imported into GitHub.
-- 69 passing targeted tests are not the full suite and do not establish live runtime, wallet custody, hardware mining, or predictive mining performance.
+## Limitations
+This is a documented remediation of previously identified fixed credentials, not a formal security certification or guarantee that the current archive contains no secrets. The full test suite has not been completed in this runtime. The source archive has not yet been imported into GitHub. No live wallet, mining, DePIN, or blockchain operation is authorized by this import procedure.

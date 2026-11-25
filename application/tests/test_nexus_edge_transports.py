@@ -1,0 +1,335 @@
+import json
+import time
+import pytest
+from cryptography.fernet import Fernet
+from nexus_edge.transports import MQTTBridge, MQTTConfig, NetworkPath, TransportKind, transport_matrix
+from nexus_edge.topology import DeploymentMode, DeploymentTopology
+from nexus_edge.manager import EdgeManager, sign_message
+from nexus_edge.replay_guard import SQLiteReplayGuard
+from nexus_edge.sqlite_store import SQLiteEdgeStore
+
+
+def _durable_manager(tmp_path):
+    database = tmp_path / "edge.sqlite3"
+    return EdgeManager(
+        replay_guard=SQLiteReplayGuard(database),
+        store=SQLiteEdgeStore(database, encryption_key=Fernet.generate_key()),
+    )
+
+class FakeResult:
+    rc = 0
+
+class FakeMessage:
+    topic = "nexus/v1/nodes/esp32-node-01/up"
+    payload = b'{"sequence":1}'
+    mid = 1
+    qos = 1
+
+class FakeClient:
+    def __init__(self, **kwargs):
+        self.kwargs=kwargs; self.calls=[]; self.on_message=None
+    def username_pw_set(self,*args): self.calls.append(("auth",args))
+    def manual_ack_set(self,value): self.calls.append(("manual_ack_set",value))
+    def ack(self,mid,qos): self.calls.append(("ack",mid,qos)); return 0
+    def tls_set(self,**kwargs): self.calls.append(("tls",kwargs))
+    def tls_insecure_set(self,value): self.calls.append(("tls_insecure",value))
+    def connect(self,*args):
+        self.calls.append(("connect",args))
+        if self.on_connect:
+            self.on_connect(self, None, {}, 0, None)
+    def loop_start(self):
+        self.calls.append(("loop_start",))
+        if self.on_subscribe:
+            self.on_subscribe(self, None, 7, [0], None)
+    def subscribe(self,*args,**kwargs):
+        self.calls.append(("subscribe",args,kwargs))
+        return (0, 7)
+    def publish(self,*args,**kwargs): self.calls.append(("publish",args,kwargs)); return FakeResult()
+    def disconnect(self): self.calls.append(("disconnect",))
+    def loop_stop(self): self.calls.append(("loop_stop",))
+
+def test_network_paths_map_to_explicit_transport_types():
+    matrix=transport_matrix()
+    assert matrix[NetworkPath.LAN.value] == [TransportKind.HTTPS.value,TransportKind.MQTTS.value]
+    assert matrix[NetworkPath.WAN.value] == matrix[NetworkPath.MOBILE_DATA.value]
+    assert matrix[NetworkPath.LORAWAN.value] == [TransportKind.LORAWAN_WEBHOOK.value]
+
+def test_mqtt_bridge_uses_tls_and_subscribes_to_node_uplink():
+    client=FakeClient(); received=[]
+    bridge=MQTTBridge(MQTTConfig(host="broker.example",client_id="nexus-test",username="nexus",password="test-password"),
+                      lambda topic,body: received.append((topic,body)),
+                      client_factory=lambda **kwargs: client)
+    bridge.start()
+    assert ("tls_insecure",False) in client.calls
+    assert any(call[0]=="subscribe" for call in client.calls)
+    bridge._handle_message(client,None,FakeMessage())
+    assert received[0][1] == {"sequence":1}
+    assert ("ack", 1, 1) in client.calls
+    bridge.publish_downlink("esp32-node-01",{"task":"telemetry"})
+    assert any(call[0]=="publish" for call in client.calls)
+    bridge.stop()
+    assert bridge.started is False
+
+def test_mqtt_bridge_contains_callback_errors_and_records_rejection():
+    bridge = MQTTBridge(
+        MQTTConfig(host="broker.example", client_id="nexus-test", username="nexus", password="test-password"),
+        lambda topic, body: (_ for _ in ()).throw(ValueError("bad signature")),
+        client_factory=lambda **kwargs: FakeClient(),
+    )
+    bridge.start()
+    bridge._handle_message(bridge._client, None, FakeMessage())
+    assert bridge.connected is True
+    assert bridge.rejected_messages == 1
+    assert bridge.last_message_error_type == "ValueError"
+    bridge.stop()
+
+
+def test_mqtt_bridge_requires_successful_suback_before_reporting_connected():
+    class RejectedSubscriptionClient(FakeClient):
+        def loop_start(self):
+            self.calls.append(("loop_start",))
+            self.on_subscribe(self, None, 7, [128], None)
+
+    client = RejectedSubscriptionClient()
+    bridge = MQTTBridge(
+        MQTTConfig(
+            host="broker.example", client_id="nexus-test",
+            username="nexus", password="test-password",
+        ),
+        lambda topic, body: None,
+        client_factory=lambda **kwargs: client,
+    )
+    bridge.start()
+    assert bridge.started is True
+    assert bridge.connected is False
+    assert bridge.last_message_error_type == "SubscriptionRejected"
+    bridge.stop()
+
+
+def test_mqtt_bridge_records_subscription_failure_as_disconnected():
+    class BrokenSubscribeClient(FakeClient):
+        def subscribe(self, *args, **kwargs):
+            raise OSError("subscription failed")
+
+    client = BrokenSubscribeClient()
+    bridge = MQTTBridge(
+        MQTTConfig(
+            host="broker.example", client_id="nexus-test",
+            username="nexus", password="test-password",
+        ),
+        lambda topic, body: None,
+        client_factory=lambda **kwargs: client,
+    )
+    bridge.start()
+    assert bridge.started is True
+    assert bridge.connected is False
+    assert bridge.last_message_error_type == "OSError"
+    bridge.stop()
+
+
+def test_mqtt_bridge_cleans_up_when_connection_start_fails():
+    class BrokenClient(FakeClient):
+        def connect(self, *args):
+            self.calls.append(("connect", args))
+            raise OSError("broker unavailable")
+
+    client = BrokenClient()
+    bridge = MQTTBridge(
+        MQTTConfig(host="broker.example", client_id="nexus-test", username="nexus", password="test-password"),
+        lambda topic, body: None,
+        client_factory=lambda **kwargs: client,
+    )
+    with pytest.raises(OSError, match="broker unavailable"):
+        bridge.start()
+    assert bridge.started is False
+    assert bridge.connected is False
+    assert ("disconnect",) in client.calls
+    assert ("loop_stop",) in client.calls
+
+
+def test_mqtt_bridge_leaves_retryable_persistence_failures_unacknowledged():
+    from nexus_edge.transports import RetryableTransportError
+
+    bridge = MQTTBridge(
+        MQTTConfig(
+            host="broker.example", client_id="nexus-test",
+            username="nexus", password="test-password",
+        ),
+        lambda topic, body: (_ for _ in ()).throw(
+            RetryableTransportError("database busy")
+        ),
+        client_factory=lambda **kwargs: FakeClient(),
+    )
+    bridge.start()
+    bridge._handle_message(bridge._client, None, FakeMessage())
+    assert bridge.rejected_messages == 1
+    assert bridge.last_message_error_type == "RetryableTransportError"
+    assert not any(call[0] == "ack" for call in bridge._client.calls)
+    bridge.stop()
+
+
+def test_mqtt_bridge_does_not_report_broker_rejection_as_connected():
+    class RejectedClient(FakeClient):
+        def connect(self, *args):
+            self.calls.append(("connect", args))
+            self.on_connect(self, None, {}, 5, None)
+
+    client = RejectedClient()
+    bridge = MQTTBridge(
+        MQTTConfig(host="broker.example", client_id="nexus-test", username="nexus", password="test-password"),
+        lambda topic, body: None,
+        client_factory=lambda **kwargs: client,
+    )
+    bridge.start()
+    assert bridge.started is True
+    assert bridge.connected is False
+    assert bridge.last_message_error_type == "BrokerConnectionRejected"
+    with pytest.raises(RuntimeError, match="not connected"):
+        bridge.publish_downlink("esp32-node-01", {"notice": "test"})
+    bridge.stop()
+
+
+def test_mqtt_bridge_requires_broker_authentication():
+    with pytest.raises(ValueError, match="broker authentication is required"):
+        MQTTConfig(host="broker.example", client_id="nexus-test").validate()
+
+
+def test_mqtt_bridge_rejects_invalid_tls_client_cert_pair():
+    with pytest.raises(ValueError,match="supplied together"):
+        MQTTConfig(host="broker.example",client_id="nexus-test",
+                   client_cert="client.crt").validate()
+
+def test_single_server_rejects_unimplemented_database_backends():
+    unsupported = DeploymentTopology(DeploymentMode.SINGLE, 1, "postgresql")
+    with pytest.raises(ValueError, match="only the local SQLite"):
+        unsupported.validate()
+
+
+def test_active_active_rejects_local_sqlite_and_unimplemented_distributed_mode():
+    local=DeploymentTopology(DeploymentMode.ACTIVE_ACTIVE,2,"sqlite",True,True)
+    with pytest.raises(ValueError,match="not local SQLite"):
+        local.validate()
+    declared=DeploymentTopology(DeploymentMode.ACTIVE_ACTIVE,2,"postgresql",True,True)
+    with pytest.raises(ValueError,match="active-active deployment is not implemented"):
+        declared.validate()
+
+def test_primary_standby_requires_shared_backend_and_fails_closed_until_implemented():
+    local=DeploymentTopology(DeploymentMode.PRIMARY_STANDBY,2,"sqlite",True,False)
+    with pytest.raises(ValueError,match="replicated/shared"):
+        local.validate()
+    unshared=DeploymentTopology(DeploymentMode.PRIMARY_STANDBY,2,"postgresql",False,False)
+    with pytest.raises(ValueError,match="shared or replicated state"):
+        unshared.validate()
+    declared=DeploymentTopology(DeploymentMode.PRIMARY_STANDBY,2,"postgresql",True,False)
+    with pytest.raises(ValueError,match="primary-standby deployment is not implemented"):
+        declared.validate()
+
+def test_mqtt_uplink_requires_node_hmac_and_monotonic_sequence(tmp_path):
+    from nexus_edge.transports import authenticate_mqtt_uplink
+    manager = _durable_manager(tmp_path)
+    secret = b"n"*32
+    manager.register_node("esp32-node-09",["telemetry"],secret)
+    timestamp=int(time.time())
+    payload={"temperature_c":23.5}
+    message={"kind":"node_request", "protocol_version": 1,"action":"mqtt.uplink","node_id":"esp32-node-09",
+             "timestamp":timestamp,"sequence":1,"payload":payload}
+    body={"protocol_version":1,"timestamp":timestamp,"sequence":1,"payload":payload,
+          "signature":sign_message(secret,message)}
+    topic="nexus/v1/nodes/esp32-node-09/up"
+    accepted = authenticate_mqtt_uplink(manager, topic, body)
+    assert accepted["accepted"] is True
+    assert accepted["payload"] == payload
+    assert accepted["event"]["duplicate"] is False
+    duplicate = authenticate_mqtt_uplink(manager, topic, body)
+    assert duplicate["event"]["duplicate"] is True
+
+    invalid_signature = dict(body, signature="0" * 64)
+    with pytest.raises(ValueError, match="invalid node request signature"):
+        authenticate_mqtt_uplink(manager, topic, invalid_signature)
+
+    future_payload = {"temperature_c": 24.0}
+    future_message = dict(message, sequence=3, payload=future_payload)
+    future_body = {
+        "protocol_version": 1,
+        "timestamp": timestamp,
+        "sequence": 3,
+        "payload": future_payload,
+        "signature": sign_message(secret, future_message),
+    }
+    assert authenticate_mqtt_uplink(manager, topic, future_body)["event"]["sequence"] == 3
+
+    late_payload = {"temperature_c": 22.0}
+    late_message = dict(message, sequence=2, payload=late_payload)
+    late_body = {
+        "protocol_version": 1,
+        "timestamp": timestamp,
+        "sequence": 2,
+        "payload": late_payload,
+        "signature": sign_message(secret, late_message),
+    }
+    with pytest.raises(ValueError, match="replayed or out-of-order"):
+        authenticate_mqtt_uplink(manager, topic, late_body)
+    assert manager.snapshot()["telemetry_total"] == 2
+
+
+def test_mqtt_uplink_respects_configured_topic_prefix(tmp_path):
+    from nexus_edge.transports import authenticate_mqtt_uplink
+    manager = _durable_manager(tmp_path)
+    secret = b"c" * 32
+    node_id = "esp32-node-10"
+    manager.register_node(node_id, ["telemetry"], secret)
+    timestamp = int(time.time())
+    payload = {"temperature_c": 21.0}
+    message = {"kind": "node_request", "protocol_version": 1, "action": "mqtt.uplink",
+               "node_id": node_id, "timestamp": timestamp,
+               "sequence": 1, "payload": payload}
+    body = {"protocol_version": 1, "timestamp": timestamp, "sequence": 1, "payload": payload,
+            "signature": sign_message(secret, message)}
+    accepted = authenticate_mqtt_uplink(
+        manager, "custom/edge/nodes/esp32-node-10/up", body,
+        topic_prefix="custom/edge",
+    )
+    assert accepted["accepted"] is True
+    assert accepted["payload"] == payload
+    with pytest.raises(ValueError, match="invalid NEXUS MQTT topic prefix"):
+        authenticate_mqtt_uplink(manager, "custom/edge/nodes/esp32-node-10/up", body,
+                                 topic_prefix="../invalid")
+    with pytest.raises(ValueError, match="topic"):
+        authenticate_mqtt_uplink(
+            manager, "nexus/v1/nodes/esp32-node-10/up", body,
+            topic_prefix="custom/edge",
+        )
+
+def test_mqtt_uplink_rejects_unexpected_topic():
+    from nexus_edge.transports import authenticate_mqtt_uplink
+    with pytest.raises(ValueError,match="topic"):
+        authenticate_mqtt_uplink(object(),"other/topic",{})
+
+
+def test_mqtt_uplink_rejects_missing_and_unsupported_protocol_version(tmp_path):
+    from nexus_edge.transports import authenticate_mqtt_uplink
+
+    manager = _durable_manager(tmp_path)
+    secret = b"q" * 32
+    node_id = "esp32-node-version-02"
+    manager.register_node(node_id, ["telemetry"], secret)
+    timestamp = int(time.time())
+    payload = {"temperature_c": 20.0}
+    message = {
+        "kind": "node_request", "protocol_version": 1, "action": "mqtt.uplink",
+        "node_id": node_id, "timestamp": timestamp, "sequence": 1, "payload": payload,
+    }
+    body = {
+        "protocol_version": 1, "timestamp": timestamp, "sequence": 1,
+        "payload": payload, "signature": sign_message(secret, message),
+    }
+    topic = f"nexus/v1/nodes/{node_id}/up"
+
+    missing = dict(body)
+    missing.pop("protocol_version")
+    with pytest.raises(ValueError, match="unsupported NEXUS EDGE protocol version"):
+        authenticate_mqtt_uplink(manager, topic, missing)
+
+    unsupported = dict(body, protocol_version=2)
+    with pytest.raises(ValueError, match="unsupported NEXUS EDGE protocol version"):
+        authenticate_mqtt_uplink(manager, topic, unsupported)

@@ -1,0 +1,62 @@
+name: NEXUS Linux Package
+
+on:
+  push:
+    branches: ["feature/edge-replay-protection-sqlite-v1"]
+    paths:
+      - "application/**"
+      - ".github/workflows/nexus-linux-package.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  linux-user-install:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+          cache-dependency-path: |
+            application/requirements.txt
+            application/requirements-edge.txt
+      - name: Validate Linux launcher and installer syntax
+        run: |
+          bash -n application/INSTALL_NEXUS_LINUX.sh
+          python -m compileall -q application
+      - name: Install NEXUS dependencies for source validation
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r application/requirements.txt -r application/requirements-edge.txt
+          python -m pip install pytest
+      - name: Test Linux launcher against real NEXUS API and dashboard
+        working-directory: application
+        run: python START_NEXUS_LINUX.py --self-test
+      - name: Execute user-space Linux installation
+        env:
+          NEXUS_INSTALL_DIR: ${{ runner.temp }}/nexus-install-test
+        run: |
+          bash application/INSTALL_NEXUS_LINUX.sh
+          test -x "${{ runner.temp }}/nexus-install-test/START_NEXUS_LINUX.sh"
+          test -x "${{ runner.temp }}/nexus-install-test/.venv/bin/python"
+          "${{ runner.temp }}/nexus-install-test/START_NEXUS_LINUX.sh" --self-test
+      - name: Assemble Linux source installer archive
+        run: |
+          tar -czf "${{ runner.temp }}/NEXUS_MASTER_0.10.26_LINUX_INSTALLER.tar.gz" -C application .
+          sha256sum "${{ runner.temp }}/NEXUS_MASTER_0.10.26_LINUX_INSTALLER.tar.gz" > "${{ runner.temp }}/NEXUS_MASTER_0.10.26_LINUX_INSTALLER.tar.gz.sha256"
+          echo "NEXUS_LINUX_PACKAGE=${{ runner.temp }}/NEXUS_MASTER_0.10.26_LINUX_INSTALLER.tar.gz" >> "$GITHUB_ENV"
+      - name: Upload Linux installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: NEXUS_MASTER_0.10.26_LINUX_INSTALLER
+          path: |
+            ${{ env.NEXUS_LINUX_PACKAGE }}
+            ${{ runner.temp }}/NEXUS_MASTER_0.10.26_LINUX_INSTALLER.tar.gz.sha256
+          if-no-files-found: error
+          retention-days: 30

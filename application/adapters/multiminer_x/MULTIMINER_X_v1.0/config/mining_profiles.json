@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "live_profiles": {
+    "cpu_randomx": {"backend": "XMRig", "algorithm": "rx/0", "pool": "stratum+ssl://rx.unmineable.com:443", "device": "CPU", "validated_in_project": true},
+    "gpu_pearlhash": {"backend": "SRBMiner-MULTI", "algorithm": "pearlhash", "pool": "stratum+ssl://pearlpow.unmineable.com:4444", "device": "NVIDIA GPU", "validated_in_project": true}
+  },
+  "research_only": {
+    "sha256d": {"backend": "MULTIMINER X SHA256d lab", "pool": null, "device": "CPU/GPU future backend", "validated_in_project": false},
+    "sha512": {"backend": "hashlib/OpenSSL digest benchmark", "pool": null, "device": "CPU", "validated_in_project": false}
+  },
+  "payout_assets_are_user_selectable": true,
+  "payout_assets_must_be_checked_in_unmineable_dashboard": true
+}

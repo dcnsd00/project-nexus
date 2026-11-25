@@ -1,0 +1,18 @@
+{
+  "id": "20261110T163543_c6c8948aae",
+  "created_utc": "2026-11-10T16:35:43.788515+00:00",
+  "kind": "toy_collision",
+  "result": {
+    "digest_bits": 8,
+    "attempts": 22,
+    "elapsed_seconds": 3.3218999988093856e-05,
+    "messages_per_second": 662271.5917964147,
+    "collision": {
+      "message_a": 7,
+      "message_b": 21,
+      "truncated_digest_hex": "09"
+    },
+    "scope": "synthetic truncated digest; not a full SHA-256 collision"
+  },
+  "privacy": "local_only"
+}

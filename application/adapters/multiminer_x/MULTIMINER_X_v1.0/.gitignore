@@ -1,0 +1,6 @@
+__pycache__/
+*.py[cod]
+logs/*.log
+miners/*/
+config/settings.json
+config/xmrig_cpu.json

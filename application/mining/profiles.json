@@ -1,0 +1,122 @@
+{
+  "schema_version": "1.1",
+  "principle": "Hashrate is algorithm-specific; do not compare rates across algorithms.",
+  "profiles": [
+    {
+      "id": "randomx_cpu",
+      "algorithm": "RandomX",
+      "device": "CPU",
+      "backend": "XMRig",
+      "status": "controller_present_backend_not_bundled",
+      "unit": "H/s",
+      "pool_shares_required": true
+    },
+    {
+      "id": "pearlhash_gpu",
+      "algorithm": "PearlHash/PearlPow",
+      "device": "GPU",
+      "backend": "SRBMiner-MULTI",
+      "status": "controller_present_backend_not_bundled",
+      "unit": "H/s",
+      "pool_shares_required": true
+    },
+    {
+      "id": "sha256d_research_cpu",
+      "algorithm": "SHA-256d",
+      "device": "CPU",
+      "backend": "native_research_benchmark",
+      "status": "offline_header_hash_benchmark_only",
+      "unit": "H/s",
+      "pool_shares_required": false
+    },
+    {
+      "id": "sha512_digest_cpu",
+      "algorithm": "SHA-512",
+      "device": "CPU",
+      "backend": "Python hashlib",
+      "status": "digest_throughput_only_not_pow_mining",
+      "unit": "MiB/s",
+      "pool_shares_required": false
+    },
+    {
+      "id": "bitcoin_sha256d_asic",
+      "algorithm": "SHA-256d",
+      "device": "ASIC",
+      "backend": "External Stratum device (CGMiner/ASIC/NerdMiner)",
+      "status": "external_device_config_only",
+      "unit": "TH/s",
+      "pool_shares_required": true,
+      "notes": "Bitcoin SHA-256d is not a practical GTX 1650 Ti GPU workload. ASIC or low-difficulty ESP32 NerdMiner only; solo lottery probability is extremely low."
+    },
+    {
+      "id": "nerdminer_esp32_sha256d",
+      "algorithm": "SHA-256d",
+      "device": "ESP32",
+      "backend": "NerdMiner firmware",
+      "status": "external_device_config_only",
+      "unit": "H/s",
+      "pool_shares_required": true,
+      "notes": "NEXUS generates Stratum settings; ESP32 device performs hashing independently. Does not start the device over USB."
+    },
+    {
+      "id": "randomx_cpu_xmrig",
+      "algorithm": "RandomX",
+      "device": "CPU",
+      "backend": "XMRig / SRBMiner-MULTI",
+      "status": "launchable_if_binary_installed",
+      "unit": "H/s",
+      "pool_shares_required": true,
+      "notes": "RandomX is CPU-focused; NEXUS must not offer it as GTX 1650 Ti GPU mining."
+    }
+  ],
+  "requested_targets": {
+    "cpu": {
+      "value": 2000000,
+      "unit": "H/s",
+      "algorithm": "RandomX",
+      "status": "target requested; RandomX H/s must be measured locally"
+    },
+    "gpu": {
+      "value": 5000000000000,
+      "unit": "H/s",
+      "algorithm": "PearlHash/PearlPow",
+      "status": "target_requested; GTX 1650 4GB performance must be measured locally"
+    }
+  },
+  "known_limits": [
+    "The SHA-256d CPU research benchmark is not a pool miner and does not prove RandomX performance.",
+    "SHA-512 digest throughput is not a mining rate.",
+    "5 TH/s GPU cannot be treated as a generic target; SHA-256d rates at this scale are ASIC-class, not a consumer GPU expectation.",
+    "No hashrate target is accepted without device model, algorithm, stable runtime, accepted/rejected shares, pool-side hashrate and power measurement.",
+    "Bitcoin SHA-256d pool configuration does not make a consumer GPU competitive; use ASIC or NerdMiner ESP32.",
+    "NerdMiner is an external ESP32 device: NEXUS can generate and validate Stratum configuration but cannot launch its firmware as a Windows process.",
+    "RandomX is CPU-only in the NEXUS device selector."
+  ],
+  "miner_release": {
+    "name": "SRBMiner-MULTI",
+    "latest_checked_version": "3.8.5",
+    "release_date": "2026-11-07",
+    "source": "https://github.com/doktor83/SRBMiner-Multi/releases",
+    "notes": [
+      "3.8.5 fixes efficiency fine-tuner and bug fixes",
+      "3.8.3 included PearlHash hashrate/power fluctuation fix"
+    ]
+  },
+  "observed_user_configuration": {
+    "gpu": "NVIDIA GeForce GTX 1650 Laptop GPU, 4 GB VRAM",
+    "gpu_algorithm": "PearlHash/PearlPow",
+    "cpu_algorithm": "RandomX",
+    "screenshot_local_gpu_display": "0.76 TH/s",
+    "screenshot_effective_gpu_display": "2.5 TH/s",
+    "screenshot_local_cpu_display": "612 H/s",
+    "screenshot_effective_cpu_display": "861 H/s",
+    "validation_status": "user_observed_not_independently_verified",
+    "interpretation": "Preserve displayed units exactly; validate pool-side shares and miner logs before classifying as sustained accepted hashrate.",
+    "mode": "DUAL",
+    "cpu_intensity": "CUSTOM",
+    "gpu_intensity": "HIGH",
+    "worker": "unmineable_miner_dcn5d00",
+    "hardware_memory_gb": 4,
+    "device_context": "ASUS TUF laptop"
+  }
+}

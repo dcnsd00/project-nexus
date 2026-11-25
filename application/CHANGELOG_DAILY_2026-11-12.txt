@@ -1,0 +1,48 @@
+NEXUS MASTER — DAILY IMPLEMENTATION LOG
+Date: 2026-11-12
+Base: NEXUS_MASTER_0.10.24_CUMULATIVE_WINDOWS
+Package: NEXUS MASTER 0.10.25
+
+IMPLEMENTED
+1. INSTALL_NEXUS_WINDOWS.ps1
+   - Updated installer release label to 0.10.25.
+   - Added Python 3.11+ version validation.
+   - Added isolated .venv creation and explicit pip/dependency exit-code checks.
+   - Added import verification for FastAPI, Uvicorn, pywebview and nexus_master.
+   - Added frozen PyInstaller onedir preference and post-copy executable check.
+   - Added Desktop and Start Menu shortcuts for both install modes.
+2. packaging/README_WINDOWS_BUILD_RO.md
+   - Rewrote Windows installation/build steps and documented runtime/validation boundaries.
+3. VERSION.json
+   - Set version 0.10.25 and recorded installer capabilities and validation status.
+4. CHANGELOG_0.10.25.md
+   - Added release-level implementation and limitation record.
+
+TESTED
+- Python compileall for START_NEXUS_DESKTOP.pyw, nexus_master.py, mining and modules: PASS.
+- tests/test_desktop_shell_021.py: PASS.
+- tests/test_randomx_benchmark.py: PASS.
+- tests/rcsc/test_bitcoin_unit.py: PASS.
+- tests/rcsc/test_statistics_unit.py: PASS.
+- Combined focused tests: 26 passed in 2.20 seconds.
+- ZIP integrity: unzip -t PASS.
+- SHA-256: 8b190299d9cc65ce89a191749b99abf60f3921e9850476cadba06aa55deb9e5c.
+
+INHERITED — PRESENT IN BASE 0.10.24, NOT NEWLY IMPLEMENTED TODAY
+- Hybrid Mining Supervisor, worker processes, API and dashboard controls.
+- RandomX benchmark adapter/API.
+- RCSC collector, service, SQLite persistence and API routes.
+- pywebview desktop shell bound to 127.0.0.1.
+
+NOT VALIDATED / PENDING
+- Windows PowerShell installer execution on the user's PC.
+- Windows PyInstaller build and Edge WebView2 runtime.
+- Full project test suite: prior run exceeded the execution time limit; result inconclusive, not PASS.
+- Live RCSC public data collection and independent provider replication.
+- Live public pool connection, accepted shares and payout.
+- Physical GPU mining, sustained thermal/power measurements and profitability.
+- Actual installation on the user's laptop was NOT performed from this environment.
+
+SECURITY
+- No Defender exclusions or security controls were changed.
+- No miner binaries, pool credentials, wallet seed or private keys were installed or modified.

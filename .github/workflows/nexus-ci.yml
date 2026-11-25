@@ -1,10 +1,14 @@
 name: NEXUS CI
 
+concurrency:
+  group: nexus-ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 on:
   push:
-    branches: [main, "feature/**", "integration/**"]
+    branches: [main, "feature/**", "integration/**", "experiment/**"]
   pull_request:
-    branches: [main]
+    branches: [main, "feature/edge-replay-protection-sqlite-v1"]
   workflow_dispatch:
 
 permissions:
@@ -37,6 +41,88 @@ jobs:
             echo "::notice::Application source has not been imported yet. Python test job will be skipped; documentation commits are not treated as application test failures."
           fi
 
+  windows-dependencies:
+    needs: source-detection
+    if: needs.source-detection.outputs.available == 'true'
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Python 3.12.10
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12.10"
+      - name: Download Windows dependency wheelhouse
+        shell: pwsh
+        run: |
+          $Root = "${{ needs.source-detection.outputs.root }}"
+          $Wheelhouse = Join-Path $env:RUNNER_TEMP "nexus-wheelhouse"
+          New-Item -ItemType Directory -Force -Path $Wheelhouse | Out-Null
+          python -m pip download --disable-pip-version-check --prefer-binary -r (Join-Path $Root "requirements-dev.txt") -r (Join-Path $Root "requirements-edge.txt") -d $Wheelhouse
+          if ($LASTEXITCODE -ne 0) { throw "Windows dependency wheelhouse download failed." }
+      - name: Upload Windows dependency wheelhouse
+        uses: actions/upload-artifact@v4
+        with:
+          name: nexus-windows-wheelhouse
+          path: ${{ runner.temp }}/nexus-wheelhouse
+          if-no-files-found: error
+          retention-days: 1
+
+  windows-runtime:
+    needs: [source-detection, windows-dependencies]
+    if: needs.source-detection.outputs.available == 'true'
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Python 3.12.10
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12.10"
+      - name: Download Windows dependency wheelhouse
+        uses: actions/download-artifact@v4
+        with:
+          name: nexus-windows-wheelhouse
+          path: ${{ runner.temp }}/nexus-wheelhouse
+      - name: Build reusable Windows test environment
+        shell: pwsh
+        run: |
+          $Root = "${{ needs.source-detection.outputs.root }}"
+          $Wheelhouse = Join-Path $env:RUNNER_TEMP "nexus-wheelhouse"
+          $Venv = Join-Path $Root "ci-venv"
+          python -m venv $Venv
+          if ($LASTEXITCODE -ne 0) { throw "Could not create Windows test virtual environment." }
+          $Python = Join-Path $Venv "Scripts/python.exe"
+          & $Python -m pip install --no-index --find-links $Wheelhouse -r (Join-Path $Root "requirements-dev.txt") -r (Join-Path $Root "requirements-edge.txt")
+          if ($LASTEXITCODE -ne 0) { throw "Could not install dependencies into Windows test environment." }
+      - name: Configure MSVC x64 build environment
+        uses: ilammy/msvc-dev-cmd@0b201ec74fa43914dc39ae48a89fd1d8cb592756 # v1.13.0
+        with:
+          arch: x64
+      - name: Build native SHA-256d library
+        shell: pwsh
+        run: |
+          $Root = "${{ needs.source-detection.outputs.root }}"
+          $NativeBuild = Join-Path $Root "mining/native/build"
+          New-Item -ItemType Directory -Force -Path $NativeBuild | Out-Null
+          $NativeDll = Join-Path $NativeBuild "nexus_miner.dll"
+          $NativeSource = Join-Path $Root "mining/native/miner.c"
+          & cl.exe /nologo /O2 /LD /DNEXUS_LIBRARY "/Fe:$NativeDll" "/Fo:$NativeBuild\\" $NativeSource
+          if ($LASTEXITCODE -ne 0) { throw "MSVC native SHA-256d build failed." }
+          if (-not (Test-Path $NativeDll)) { throw "MSVC did not create nexus_miner.dll." }
+      - name: Upload reusable Windows test environment
+        uses: actions/upload-artifact@v4
+        with:
+          name: nexus-windows-runtime
+          path: |
+            ${{ needs.source-detection.outputs.root }}/
+            deployment/security/
+          if-no-files-found: error
+          retention-days: 1
+
+
   python-tests:
     needs: source-detection
     if: needs.source-detection.outputs.available == 'true'
@@ -49,6 +135,10 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+      - name: Set up Node.js for dashboard validation
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
       - name: Install dependencies
         shell: bash
         run: |
@@ -63,14 +153,141 @@ jobs:
             echo "::error::No requirements file found in source root: $ROOT"
             exit 1
           fi
+          if [ -f "$ROOT/requirements-edge.txt" ]; then
+            python -m pip install -r "$ROOT/requirements-edge.txt"
+          fi
       - name: Compile Python sources
         shell: bash
         run: |
           ROOT="${{ needs.source-detection.outputs.root }}"
           python -m compileall -q "$ROOT"
-      - name: Run test suite
+      - name: Validate dashboard and wallet JavaScript
+        shell: bash
+        run: |
+          ROOT="${{ needs.source-detection.outputs.root }}"
+          python "$ROOT/tools_check_dashboard_js.py" "$ROOT"
+      - name: Run primary application test suite
         shell: bash
         run: |
           ROOT="${{ needs.source-detection.outputs.root }}"
           cd "$ROOT"
-          python -m pytest -q --disable-warnings --maxfail=1
+          python -m pytest -vv --full-trace --disable-warnings --maxfail=1
+      - name: Run adapter, wallet and independent SHA-2 suites
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROOT="${{ needs.source-detection.outputs.root }}"
+          ROOT="$(cd "$ROOT" && pwd)"
+          MM="$ROOT/adapters/multiminer_x/MULTIMINER_X_v1.0"
+          (cd "$MM" && PYTHONPATH="$ROOT:$MM" python -m pytest -q tests)
+          FS="$ROOT/adapters/fieldstation/crypto_fieldstation"
+          (cd "$FS" && PYTHONPATH="$ROOT:$FS" python -m pytest -q tests)
+          WALLET="$ROOT/modules/wallet_benchmark"
+          (cd "$WALLET" && PYTHONPATH="$ROOT:$WALLET" python -m pytest -q tests)
+          (cd "$WALLET/v05" && PYTHONPATH="$ROOT:$WALLET:$WALLET/v05" python -m pytest -q test_v05_unit.py)
+          RESEARCH="$ROOT/research/sha2_independent"
+          (cd "$RESEARCH" && PYTHONPATH="$ROOT:$RESEARCH" python research_main.py test --out-dir "$RUNNER_TEMP/nexus-sha2-results")
+
+  windows-compatibility:
+    needs: [source-detection, windows-runtime]
+    if: needs.source-detection.outputs.available == 'true'
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - name: Set up Node.js for dashboard validation
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - name: Download reusable Windows test environment
+        uses: actions/download-artifact@v4
+        with:
+          name: nexus-windows-runtime
+          path: ${{ github.workspace }}
+      - name: Compile Python sources
+        shell: pwsh
+        run: |
+          $Root = "${{ needs.source-detection.outputs.root }}"
+          $Python = Join-Path $Root "ci-venv/Scripts/python.exe"
+          & $Python -m compileall -q $Root
+          if ($LASTEXITCODE -ne 0) { throw "Python compilation failed." }
+      - name: Validate dashboard and wallet JavaScript
+        shell: pwsh
+        run: |
+          $Root = "${{ needs.source-detection.outputs.root }}"
+          $Python = Join-Path $Root "ci-venv/Scripts/python.exe"
+          & $Python (Join-Path $Root "tools_check_dashboard_js.py") $Root
+          if ($LASTEXITCODE -ne 0) { throw "Dashboard JavaScript validation failed." }
+      - name: Run isolated Windows API test modules
+        shell: pwsh
+        run: |
+          $Root = "${{ needs.source-detection.outputs.root }}"
+          $RootPath = (Resolve-Path $Root).Path
+          $Python = Join-Path $RootPath "ci-venv/Scripts/python.exe"
+          $env:NEXUS_NATIVE_COMPILER = "msvc"
+          $env:NEXUS_NATIVE_MINER_LIB = Join-Path $RootPath "mining/native/build/nexus_miner.dll"
+          Push-Location $RootPath
+          try {
+            & $Python -m pytest -vv --full-trace --disable-warnings tests/test_mining_solo_matrix_0105.py tests/test_mining_v098.py tests/test_native_sha256d_021.py
+            if ($LASTEXITCODE -ne 0) { throw "Isolated Windows mining catalog API modules failed." }
+          } finally {
+            Pop-Location
+          }
+
+  windows-application-shards:
+    needs: [source-detection, windows-runtime]
+    if: needs.source-detection.outputs.available == 'true'
+    strategy:
+      fail-fast: false
+      max-parallel: 4
+      matrix:
+        shard: [1, 2, 3, 4, 5, 6, 7, 8]
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - name: Download reusable Windows test environment
+        uses: actions/download-artifact@v4
+        with:
+          name: nexus-windows-runtime
+          path: ${{ github.workspace }}
+      - name: Run Windows test shard ${{ matrix.shard }}
+        shell: pwsh
+        run: |
+          $Root = "${{ needs.source-detection.outputs.root }}"
+          $RootPath = (Resolve-Path $Root).Path
+          $Python = Join-Path $RootPath "ci-venv/Scripts/python.exe"
+          $env:NEXUS_NATIVE_COMPILER = "msvc"
+          $env:NEXUS_NATIVE_MINER_LIB = Join-Path $RootPath "mining/native/build/nexus_miner.dll"
+          Push-Location $RootPath
+          try {
+            $Collected = & $Python -m pytest --collect-only -q --ignore=tests/test_mining_solo_matrix_0105.py --ignore=tests/test_mining_v098.py --ignore=tests/test_native_sha256d_021.py
+            if ($LASTEXITCODE -ne 0) { throw "Windows pytest collection failed." }
+            $NodeIds = @($Collected | ForEach-Object { "$_".Trim() } | Where-Object { $_ -match '^tests[\\/].+::' })
+            if ($NodeIds.Count -eq 0) { throw "No Windows test node IDs were collected." }
+            $ShardCount = 8
+            $ShardIndex = [int]"${{ matrix.shard }}" - 1
+            $ShardSize = [Math]::Ceiling($NodeIds.Count / $ShardCount)
+            $Start = $ShardIndex * $ShardSize
+            if ($Start -ge $NodeIds.Count) { throw "Windows shard ${{ matrix.shard }} is empty." }
+            $End = [Math]::Min($Start + $ShardSize, $NodeIds.Count)
+            $ShardNodeIds = @($NodeIds[$Start..($End - 1)])
+            Write-Host "Running Windows shard ${{ matrix.shard }} with $($ShardNodeIds.Count) tests."
+            & $Python -m pytest -vv --full-trace --disable-warnings --maxfail=1 $ShardNodeIds
+            if ($LASTEXITCODE -ne 0) { throw "Windows test shard ${{ matrix.shard }} failed." }
+          } finally {
+            Pop-Location
+          }
+
+  coraza-waf-build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Go 1.26.0
+        uses: actions/setup-go@v7
+        with:
+          go-version: "1.26.0"
+          cache: false
+      - name: Build Coraza-enabled Caddy and validate configuration
+        shell: bash
+        run: bash deployment/security/coraza/build.sh

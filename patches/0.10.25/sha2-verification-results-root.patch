@@ -1,0 +1,61 @@
+--- a/application/modules/sha2_research_service.py
++++ b/application/modules/sha2_research_service.py
+@@ -32,6 +32,7 @@
+ ROOT = Path(__file__).resolve().parents[1]
+ PACKAGE_ROOT = ROOT / "research" / "sha2_independent"
+ RESULTS_ROOT = Path(os.environ.get("NEXUS_SHA2_RESULTS_DIR", str(PACKAGE_ROOT / "results" / "nexus_api")))
++VERIFICATION_RESULTS_ROOT = Path(os.environ.get("NEXUS_SHA2_VERIFICATION_RESULTS_DIR", str(PACKAGE_ROOT / "results")))
+ RESULTS_ROOT.mkdir(parents=True, exist_ok=True)
+ _RUN_LOCK = threading.Lock()
+ 
+@@ -238,7 +239,7 @@
+     with _RUN_LOCK:
+         stream = io.StringIO()
+         with contextlib.redirect_stdout(stream):
+-            ok = verify_results.run(str(PACKAGE_ROOT / "results"))
++            ok = verify_results.run(str(VERIFICATION_RESULTS_ROOT))
+     return {
+         "successful": bool(ok),
+         "output": stream.getvalue()[-16000:],
+--- a/application/tests/test_sha2_research_service_020.py
++++ b/application/tests/test_sha2_research_service_020.py
+@@ -11,6 +11,9 @@
+ @pytest.fixture(autouse=True)
+ def isolate_research_result_writes(monkeypatch, tmp_path):
+     monkeypatch.setattr(service, "RESULTS_ROOT", tmp_path)
++    monkeypatch.setattr(service, "VERIFICATION_RESULTS_ROOT", tmp_path)
++    (tmp_path / "sat_scaling.json").write_text('{"results": []}', encoding="utf-8")
++    (tmp_path / "differential.json").write_text('{"results": []}', encoding="utf-8")
+ 
+ 
+ def test_research_package_status_is_truthful():
+--- a/application/tests/rcsc/test_rcsc_integration.py
++++ b/application/tests/rcsc/test_rcsc_integration.py
+@@ -29,7 +29,7 @@
+ def test_rcsc_api_routes_registered():
+     import nexus_master
+-    paths = {route.path for route in nexus_master.app.routes}
++    paths = set(nexus_master.app.openapi()["paths"])
+     assert "/api/research/rcsc/status" in paths
+     assert "/api/research/rcsc/collect" in paths
+     assert "/api/research/rcsc/analyze" in paths
+     assert "/api/research/rcsc/verify-header" in paths
+--- a/application/modules/module_registry.py
++++ b/application/modules/module_registry.py
+@@ -25,6 +25,16 @@
+ def _route_paths(app: Any | None) -> set[str]:
+     if app is None:
+         return set()
++    # OpenAPI is the stable public surface across FastAPI versions. Newer
++    # FastAPI releases may keep included routers as lazy internal objects
++    # without a direct .path attribute.
++    try:
++        schema = app.openapi()
++        paths = schema.get("paths", {}) if isinstance(schema, dict) else {}
++        if isinstance(paths, dict):
++            return {path for path in paths if isinstance(path, str)}
++    except Exception:
++        pass
+     paths: set[str] = set()
+     for route in getattr(app, "routes", ()):
+         path = getattr(route, "path", None)

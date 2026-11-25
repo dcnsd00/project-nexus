@@ -1,0 +1,19 @@
+{
+  "id": "20261110T163543_2e6261d94e",
+  "created_utc": "2026-11-10T16:35:43.787169+00:00",
+  "kind": "toy_pow",
+  "result": {
+    "difficulty_bits": 8,
+    "prefix": "AUDIT",
+    "target_prefix_hex": "00",
+    "attempts": 138,
+    "elapsed_seconds": 0.00010647599998492296,
+    "hashes_per_second": 1296066.719444202,
+    "found": {
+      "nonce": 137,
+      "digest": "009625e60273f58fdbbc768c12c81eeadb5d7de326e42d8bab85fd41bdc4aa51"
+    },
+    "scope": "locally generated toy proof-of-work; not a real coin or network"
+  },
+  "privacy": "local_only"
+}
