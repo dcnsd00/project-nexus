@@ -77,3 +77,19 @@ def test_rate_limit_settings_validate_and_default_to_enabled():
         assert "NEXUS_EDGE_RATE_LIMIT_REQUESTS" in str(exc)
     else:
         raise AssertionError("invalid rate-limit values must fail closed")
+
+
+
+def test_rate_limiter_ignores_spoofed_leftmost_forwarded_address():
+    middleware = EdgeRateLimitMiddleware(
+        lambda *_: None,
+        max_requests=10,
+        window_seconds=60,
+        max_keys=100,
+        trusted_proxy_cidrs=("10.0.0.0/8",),
+    )
+    scope = {"client": ("10.0.0.5", 12345), "path": "/health"}
+    # The trusted proxy appends the actual client address to a header that
+    # already contained a spoofed value supplied by the connecting client.
+    headers = {b"x-forwarded-for": b"203.0.113.200, 198.51.100.22"}
+    assert middleware._source_ip(scope, headers) == "198.51.100.22"
