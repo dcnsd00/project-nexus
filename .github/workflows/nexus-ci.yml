@@ -41,6 +41,34 @@ jobs:
             echo "::notice::Application source has not been imported yet. Python test job will be skipped; documentation commits are not treated as application test failures."
           fi
 
+  windows-dependencies:
+    needs: source-detection
+    if: needs.source-detection.outputs.available == 'true'
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Download pinned Windows dependency wheelhouse
+        shell: pwsh
+        run: |
+          $Root = "${{ needs.source-detection.outputs.root }}"
+          $Wheelhouse = Join-Path $env:RUNNER_TEMP "nexus-wheelhouse"
+          New-Item -ItemType Directory -Force -Path $Wheelhouse | Out-Null
+          python -m pip download --disable-pip-version-check --prefer-binary -r (Join-Path $Root "requirements-dev.txt") -r (Join-Path $Root "requirements-edge.txt") -d $Wheelhouse
+          if ($LASTEXITCODE -ne 0) { throw "Windows dependency wheelhouse download failed." }
+      - name: Upload Windows dependency wheelhouse
+        uses: actions/upload-artifact@v4
+        with:
+          name: nexus-windows-wheelhouse
+          path: ${{ runner.temp }}/nexus-wheelhouse
+          if-no-files-found: error
+          retention-days: 1
+
   python-tests:
     needs: source-detection
     if: needs.source-detection.outputs.available == 'true'
@@ -107,7 +135,7 @@ jobs:
           (cd "$RESEARCH" && PYTHONPATH="$ROOT:$RESEARCH" python research_main.py test --out-dir "$RUNNER_TEMP/nexus-sha2-results")
 
   windows-compatibility:
-    needs: source-detection
+    needs: [source-detection, windows-dependencies]
     if: needs.source-detection.outputs.available == 'true'
     runs-on: windows-latest
     timeout-minutes: 30
@@ -122,20 +150,18 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: "24"
-      - name: Install dependencies
+      - name: Download Windows dependency wheelhouse
+        uses: actions/download-artifact@v4
+        with:
+          name: nexus-windows-wheelhouse
+          path: ${{ runner.temp }}/nexus-wheelhouse
+      - name: Install dependencies from local wheelhouse
         shell: pwsh
         run: |
           $Root = "${{ needs.source-detection.outputs.root }}"
-          python -m pip install --upgrade pip
-          if (Test-Path (Join-Path $Root "requirements-dev.txt")) {
-            python -m pip install -r (Join-Path $Root "requirements-dev.txt")
-          } else {
-            python -m pip install -r (Join-Path $Root "requirements.txt")
-            python -m pip install pytest
-          }
-          if (Test-Path (Join-Path $Root "requirements-edge.txt")) {
-            python -m pip install -r (Join-Path $Root "requirements-edge.txt")
-          }
+          $Wheelhouse = Join-Path $env:RUNNER_TEMP "nexus-wheelhouse"
+          python -m pip install --no-index --find-links $Wheelhouse -r (Join-Path $Root "requirements-dev.txt") -r (Join-Path $Root "requirements-edge.txt")
+          if ($LASTEXITCODE -ne 0) { throw "Windows dependency installation from wheelhouse failed." }
       - name: Configure MSVC x64 build environment
         uses: ilammy/msvc-dev-cmd@v1
         with:
@@ -181,7 +207,7 @@ jobs:
             Pop-Location
           }
   windows-application-shards:
-    needs: source-detection
+    needs: [source-detection, windows-dependencies]
     if: needs.source-detection.outputs.available == 'true'
     strategy:
       fail-fast: false
