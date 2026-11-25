@@ -135,3 +135,17 @@ PR #23's shared market-data adapter and Gate paper-trading refactor received a t
 ### 6.5 CI coverage gap
 
 Current GitHub Actions includes Coraza/Caddy configuration validation but no dedicated Gitleaks, Trivy filesystem/dependency, or CodeQL workflow. Dependabot currently covers GitHub Actions only; pip ecosystems are not configured. These remain explicit follow-up items. Do not claim supply-chain scanning is complete until the workflows are added, run, and findings triaged.
+
+
+## 7. First CI security-baseline run — PR #26
+
+**Branch:** `security/supply-chain-scans-v1`  
+**Security workflow run:** #45695527479 — success  
+**NEXUS CI:** run #45695527581 was still in progress at the time of this update.
+
+- **Gitleaks:** 3 redacted findings in full history. Manual inspection found no real credential: (1) wallet-format enum/label constants in `nexus_wallet_search.py`; (2) a synthetic BIP38 test password in a recovery integration test, with the private scalar generated using a cryptographically secure test helper; (3) a known-answer input vector in the vendored RandomX reference tests. Keep the report artifact for traceability; do not suppress findings until the review is recorded in the security workflow.
+- **Trivy:** zero findings at the configured CRITICAL/HIGH/MEDIUM severities with `ignore-unfixed=true`. This does not prove the absence of low-severity issues or vulnerabilities not detectable from current manifests.
+- **CodeQL:** Python security-extended analysis job completed successfully and uploaded analysis. The connected GitHub tool did not expose the alert inventory; review the repository Security / Code scanning view before claiming zero CodeQL alerts. C/C++ analysis remains deferred pending a validated build-mode.
+- **Dependabot:** PR #26 adds pip update coverage for the active application, local CORE, Fieldstation, MULTIMINER X, wallet benchmark, NEXUS research and independent SHA-2 requirements directories. This configuration is not active on main until the PR is reviewed and merged.
+
+Gitleaks and Trivy are intentionally report-only during initial baseline triage (exit-code 0). Convert them to merge-blocking CRITICAL/HIGH gates only after the baseline and exceptions are reviewed.
