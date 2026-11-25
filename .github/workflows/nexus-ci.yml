@@ -118,6 +118,7 @@ jobs:
           name: nexus-windows-runtime
           path: |
             ${{ needs.source-detection.outputs.root }}/
+            deployment/security/headscale/policy.example.hujson
           if-no-files-found: error
           retention-days: 1
 
@@ -201,7 +202,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: nexus-windows-runtime
-          path: ${{ github.workspace }}/${{ needs.source-detection.outputs.root }}
+          path: ${{ github.workspace }}
       - name: Compile Python sources
         shell: pwsh
         run: |
@@ -247,7 +248,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: nexus-windows-runtime
-          path: ${{ github.workspace }}/${{ needs.source-detection.outputs.root }}
+          path: ${{ github.workspace }}
       - name: Run Windows test shard ${{ matrix.shard }}
         shell: pwsh
         run: |
