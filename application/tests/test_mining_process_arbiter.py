@@ -74,6 +74,7 @@ def test_os_lock_is_exclusive_across_processes(tmp_path):
         child = subprocess.run(
             [sys.executable, "-c", _CHILD_ACQUIRE_SCRIPT, path],
             capture_output=True, text=True, timeout=10,
+            creationflags=(subprocess.CREATE_NEW_PROCESS_GROUP if os.name == "nt" else 0),
         )
         assert child.returncode == 0, child.stderr
         assert child.stdout.strip() == "BUSY"
@@ -84,6 +85,7 @@ def test_os_lock_is_exclusive_across_processes(tmp_path):
     child = subprocess.run(
         [sys.executable, "-c", _CHILD_ACQUIRE_SCRIPT, path],
         capture_output=True, text=True, timeout=10,
+            creationflags=(subprocess.CREATE_NEW_PROCESS_GROUP if os.name == "nt" else 0),
     )
     assert child.returncode == 0, child.stderr
     assert child.stdout.strip() == "ACQUIRED"
@@ -245,3 +247,51 @@ def test_windows_process_liveness_uses_non_destructive_api(monkeypatch):
         assert process_is_alive(43210) is True
         assert process_is_alive(0) is False
     assert calls == [43210]
+
+class _FakeWinApiFunction:
+    def __init__(self, result):
+        self.result = result
+
+    def __call__(self, *args):
+        return self.result
+
+
+def _fake_win_kernel32(open_result, exit_result=True):
+    return type("FakeKernel32", (), {
+        "OpenProcess": _FakeWinApiFunction(open_result),
+        "GetExitCodeProcess": _FakeWinApiFunction(exit_result),
+        "CloseHandle": _FakeWinApiFunction(True),
+    })()
+
+
+def test_windows_process_liveness_fails_closed_on_unknown_open_process_error(monkeypatch):
+    import ctypes
+    kernel32 = _fake_win_kernel32(None)
+    monkeypatch.setattr(ctypes, "WinDLL", lambda *args, **kwargs: kernel32, raising=False)
+    monkeypatch.setattr(ctypes, "get_last_error", lambda: 1234, raising=False)
+    assert process_arbiter_module._windows_process_is_alive(1234) is True
+
+
+def test_windows_process_liveness_treats_invalid_pid_as_not_alive(monkeypatch):
+    import ctypes
+    kernel32 = _fake_win_kernel32(None)
+    monkeypatch.setattr(ctypes, "WinDLL", lambda *args, **kwargs: kernel32, raising=False)
+    monkeypatch.setattr(ctypes, "get_last_error", lambda: 87, raising=False)
+    assert process_arbiter_module._windows_process_is_alive(1234) is False
+
+
+def test_windows_process_liveness_fails_closed_when_exit_code_query_fails(monkeypatch):
+    import ctypes
+    kernel32 = _fake_win_kernel32(1234, exit_result=False)
+    monkeypatch.setattr(ctypes, "WinDLL", lambda *args, **kwargs: kernel32, raising=False)
+    monkeypatch.setattr(ctypes, "get_last_error", lambda: 1234, raising=False)
+    assert process_arbiter_module._windows_process_is_alive(1234) is True
+
+
+def test_windows_process_liveness_fails_closed_on_winapi_exception(monkeypatch):
+    import ctypes
+    def unavailable(*args, **kwargs):
+        raise OSError("simulated Windows API failure")
+    monkeypatch.setattr(ctypes, "WinDLL", unavailable, raising=False)
+    assert process_arbiter_module._windows_process_is_alive(1234) is True
+
