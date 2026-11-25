@@ -71,3 +71,31 @@ def test_pool_account_rejects_non_2miners_pool():
     with TestClient(app) as c:
         r=c.get('/api/mining/pool-account',params={'pool_id':'woolypooly-rvn','wallet':'RTestWallet123'})
         assert r.status_code==400
+
+
+def test_installer_unexpected_errors_hide_internal_details_from_client(monkeypatch):
+    internal_detail = "SECRET_TOKEN=/private/cache/path"
+
+    def fail_release(_miner_id):
+        raise RuntimeError(internal_detail)
+
+    def fail_install(_miner_id):
+        raise RuntimeError(internal_detail)
+
+    monkeypatch.setattr(mi, "latest_release", fail_release)
+    monkeypatch.setattr(mi, "install", fail_install)
+
+    with TestClient(app) as client:
+        release = client.get("/api/mining/installers/xmrig/latest")
+        installed = client.post("/api/mining/installers/xmrig/install")
+
+    assert release.status_code == 502
+    assert installed.status_code == 502
+    assert internal_detail not in release.text
+    assert internal_detail not in installed.text
+    assert release.json()["detail"] == (
+        "Nu am putut verifica release-ul. Detaliile interne nu sunt expuse."
+    )
+    assert installed.json()["detail"] == (
+        "Instalarea minerului a eșuat. Detaliile interne nu sunt expuse."
+    )

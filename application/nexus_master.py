@@ -1,12 +1,13 @@
 from __future__ import annotations
 from uuid import uuid4
 from contextlib import asynccontextmanager
-import json, os, platform, shutil, subprocess, sys
+import json, logging, os, platform, shutil, subprocess, sys
 from pathlib import Path
 from fastapi import HTTPException
 from fastapi.responses import HTMLResponse
 ROOT = Path(__file__).resolve().parent
 CORE = ROOT / "core" / "PROJECT-NEXUS-LOCAL"
+_LOGGER = logging.getLogger(__name__)
 
 def _package_version() -> str:
     """Return the authoritative package version from VERSION.json."""
@@ -601,7 +602,11 @@ def mining_installer_latest(miner_id: str):
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
     except Exception as exc:
-        raise HTTPException(status_code=502, detail=f"Nu am putut verifica release-ul: {type(exc).__name__}: {exc}")
+        _LOGGER.error("Mining installer release lookup failed; exception_type=%s", type(exc).__name__)
+        raise HTTPException(
+            status_code=502,
+            detail="Nu am putut verifica release-ul. Detaliile interne nu sunt expuse.",
+        ) from exc
 
 @app.post("/api/mining/installers/{miner_id}/install")
 def mining_installer_install(miner_id: str):
@@ -610,7 +615,11 @@ def mining_installer_install(miner_id: str):
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
     except Exception as exc:
-        raise HTTPException(status_code=502, detail=f"Instalarea minerului a eșuat: {type(exc).__name__}: {exc}")
+        _LOGGER.error("Mining installer execution failed; exception_type=%s", type(exc).__name__)
+        raise HTTPException(
+            status_code=502,
+            detail="Instalarea minerului a eșuat. Detaliile interne nu sunt expuse.",
+        ) from exc
 
 
 # NEXUS 0.9.3: SHA-256 differential and compression carry research
