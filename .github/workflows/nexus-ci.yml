@@ -256,19 +256,11 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.12.10"
-      - name: Set up Node.js for Windows test compatibility
-        uses: actions/setup-node@v4
-        with:
-          node-version: "24"
       - name: Download reusable Windows test environment
         uses: actions/download-artifact@v4
         with:
           name: nexus-windows-runtime
           path: ${{ github.workspace }}/${{ needs.source-detection.outputs.root }}
-      - name: Configure MSVC x64 build environment
-        uses: ilammy/msvc-dev-cmd@v1
-        with:
-          arch: x64
       - name: Run Windows test shard ${{ matrix.shard }}
         shell: pwsh
         run: |
