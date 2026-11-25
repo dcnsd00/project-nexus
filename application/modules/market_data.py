@@ -22,6 +22,7 @@ GATE_PAPER_ASSETS = ("BTC", "ETH", "SOL", "BNB", "XRP", "AIOZ", "GRASS", "TAO", 
 WATCHLIST_ASSETS = ("BTC", "ETH", "SOL", "BNB", "XRP", "ZEC", "DOGE", "LINK")
 SUPPORTED_ASSETS = tuple(dict.fromkeys((*GATE_PAPER_ASSETS, *WATCHLIST_ASSETS)))
 INTERVALS = ("1m", "5m", "15m", "30m", "1h", "4h", "8h", "1d")
+INTERVAL_SECONDS = {"1m": 60, "5m": 300, "15m": 900, "30m": 1800, "1h": 3600, "4h": 14400, "8h": 28800, "1d": 86400}
 
 router = APIRouter(tags=["Public Market Data · Read Only"])
 
@@ -146,15 +147,17 @@ class _PublicProvider:
         endpoint: str,
         data: Any,
         source_timestamp: Any = None,
+        stale_after_s: int | None = None,
     ) -> dict[str, Any]:
         retrieved = datetime.now(timezone.utc)
+        freshness_window = self.stale_after_s if stale_after_s is None else int(stale_after_s)
         source_time = _timestamp(source_timestamp)
         if source_time is None:
             freshness = "unknown"
             stale = None
         else:
             age = (retrieved - source_time).total_seconds()
-            freshness = "stale" if age > self.stale_after_s else "fresh"
+            freshness = "stale" if age > freshness_window else "fresh"
             stale = freshness == "stale"
         return {
             "provider": self.provider_id,
@@ -171,7 +174,7 @@ class _PublicProvider:
             "source_timestamp": _iso(source_time),
             "freshness": freshness,
             "stale": stale,
-            "stale_after_seconds": self.stale_after_s,
+            "stale_after_seconds": freshness_window,
             "auth_required": False,
             "read_only": True,
         }
@@ -244,11 +247,14 @@ class BinancePublicMarketDataProvider(_PublicProvider):
                 "trade_count": row[8] if len(row) > 8 else None,
             })
         source_time = rows[-1][6] if rows else None
-        return self._snapshot(asset, pair, endpoint, {"interval": interval, "candles": candles}, source_time)
+        return self._snapshot(
+            asset, pair, endpoint, {"interval": interval, "candles": candles},
+            source_time, stale_after_s=self.stale_after_s + INTERVAL_SECONDS[interval],
+        )
 
     def order_book(self, symbol: str, limit: int = 20) -> dict[str, Any]:
         asset = _asset(symbol)
-        if not 5 <= int(limit) <= 1000:
+        if int(limit) not in (5, 10, 20, 50, 100, 500, 1000):
             raise MarketDataError("invalid_order_book_limit")
         pair = self._pair(asset)
         endpoint = "/api/v3/depth"
@@ -421,7 +427,7 @@ def _call_provider(name: str, method: str, *args: Any, **kwargs: Any) -> dict[st
     try:
         return getattr(provider, method)(*args, **kwargs)
     except MarketDataError as exc:
-        if exc.code == "symbol_not_supported":
+        if exc.code in {"symbol_not_supported", "symbol_not_available"}:
             raise HTTPException(status_code=404, detail=exc.code) from exc
         if exc.code == "invalid_symbol":
             raise HTTPException(status_code=400, detail=exc.code) from exc
