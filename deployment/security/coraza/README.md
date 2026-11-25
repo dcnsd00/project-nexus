@@ -47,6 +47,18 @@ The script installs the pinned xcaddy version into the Go bin directory if
 needed, builds a custom Caddy binary with the Coraza module, checks that the
 WAF module is present, and validates the Caddyfile. It does not start Caddy.
 
+## Build on Linux / CI
+
+With Go 1.26.0 or newer:
+
+```bash
+bash ./build.sh
+```
+
+The script installs xcaddy 0.4.7 into the local `.tools/bin` directory, builds
+the pinned Caddy and Coraza module versions, checks that the WAF handler is
+present, and validates the Caddyfile. It does not start Caddy.
+
 ## Start the local pilot
 
 1. Start NEXUS CORE on `127.0.0.1:8765`.
