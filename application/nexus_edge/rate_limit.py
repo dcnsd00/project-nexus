@@ -90,13 +90,18 @@ class EdgeRateLimitMiddleware:
 
         if self.trusted_proxies and any(peer_ip in network for network in self.trusted_proxies):
             forwarded = headers.get(b"x-forwarded-for", b"").decode("latin-1")
-            # Only trust X-Forwarded-For when the immediate peer is allowlisted.
-            # Use the left-most address supplied by the trusted proxy chain.
-            candidate = forwarded.split(",", 1)[0].strip()
+            # Walk the chain from the trusted peer toward the original client.
+            # Skip only addresses in trusted proxy ranges; the first untrusted
+            # address is the client. Never blindly trust the left-most value,
+            # which may have been supplied by the connecting client.
+            candidates = [item.strip() for item in forwarded.split(",") if item.strip()]
             try:
-                return str(ipaddress.ip_address(candidate.split("%", 1)[0]))
+                chain = [ipaddress.ip_address(item.split("%", 1)[0]) for item in candidates]
             except ValueError:
-                pass
+                chain = []
+            for candidate in reversed(chain):
+                if not any(candidate in network for network in self.trusted_proxies):
+                    return str(candidate)
         return str(peer_ip)
 
     def _keys(self, scope: dict[str, Any], headers: dict[bytes, bytes]) -> list[str]:
