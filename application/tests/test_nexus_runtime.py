@@ -5,7 +5,7 @@ def test_runtime_registers_local_services_without_starting_them():
     manager = build_runtime()
     snapshot = manager.snapshot()
     names = {row["name"] for row in snapshot["services"]}
-    assert {"data_paths", "crypto_engine", "math_intelligence", "provider_registry", "rcsc_research", "research_hub", "mining_switch_controller", "blockchain_regtest", "edge_manager", "earnings_intelligence", "coin_catalog", "mining_optimizer", "depin_fieldstation"} <= names
+    assert {"data_paths", "crypto_engine", "math_intelligence", "provider_registry", "market_data", "rcsc_research", "research_hub", "mining_switch_controller", "blockchain_regtest", "edge_manager", "earnings_intelligence", "coin_catalog", "mining_optimizer", "depin_fieldstation"} <= names
     assert snapshot["running"] == 0
     assert snapshot["system_ready"] is False
 
@@ -332,3 +332,16 @@ def test_edge_runtime_adapter_holds_exclusive_database_lock(tmp_path, monkeypatc
     first.shutdown()
     second.initialize()
     second.shutdown()
+
+
+def test_market_data_runtime_probe_is_read_only_and_makes_no_network_calls():
+    manager = build_runtime()
+    snapshot = manager.start_all()
+    by_name = {row["name"]: row for row in snapshot["services"]}
+    health = by_name["market_data"]["health"]
+    assert health["ok"] is True
+    assert set(health["details"]["providers"]) == {"binance", "gate"}
+    assert health["details"]["auth_required"] is False
+    assert health["details"]["write_capabilities"] is False
+    assert health["details"]["network_calls_by_probe"] is False
+    assert manager.stop_all()["running"] == 0
