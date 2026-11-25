@@ -22,7 +22,7 @@ jobs:
       root: ${{ steps.detect.outputs.root }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
       - name: Detect application source
         id: detect
         shell: bash
@@ -48,7 +48,7 @@ jobs:
     timeout-minutes: 20
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
       - name: Set up Python 3.12.10
         uses: actions/setup-python@v5
         with:
@@ -76,7 +76,7 @@ jobs:
     timeout-minutes: 20
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
       - name: Set up Python 3.12.10
         uses: actions/setup-python@v5
         with:
@@ -130,7 +130,7 @@ jobs:
     timeout-minutes: 20
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
       - name: Set up Python 3.12
         uses: actions/setup-python@v5
         with:
@@ -282,7 +282,7 @@ jobs:
     timeout-minutes: 20
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
       - name: Set up Go 1.26.0
         uses: actions/setup-go@v7
         with:
