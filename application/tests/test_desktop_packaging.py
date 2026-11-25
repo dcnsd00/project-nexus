@@ -5,6 +5,8 @@ import socket
 import sys
 import types
 
+import pytest
+
 ROOT = Path(__file__).resolve().parents[1]
 
 
@@ -90,6 +92,8 @@ def test_desktop_launcher_readiness_uses_its_own_server_state(monkeypatch):
 
 def test_windows_desktop_package_runs_on_main_and_preserves_existing_triggers():
     workflow_path = ROOT.parent / ".github" / "workflows" / "nexus-desktop-package.yml"
+    if not workflow_path.is_file():
+        pytest.skip("GitHub workflow definitions are not included in the Windows runtime artifact")
     workflow = workflow_path.read_text(encoding="utf-8")
     assert 'branches: ["main", "feature/edge-replay-protection-sqlite-v1"]' in workflow
     assert "workflow_dispatch:" in workflow
