@@ -16,6 +16,7 @@ MODULES: tuple[dict[str, Any], ...] = (
     {"id": "rcsc", "name": "RCSC Research", "paths": ("research/rcsc/nexus_rcsc/nexus_rcsc/collector.py", "modules/rcsc_service.py"), "route_prefixes": ("/api/research/rcsc",), "critical": False},
     {"id": "integrations", "name": "Provider Integrations", "paths": ("modules/integration_registry.py",), "route_prefixes": ("/api/integrations",), "critical": False},
     {"id": "gate_info", "name": "Gate Info Research & Paper Trading", "paths": ("modules/gate_paper_trading.py",), "route_prefixes": ("/api/gate", "/gate-paper"), "critical": False},
+    {"id": "market_data", "name": "Public Market Data", "paths": ("modules/market_data.py",), "route_prefixes": ("/api/market-data",), "runtime_service": "market_data", "critical": False},
     {"id": "math_intelligence", "name": "Math Intelligence", "paths": ("modules/math_intelligence.py",), "route_prefixes": ("/api/math",), "critical": False},
     {"id": "research_hub", "name": "Research Hub", "paths": ("modules/research_hub.py",), "route_prefixes": ("/api/research",), "runtime_service": "research_hub", "critical": False},
     {"id": "earnings_intelligence", "name": "Earnings Intelligence", "paths": ("modules/earnings_intelligence.py",), "route_prefixes": ("/api/intel",), "runtime_service": "earnings_intelligence", "critical": False},
