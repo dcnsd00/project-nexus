@@ -1660,7 +1660,16 @@ def mining_rewards_check(req: RewardsCheckRequest):
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
     except Exception as exc:
-        raise HTTPException(status_code=502, detail=f"{req.provider} API error: {type(exc).__name__}: {str(exc)[:220]}")
+        safe_detail = _safe_network_error_summary(exc, f"{req.provider} metadata unavailable")
+        _LOGGER.warning(
+            "Rewards provider request failed; provider=%s exception_type=%s",
+            req.provider,
+            type(exc).__name__,
+        )
+        raise HTTPException(
+            status_code=502,
+            detail=f"{req.provider} API unavailable: {safe_detail}",
+        ) from exc
     raise HTTPException(status_code=400,detail="Provider invalid.")
 
 @app.get("/api/math/hybrid/capabilities")

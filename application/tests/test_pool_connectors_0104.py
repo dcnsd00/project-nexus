@@ -37,3 +37,23 @@ def test_connector_catalog_marks_f2pool_pending_not_fake_live():
     assert c['Kryptex Pool']['available'] is True
     assert c['Braiins Pool']['available'] is True
     assert c['F2Pool']['available'] is False
+
+
+def test_rewards_check_redacts_provider_exception_details(monkeypatch):
+    from fastapi.testclient import TestClient
+    import nexus_master
+
+    sensitive = "API_SECRET=private-token /private/provider/path"
+    def fail_provider(wallet, api_key):
+        raise RuntimeError(sensitive)
+
+    monkeypatch.setattr(nexus_master, "braiins_account_stats", fail_provider)
+    with TestClient(nexus_master.app) as client:
+        response = client.post("/api/mining/rewards-check", json={
+            "provider": "Braiins",
+            "wallet": "nexus-test-user",
+            "api_key": "test-read-only-token",
+        })
+    assert response.status_code == 502
+    assert sensitive not in response.text
+    assert response.json()["detail"] == "Braiins API unavailable: Braiins metadata unavailable"
