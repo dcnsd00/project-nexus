@@ -134,3 +134,20 @@ def test_version_endpoint_matches_current_desktop_release():
         r = c.get('/api/nexus/master')
     assert r.status_code == 200
     assert r.json()['version'] == '0.10.26'
+
+
+def test_unmineable_public_catalog_route_redacts_upstream_exception_text(monkeypatch):
+    from modules import unmineable_catalog
+
+    sensitive = "TOKEN=private-secret /private/cache/path"
+    def fail_catalog(timeout=8.0):
+        raise RuntimeError(sensitive)
+
+    monkeypatch.setattr(unmineable_catalog, "public_asset_catalog", fail_catalog)
+    with TestClient(__import__("nexus_master").app) as client:
+        response = client.get("/api/mining/unmineable/assets?refresh=true")
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == "live_metadata_unavailable"
+    assert payload["error"] == "RuntimeError: Upstream metadata unavailable"
+    assert sensitive not in response.text

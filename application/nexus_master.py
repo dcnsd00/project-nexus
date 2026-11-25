@@ -9,6 +9,22 @@ ROOT = Path(__file__).resolve().parent
 CORE = ROOT / "core" / "PROJECT-NEXUS-LOCAL"
 _LOGGER = logging.getLogger(__name__)
 
+def _safe_network_error_summary(exc, fallback: str) -> str:
+    """Map network/upstream exceptions to controlled client-safe summaries."""
+    if isinstance(exc, socket.gaierror):
+        return "DNS lookup failed"
+    if isinstance(exc, TimeoutError):
+        return "Connection timed out"
+    if isinstance(exc, ConnectionRefusedError):
+        return "Connection refused"
+    if isinstance(exc, ssl.SSLError):
+        return "TLS handshake failed"
+    if isinstance(exc, OSError):
+        return "Network connection failed"
+    if isinstance(exc, json.JSONDecodeError):
+        return "Upstream response could not be parsed"
+    return fallback
+
 def _package_version() -> str:
     """Return the authoritative package version from VERSION.json."""
     try:
@@ -1166,18 +1182,7 @@ def mining_pool_test(req: PoolTestRequest):
             raw.close()
         return {"ok":True,"host":host,"port":int(port),"tls_requested":req.use_ssl,"tcp_reachable":True,"tls_handshake":bool(req.use_ssl),"latency_ms":round((__import__('time').perf_counter()-started)*1000,2),"scope":"TCP/TLS handshake only; does not authenticate Stratum or prove mining shares."}
     except Exception as exc:
-        if isinstance(exc, socket.gaierror):
-            safe_detail = "DNS lookup failed"
-        elif isinstance(exc, TimeoutError):
-            safe_detail = "Connection timed out"
-        elif isinstance(exc, ConnectionRefusedError):
-            safe_detail = "Connection refused"
-        elif isinstance(exc, ssl.SSLError):
-            safe_detail = "TLS handshake failed"
-        elif isinstance(exc, OSError):
-            safe_detail = "Network connection failed"
-        else:
-            safe_detail = "Connection test failed"
+        safe_detail = _safe_network_error_summary(exc, "Connection test failed")
         _LOGGER.warning("Pool connectivity test failed; exception_type=%s", type(exc).__name__)
         return {"ok":False,"host":host,"port":int(port),"tls_requested":req.use_ssl,"tcp_reachable":False,"error":type(exc).__name__,"detail":safe_detail,"scope":"TCP/TLS handshake only; no miner was started."}
 
@@ -1506,7 +1511,7 @@ def unmineable_assets(refresh: bool = False):
         return data
     except Exception as exc:
         return {"provider":"unMineable","status":"live_metadata_unavailable","auth_required":False,
-                "error":f"{type(exc).__name__}: {str(exc)[:180]}",
+                "error":f"{type(exc).__name__}: {_safe_network_error_summary(exc, \"Upstream metadata unavailable\")}",
                 "known_payout_routes":unmineable_catalog.payout_routes().get("routes",[]),
                 "warning":"Nu s-a înlocuit catalogul cu o listă goală. Activele necitite rămân UNKNOWN, nu inactive."}
 
