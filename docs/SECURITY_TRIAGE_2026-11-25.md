@@ -2,7 +2,7 @@
 
 **Target:** `dcnsd00/project-nexus`  
 **Branch:** `experiment/lfm3-core-security-lab-v1`  
-**Commit scanned:** branch HEAD at scan time; the scan tool reported the branch target but did not return a commit SHA in its result.  
+**Commit scanned:** scanner identified the branch; GitHub independently confirmed HEAD `9a773af00567b0fc84cd79b268b8f93958131e69` at scan time. The scanner response itself did not include a commit SHA.  
 **Scanner:** VisionEdge AIScan full GitHub repository scan
 
 ## 1. Scan result
@@ -12,13 +12,13 @@
 | Critical | 0 |
 | High | 0 |
 | Medium | 11 |
-| Low | 26 |
+| Low | 25 |
 | Informational | 8 |
 
 **Reported grade:** C (73/100)  
 **Reported verdict:** `GO_WITH_CONDITIONS` — no P0/P1 findings; lower-priority findings remain.
 
-AIScan returned detailed locations for 12 findings and reported 33 additional findings without exposing their individual details in this result. The 33 undisclosed findings remain untriaged; this report does not claim to close them.
+AIScan returned detailed locations for 12 findings and reported 32 additional findings without exposing their individual details in this result. The 32 undisclosed findings remain untriaged; this report does not claim to close them.
 
 ## 2. Detailed manual triage of returned findings
 
@@ -57,23 +57,23 @@ The interpolated value is `int(self.timeout_s * 1000)`. The constructor rejects 
 
 ### 2.4 Mutable GitHub Action reference — 1 low finding
 
-Location returned by AIScan: `.github/workflows/nexus-ci.yml`, Windows MSVC setup.
+Locations returned by AIScan: `.github/workflows/nexus-ci.yml`, Windows MSVC setup, and `.github/workflows/nexus-desktop-package.yml:31`.
 
-**Remediation applied:** pinned `ilammy/msvc-dev-cmd` to immutable commit `0b201ec74fa43914dc39ae48a89fd1d8cb592756`, with the upstream release label `v1.13.0`.
+**Remediation applied:** pinned `ilammy/msvc-dev-cmd` to immutable commit `0b201ec74fa43914dc39ae48a89fd1d8cb592756` in both `.github/workflows/nexus-ci.yml` and `.github/workflows/nexus-desktop-package.yml`, with the upstream release label `v1.13.0`.
 
 The referenced upstream release is signed and identifies this commit as v1.13.0. This change is limited to the action reference; it does not change the MSVC architecture input or build behavior.
 
 ## 3. Residual status
 
 - The 9 research-randomness reports, 2 SQL reports, and 1 action-pin report received individual review.
-- The action-pin item is remediated in this branch.
+- The action-pin item is remediated in both returned workflow locations on this branch.
 - The 11 medium findings are not all fixed: 11 is the scanner's total count, and only the returned locations above were manually triaged. The SQL/randomness call sites are assessed as false positives, not vulnerabilities.
-- The 26 low and 8 informational findings have not been individually reviewed in this report.
+- The remaining 25 low and 8 informational findings have not been individually reviewed in this report.
 - No claim is made that static scanning proves runtime security or that every finding in the scan has been closed.
 
 ## 4. CI evidence at report time
 
-GitHub Actions run `45570216391` completed successfully on commit `33a4cebec35b1ebb0fffc712350279cf5bb3db90`:
+The last fully green GitHub Actions run before the latest WAF/log and packaging changes was `45570216391`, on commit `33a4cebec35b1ebb0fffc712350279cf5bb3db90`:
 - source detection: PASS;
 - Linux Python tests: PASS;
 - Windows dependency and runtime preparation: PASS;
@@ -81,7 +81,7 @@ GitHub Actions run `45570216391` completed successfully on commit `33a4cebec35b1
 - Windows application shards 1–8: PASS;
 - Coraza WAF build and Caddyfile validation: PASS.
 
-This run predates the MSVC action pin made alongside this report. A new CI run is required to validate the pinned reference.
+A newer run `45577952724` was running on commit `9a773af00567b0fc84cd79b268b8f93958131e69` when this report was updated. Its Linux tests, Coraza build and Windows runtime preparation had not all completed yet. A subsequent run is required to validate the later desktop-workflow pin and final log changes.
 
 ## 5. Operational boundaries
 
