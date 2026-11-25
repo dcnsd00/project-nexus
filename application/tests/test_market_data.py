@@ -202,3 +202,17 @@ def test_market_data_api_route_rejects_unknown_provider():
     with pytest.raises(HTTPException) as caught:
         market_data.market_data_ticker("unknown", "BTC")
     assert caught.value.status_code == 404
+
+
+@pytest.mark.parametrize(
+    "base_url",
+    (
+        "http://127.0.0.1:8080",
+        "https://user:password@data-api.binance.vision",
+        "https://example.invalid",
+        "https://api.gateio.ws/other-path",
+    ),
+)
+def test_provider_rejects_non_official_or_non_https_base_urls(base_url):
+    with pytest.raises(ValueError, match="unsupported_public_market_data_base_url"):
+        market_data.BinancePublicMarketDataProvider(base_url=base_url)
