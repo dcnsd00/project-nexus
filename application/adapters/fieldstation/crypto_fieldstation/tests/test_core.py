@@ -93,3 +93,14 @@ def json_dumps(obj):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+
+    def test_optional_aes_dependency_is_exactly_locked_and_not_required_by_base_app(self):
+        root = Path(__file__).resolve().parents[1]
+        optional = (root / "requirements-optional.txt").read_text(encoding="utf-8")
+        lock = (root / "requirements-optional.lock").read_text(encoding="utf-8")
+        self.assertIn("-r requirements-optional.lock", optional)
+        self.assertIn("pycryptodome==3.24.0", lock)
+        self.assertNotIn(">=", lock)
+        self.assertNotIn("<", lock)

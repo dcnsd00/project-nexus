@@ -1,2 +1,3 @@
-# Optional only; required solely for the OpenSSL Salted__ AES-256-CBC candidate lab.
-pycryptodome>=3.20,<4
+# Optional only; AES Lab is the only feature that needs this package.
+# The exact version is maintained in requirements-optional.lock.
+-r requirements-optional.lock

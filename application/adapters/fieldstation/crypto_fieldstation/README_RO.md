@@ -38,10 +38,10 @@ Nu este necesar root. Nu sunt necesare conturi, chei API, abonamente sau pachete
 
 ## Modul AES opțional
 
-Verificatorul de hash și restul utilitarului funcționează fără biblioteci externe. Doar AES Lab cere PyCryptodome:
+Verificatorul de hash și restul utilitarului funcționează fără biblioteci externe. Doar AES Lab cere PyCryptodome. Versiunea opțională este fixată în `requirements-optional.lock` pentru a evita rezolvarea unei versiuni noi, nevalidate:
 
 ```sh
-python -m pip install pycryptodome
+python -m pip install -r requirements-optional.txt
 ```
 
 Instalează-l doar dacă ai un ciphertext public de puzzle și ai nevoie de această funcție. Nu introduce parole personale, seed phrase-uri sau chei de portofel. AES Lab lucrează numai cu o listă finită de candidați introdusă de utilizator; nu generează automat wordlist-uri.

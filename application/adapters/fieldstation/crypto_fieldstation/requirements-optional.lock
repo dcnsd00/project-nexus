@@ -1,0 +1,5 @@
+# NEXUS Crypto Fieldstation optional dependency lock
+# Used only by the OpenSSL Salted__ AES-256-CBC candidate lab.
+# Last verified against PyPI's 3.x release line on 2026-11-25.
+# No transitive runtime dependencies are declared by this package.
+pycryptodome==3.24.0
