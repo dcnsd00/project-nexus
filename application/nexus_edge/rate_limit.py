@@ -142,6 +142,25 @@ class EdgeRateLimitMiddleware:
             if retry_after:
                 return retry_after
 
+            # Never evict a live bucket to make room for an attacker-controlled
+            # new IP, node ID, or token. Eviction would let key rotation bypass
+            # per-identity limits. At capacity, fail closed for new identities.
+            missing = [
+                key for key in keys
+                if key not in self._buckets
+                or now - self._buckets[key][0] >= self.window_seconds
+            ]
+            if len(self._buckets) + len(missing) > self.max_keys:
+                expired = [
+                    key for key, (started, _) in self._buckets.items()
+                    if now - started >= self.window_seconds
+                ]
+                for key in expired:
+                    self._buckets.pop(key, None)
+                missing = [key for key in keys if key not in self._buckets]
+                if len(self._buckets) + len(missing) > self.max_keys:
+                    return self.window_seconds
+
             for key in keys:
                 bucket = self._buckets.get(key)
                 if bucket is None or now - bucket[0] >= self.window_seconds:
@@ -149,9 +168,6 @@ class EdgeRateLimitMiddleware:
                 else:
                     self._buckets[key] = (bucket[0], bucket[1] + 1)
                 self._buckets.move_to_end(key)
-
-            while len(self._buckets) > self.max_keys:
-                self._buckets.popitem(last=False)
             return None
 
     async def __call__(self, scope: dict[str, Any], receive: Any, send: Any) -> None:
