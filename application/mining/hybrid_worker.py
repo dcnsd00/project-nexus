@@ -41,8 +41,10 @@ def run_worker(engine: str, request: dict, status_path: str, stop_event_path: st
     """Launch and own exactly one child miner; return its exit code."""
     status_file, stop_file = Path(status_path), Path(stop_event_path)
     payload = {
-        'engine': engine, 'pid': os.getpid(), 'state': 'starting',
-        'heartbeat_unix': time.time(), 'miner_id': request.get('miner_id'),
+        'engine': engine, 'pid': os.getpid(),
+        'worker_instance_id': request.get('worker_instance_id'),
+        'state': 'starting', 'heartbeat_unix': time.time(),
+        'miner_id': request.get('miner_id'),
         'algorithm': request.get('algorithm'), 'hashrate_hs': None,
         'accepted_shares': None, 'rejected_shares': None,
         'last_error': None, 'pool_connected': None, 'authorized': None,
