@@ -111,6 +111,14 @@ def test_stale_heartbeat_is_not_reported_as_running(tmp_path, monkeypatch):
     # Advance only the supervisor's clock. The worker runs in a separate
     # process, so this deterministically simulates an expired heartbeat
     # without racing its periodic status-file writes.
+    import json
+    item = sup._workers['cpu']
+    worker_status = json.loads(item['status_path'].read_text(encoding='utf-8'))
+    assert worker_status.get('pid') == item['process'].pid, {
+        'worker_status_pid': worker_status.get('pid'),
+        'supervisor_process_pid': item['process'].pid,
+        'worker_status': worker_status,
+    }
     observed_now = time.time()
     with monkeypatch.context() as patch:
         patch.setattr(supervisor_module.time, 'time', lambda: observed_now + 30)
@@ -193,6 +201,13 @@ def test_read_only_status_reports_stale_without_stopping_worker(tmp_path, monkey
     while time.time() < deadline and sup.status()['engines']['cpu']['state'] != 'running':
         time.sleep(.05)
     item = sup._workers['cpu']
+    import json
+    worker_status = json.loads(item['status_path'].read_text(encoding='utf-8'))
+    assert worker_status.get('pid') == item['process'].pid, {
+        'worker_status_pid': worker_status.get('pid'),
+        'supervisor_process_pid': item['process'].pid,
+        'worker_status': worker_status,
+    }
 
     observed_now = time.time()
     with monkeypatch.context() as patch:
