@@ -140,6 +140,18 @@ jobs:
         uses: ilammy/msvc-dev-cmd@v1
         with:
           arch: x64
+      - name: Build native SHA-256d library on Windows
+        shell: pwsh
+        run: |
+          $Root = "${{ needs.source-detection.outputs.root }}"
+          $NativeBuild = Join-Path $Root "mining/native/build"
+          New-Item -ItemType Directory -Force -Path $NativeBuild | Out-Null
+          $NativeDll = Join-Path $NativeBuild "nexus_miner.dll"
+          $NativeSource = Join-Path $Root "mining/native/miner.c"
+          & cl.exe /nologo /O2 /LD /DNEXUS_LIBRARY "/Fe:$NativeDll" "/Fo:$NativeBuild\" $NativeSource
+          if ($LASTEXITCODE -ne 0) { throw "MSVC native SHA-256d build failed." }
+          if (-not (Test-Path $NativeDll)) { throw "MSVC did not create nexus_miner.dll." }
+          Write-Host "Native SHA-256d library built: $NativeDll"
       - name: Compile Python sources
         shell: pwsh
         run: |
@@ -159,9 +171,10 @@ jobs:
           $Compiler = Get-Command cl.exe -ErrorAction Stop
           Write-Host "Native C compiler: $($Compiler.Source)"
           $env:NEXUS_NATIVE_COMPILER = "msvc"
+          $env:NEXUS_NATIVE_MINER_LIB = Join-Path $Root "mining/native/build/nexus_miner.dll"
           Push-Location $Root
           try {
-            python -m pytest -vv --full-trace --disable-warnings tests/test_mining_solo_matrix_0105.py tests/test_mining_v098.py
+            python -m pytest -vv --full-trace --disable-warnings tests/test_mining_solo_matrix_0105.py tests/test_mining_v098.py tests/test_native_sha256d_021.py
             if ($LASTEXITCODE -ne 0) { throw "Isolated Windows mining catalog API modules failed." }
           } finally {
             Pop-Location
@@ -171,9 +184,10 @@ jobs:
         run: |
           $Root = "${{ needs.source-detection.outputs.root }}"
           $env:NEXUS_NATIVE_COMPILER = "msvc"
+          $env:NEXUS_NATIVE_MINER_LIB = Join-Path $Root "mining/native/build/nexus_miner.dll"
           Push-Location $Root
           try {
-            python -m pytest -vv --full-trace --disable-warnings --maxfail=1 --ignore=tests/test_mining_solo_matrix_0105.py --ignore=tests/test_mining_v098.py
+            python -m pytest -vv --full-trace --disable-warnings --maxfail=1 --ignore=tests/test_mining_solo_matrix_0105.py --ignore=tests/test_mining_v098.py --ignore=tests/test_native_sha256d_021.py
             if ($LASTEXITCODE -ne 0) { throw "Remaining NEXUS Windows test suite failed." }
           } finally {
             Pop-Location
