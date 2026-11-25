@@ -68,7 +68,7 @@ These are source-level capabilities, not proof of a hardened internet deployment
 ### Remaining gaps in the reviewed gateway surface
 
 - no WAF is active in the NEXUS runtime; a separate loopback-only Coraza/Caddy pilot scaffold has been added under `deployment/security/coraza/`, but it has not yet been built or run;
-- no bot-behavior detection service is integrated;
+- no CrowdSec engine or remediation bouncer is installed or active; a Windows acquisition template for Caddy JSON logs is prepared under `deployment/security/crowdsec/`;
 - no VPN/control-plane integration was found;
 - no endpoint detection/response agent was found;
 - the operator bearer token is a static configured secret; production use needs secret rotation, least-privilege handling, and protected delivery;
@@ -111,6 +111,14 @@ The experimental branch now contains `deployment/security/coraza/`:
 - `README.md`: local pilot steps and promotion gates.
 
 The Caddy configuration uses `SecRuleEngine DetectionOnly`; this inspects traffic without blocking on CRS matches during initial validation. The scripts validate the custom binary's WAF module and Caddyfile but do not start the proxy. No WAF binary has been built or installed on the user's machine in this work. Requests made directly to CORE's port 8765 bypass the proxy; the current loopback pilot is not remote protection. For any future VPN exposure, the proxy must bind only to the private interface and firewall the backend port against direct remote access.
+
+Caddy access logging is enabled in JSON format at `logs/access.log`, with rotation (50 MiB, 10 files, 30 days). Caddy redacts sensitive headers such as Authorization and Cookie by default; do not enable `log_credentials`. The CrowdSec acquisition template watches the log directory, including rotated files, and labels entries as `caddy`.
+
+### CrowdSec Windows detection scaffold
+
+`deployment/security/crowdsec/acquis-windows.yaml.example` provides a file-acquisition template for Caddy JSON logs. The official `crowdsecurity/caddy` collection supplies a Caddy parser and generic HTTP scenarios. The CrowdSec Security Engine detects suspicious request patterns; a remediation component is required to block them.
+
+The Windows Firewall remediation component requires .NET 10 according to current CrowdSec documentation and modifies host firewall rules. It is **not installed or activated** in this experiment. Do not activate it while Caddy is loopback-only: a false positive could block local access. Before enforcement, move the proxy to a tested private VPN interface, explicitly allowlist host/management addresses, review detections, and obtain operator approval for firewall changes. Review CrowdSec Central API enrollment/data-sharing settings during Windows engine installation.
 
 The upstream Coraza Caddy module embeds CRS when `load_owasp_crs` is enabled. Its release metadata at the selected version identifies Coraza `3.8.1` and CRS `4.30.0`. Version pins must be reviewed against upstream advisories before updates.
 
@@ -157,6 +165,8 @@ No single CAPTCHA, WAF, VPN, or model can reliably identify every automated clie
 - llama.cpp: https://github.com/ggml-org/llama.cpp
 - Coraza: https://github.com/corazawaf/coraza
 - Coraza Caddy connector: https://github.com/corazawaf/coraza-caddy
+- CrowdSec Caddy collection: https://app.crowdsec.net/hub/author/crowdsecurity/collections/caddy
+- CrowdSec Windows installation and firewall bouncer: https://docs.crowdsec.net/docs/getting_started/install_windows/
 - xcaddy builder: https://github.com/caddyserver/xcaddy
 - Caddy: https://github.com/caddyserver/caddy
 - OWASP CRS: https://github.com/coreruleset/coreruleset
