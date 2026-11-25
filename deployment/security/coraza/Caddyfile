@@ -22,6 +22,11 @@ http://127.0.0.1:8780 {
             Include @crs-setup.conf.example
             Include @owasp_crs/*.conf
             SecRuleEngine DetectionOnly
+            SecAuditEngine RelevantOnly
+            SecAuditLogType Serial
+            SecAuditLog ./logs/audit.log
+            SecAuditLogFormat JSON
+            SecAuditLogParts AHZ
         `
     }
 

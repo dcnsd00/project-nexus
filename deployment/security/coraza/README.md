@@ -10,7 +10,12 @@ FastAPI service. It is not installed or activated automatically.
 - The Caddy listener is explicitly loopback-only; it is not exposed to LAN/WAN.
 - OWASP CRS is embedded through the official Coraza Caddy module.
 - `SecRuleEngine DetectionOnly` is intentional for the first pilot. Requests
-  are inspected and logged, not blocked by CRS rules at this stage.
+  are inspected and relevant rule matches are logged, not blocked by CRS rules.
+- Coraza audit events are written as JSON to `./logs/audit.log`; Caddy access
+  logs are written to `./logs/access.log` with size-based rotation.
+- Audit parts are limited to transaction metadata, rule-match trailer and
+  boundary (`AHZ`). Request headers and bodies are intentionally excluded to
+  avoid persisting Authorization, Cookie or submitted data in the audit log.
 - The NEXUS EDGE in-process rate limiter remains a separate defense layer.
 - This does not configure VPN, Windows Firewall, DNS, certificates, or a
   public listener.
@@ -71,6 +76,10 @@ present, and validates the Caddyfile. It does not start Caddy.
 3. Use `http://127.0.0.1:8780` for requests that should pass through the WAF.
 4. Confirm that the application remains reachable only on loopback. Do not
    change either listener to `0.0.0.0` for this pilot.
+5. Inspect `./logs/audit.log` for Coraza rule matches and
+   `./logs/access.log` for request access records. Protect and rotate the
+   audit log as an operational log; the Caddy access-log rotation setting does
+   not rotate Coraza's separate audit file.
 
 Requests made directly to `127.0.0.1:8765` bypass the WAF. The loopback-only
 pilot is intended for local validation, not for protecting a remotely
