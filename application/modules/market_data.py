@@ -246,8 +246,11 @@ class BinancePublicMarketDataProvider(_PublicProvider):
                 "quote_volume": _number(row[7]),
                 "trade_count": row[8] if len(row) > 8 else None,
             })
-        source_time = rows[-1][6] if rows else None
-        return self._snapshot(asset, pair, endpoint, {"interval": interval, "candles": candles}, source_time)
+        source_time = rows[-1][0] if rows else None
+        return self._snapshot(
+            asset, pair, endpoint, {"interval": interval, "candles": candles},
+            source_time, stale_after_s=self.stale_after_s + INTERVAL_SECONDS[interval],
+        )
 
     def order_book(self, symbol: str, limit: int = 20) -> dict[str, Any]:
         asset = _asset(symbol)
