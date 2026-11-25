@@ -100,7 +100,7 @@ NEXUS_EDGE_RATE_LIMIT_MAX_KEYS=10000
 NEXUS_EDGE_TRUSTED_PROXY_CIDRS=
 ```
 
-Forwarded client addresses are ignored unless the immediate TCP peer belongs to an explicitly configured trusted proxy CIDR. Configure only the exact proxy ranges you control. The limiter is process-local and fixed-window; it does not coordinate counters across multiple workers or hosts. A multi-worker or distributed deployment must also enforce shared limits at the reverse-proxy/WAF layer (or use a shared backend). This feature is not proof of protection against every automated client.
+Forwarded client addresses are ignored unless the immediate TCP peer belongs to an explicitly configured trusted proxy CIDR. When trusted, the limiter walks the forwarded chain from right to left, skips trusted proxy addresses, and selects the first untrusted address; it does not blindly trust the left-most header value. Configure only the exact proxy ranges you control. The limiter is process-local and fixed-window; it does not coordinate counters across multiple workers or hosts. A multi-worker or distributed deployment must also enforce shared limits at the reverse-proxy/WAF layer (or use a shared backend). This feature is not proof of protection against every automated client.
 
 ### Headscale deployment warning
 
