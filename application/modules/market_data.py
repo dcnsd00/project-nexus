@@ -247,10 +247,7 @@ class BinancePublicMarketDataProvider(_PublicProvider):
                 "trade_count": row[8] if len(row) > 8 else None,
             })
         source_time = rows[-1][6] if rows else None
-        return self._snapshot(
-            asset, pair, endpoint, {"interval": interval, "candles": candles},
-            source_time, stale_after_s=self.stale_after_s + INTERVAL_SECONDS[interval],
-        )
+        return self._snapshot(asset, pair, endpoint, {"interval": interval, "candles": candles}, source_time)
 
     def order_book(self, symbol: str, limit: int = 20) -> dict[str, Any]:
         asset = _asset(symbol)
@@ -353,7 +350,10 @@ class GatePublicMarketDataProvider(_PublicProvider):
                 "trade_count": row[7] if len(row) > 7 else None,
             })
         source_time = rows[-1][0] if rows else None
-        return self._snapshot(asset, pair, endpoint, {"interval": interval, "candles": candles}, source_time)
+        return self._snapshot(
+            asset, pair, endpoint, {"interval": interval, "candles": candles},
+            source_time, stale_after_s=self.stale_after_s + INTERVAL_SECONDS[interval],
+        )
 
     def order_book(self, symbol: str, limit: int = 20) -> dict[str, Any]:
         asset = _asset(symbol)
