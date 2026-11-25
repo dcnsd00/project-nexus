@@ -84,3 +84,11 @@ def test_registry_rejects_duplicate_module_ids(tmp_path):
     )
     with pytest.raises(ValueError, match="duplicate module registry id: duplicate"):
         build_module_registry(tmp_path, modules=modules)
+
+
+def test_public_market_data_module_is_registered_as_route_and_runtime_service():
+    market_data = next(item for item in MODULES if item["id"] == "market_data")
+    assert market_data["paths"] == ("modules/market_data.py",)
+    assert market_data["route_prefixes"] == ("/api/market-data",)
+    assert market_data["runtime_service"] == "market_data"
+    assert market_data["critical"] is False
