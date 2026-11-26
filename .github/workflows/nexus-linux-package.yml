@@ -52,7 +52,7 @@ jobs:
           sha256sum "${{ runner.temp }}/NEXUS_MASTER_0.10.26_LINUX_INSTALLER.tar.gz" > "${{ runner.temp }}/NEXUS_MASTER_0.10.26_LINUX_INSTALLER.tar.gz.sha256"
           echo "NEXUS_LINUX_PACKAGE=${{ runner.temp }}/NEXUS_MASTER_0.10.26_LINUX_INSTALLER.tar.gz" >> "$GITHUB_ENV"
       - name: Upload Linux installer
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: NEXUS_MASTER_0.10.26_LINUX_INSTALLER
           path: |

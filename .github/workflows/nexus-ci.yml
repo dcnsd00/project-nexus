@@ -62,7 +62,7 @@ jobs:
           python -m pip download --disable-pip-version-check --prefer-binary -r (Join-Path $Root "requirements-dev.txt") -r (Join-Path $Root "requirements-edge.txt") -d $Wheelhouse
           if ($LASTEXITCODE -ne 0) { throw "Windows dependency wheelhouse download failed." }
       - name: Upload Windows dependency wheelhouse
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: nexus-windows-wheelhouse
           path: ${{ runner.temp }}/nexus-wheelhouse
@@ -113,7 +113,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw "MSVC native SHA-256d build failed." }
           if (-not (Test-Path $NativeDll)) { throw "MSVC did not create nexus_miner.dll." }
       - name: Upload reusable Windows test environment
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: nexus-windows-runtime
           path: |

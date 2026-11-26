@@ -130,7 +130,7 @@ jobs:
           Get-Item $Zip | Select-Object FullName,Length | Format-List
           "NEXUS_PACKAGE_ZIP=$Zip" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
       - name: Upload one-click Windows installer
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: NEXUS_MASTER_0.10.27_WINDOWS_INSTALLER
           path: ${{ env.NEXUS_PACKAGE_ZIP }}
