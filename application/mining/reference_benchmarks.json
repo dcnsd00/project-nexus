@@ -1,0 +1,32 @@
+{
+  "schema_version": 1,
+  "purpose": "External algorithm-specific reference measurements only; not NEXUS local benchmark results.",
+  "records": [
+    {
+      "id": "xmrig-randomx-i5-10300h-asus-tuf-fx506lhb-5dq62x",
+      "algorithm": "RandomX",
+      "device": "CPU",
+      "cpu_model": "Intel Core i5-10300H",
+      "system_model": "ASUS TUF Gaming F15 FX506LHB",
+      "physical_cores": 4,
+      "logical_threads": 8,
+      "memory_gb": 16,
+      "worker_threads": 4,
+      "benchmark_workload": "10MH",
+      "duration_seconds": 5721.630,
+      "hashrate_hs": 1747.75,
+      "miner": "XMRig 6.20.0",
+      "source_validation": "validated_by_xmrig_benchmark_service",
+      "submitted_age": "approximately two years at retrieval on 2026-11-26",
+      "measured_on_this_nexus_installation": false,
+      "local_reproduction_required": true,
+      "source_url": "https://xmrig.com/benchmark/5dq62x",
+      "source_api_url": "https://api.xmrig.com/1/benchmark/5dq62x"
+    }
+  ],
+  "rules": [
+    "Never compare hashrates between different proof-of-work algorithms.",
+    "Never present external reference measurements as measurements from this NEXUS installation.",
+    "Confirm hardware identity, stable runtime, accepted shares, power and temperatures before accepting a local profile."
+  ]
+}
