@@ -96,3 +96,10 @@ def test_ai_worker_registry_entry_is_discoverable_without_claiming_operation():
 def test_module_registry_ids_remain_unique_after_ai_worker_registration():
     ids = [item["id"] for item in MODULES]
     assert len(ids) == len(set(ids))
+
+def test_public_market_data_module_is_registered_as_route_and_runtime_service():
+    market_data = next(item for item in MODULES if item["id"] == "market_data")
+    assert market_data["paths"] == ("modules/market_data.py",)
+    assert market_data["route_prefixes"] == ("/api/market-data",)
+    assert market_data["runtime_service"] == "market_data"
+    assert market_data["critical"] is False
