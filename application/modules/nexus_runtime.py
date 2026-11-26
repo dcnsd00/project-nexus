@@ -312,6 +312,16 @@ def _integrations_probe(module: Any) -> dict[str, Any]:
             "writes_enabled": False}
 
 
+def _market_data_probe(module: Any) -> dict[str, Any]:
+    status = module.provider_status()
+    return {
+        "providers": [row["id"] for row in status["providers"]],
+        "auth_required": False,
+        "write_capabilities": False,
+        "network_calls_by_probe": False,
+    }
+
+
 def _fieldstation_probe(module: Any) -> dict[str, Any]:
     return {"host": module.HOST, "port": module.PORT,
             "data_directory": str(module.DATA_DIR),
@@ -556,7 +566,12 @@ def build_runtime(
         factory=lambda: ModuleAdapter("modules.integration_registry", _integrations_probe, "Provider Registry"),
         dependencies=("crypto_engine",), critical=False,
     ))
-    if (base / "modules" / "ai_worker_coordinator.py").is_file():
+        manager.register(ServiceSpec(
+        name="market_data",
+        factory=lambda: ModuleAdapter("modules.market_data", _market_data_probe, "Public Market Data"),
+        dependencies=("crypto_engine", "data_paths"), critical=False,
+    ))
+if (base / "modules" / "ai_worker_coordinator.py").is_file():
         manager.register(ServiceSpec(
             name="ai_worker_coordinator",
             factory=lambda: ModuleAdapter(
