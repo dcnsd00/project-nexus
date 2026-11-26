@@ -28,3 +28,23 @@ RandomX's documented memory profiles are materially different: light verificatio
 ## RCSC
 
 RCSC remains experimental research. It is not a replacement for SHA-256, RandomX, a standardized hash, or a proven consensus primitive. Keep auto_apply=false; require reproducible inputs, baseline comparisons, effect sizes and confidence intervals, multiple-testing correction, and independent replication before making any performance or security claim.
+## Upstream source provenance check (2026-11-26)
+
+The upstream release reference for this vendored directory is `tevador/RandomX` tag `v1.2.3`, whose release points to commit `12f2c2ffe2108d6cf54c391fee33c8bc3646cdab` (the short commit shown on the official release page is `12f2c2f`).
+
+A read-only comparison against `tevador/RandomX@v1.2.3` found identical Git blob object IDs for these five representative files in `application/vendor/randomx-1.2.3/`:
+
+| File | Git blob SHA (same upstream and vendored) |
+|---|---|
+| `CMakeLists.txt` | `000eaef390e6bbfd46286868596cb195688bba79` |
+| `src/tests/tests.cpp` | `1dd5c06e031390ea85974fd0a004f132b3c05a61` |
+| `src/randomx.cpp` | `a08968e6aaf7179547f4fab9f7ee764d2f634906` |
+| `src/randomx.h` | `313bcd2e0b60f7d7cfb5d937970c3b1834d04265` |
+| `LICENSE` | `b1572ae82433af4b6985acc80f8fdc7c8d1768b4` |
+
+This is representative-file evidence, **not a complete recursive tree comparison**. Do not yet claim every vendored file is byte-identical to the upstream tag. Remaining provenance work: compare the complete vendored file inventory against the tagged upstream tree and record all path/blob-SHA matches and any deliberate local differences.
+
+References:
+- Official release: https://github.com/tevador/RandomX/releases/tag/v1.2.3
+- Upstream repository: https://github.com/tevador/RandomX/tree/v1.2.3
+- Verified commit: https://github.com/tevador/RandomX/commit/12f2c2ffe2108d6cf54c391fee33c8bc3646cdab
