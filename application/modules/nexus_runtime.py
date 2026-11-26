@@ -229,14 +229,15 @@ class RCSCReadOnlyAdapter:
 
 
 class MiningSupervisorAdapter:
-    """Expose supervisor status only; never start a mining mode or worker."""
+    """Expose the API-owned supervisor without starting mining workers."""
 
-    def __init__(self):
-        self.supervisor: Any = None
+    def __init__(self, supervisor: Any = None):
+        self.supervisor: Any = supervisor
 
     def initialize(self) -> None:
-        module = importlib.import_module("mining.hybrid_supervisor")
-        self.supervisor = module.HybridSupervisor()
+        if self.supervisor is None:
+            module = importlib.import_module("mining.hybrid_supervisor")
+            self.supervisor = module.HybridSupervisor()
 
     def start(self) -> None:
         if self.supervisor is None:
@@ -428,10 +429,92 @@ def _mining_backend_adapter_probe(module: Any) -> dict[str, Any]:
     }
 
 
-def build_runtime(root: str | Path | None = None) -> LifecycleManager:
-    """Build the NEXUS runtime graph; no service starts until start_all()."""
+def _ai_worker_probe(module: Any) -> dict[str, Any]:
+    catalog = module.worker_catalog()
+    return {
+        "workers_registered": catalog.get("worker_count", 0),
+        "configured_model_providers": catalog.get("configured_model_providers", 0),
+        "active_ai_agents": catalog.get("active_ai_agents", 0),
+        "model_invocation_enabled": catalog.get("model_invocation_enabled", False),
+        "task_execution": catalog.get("dispatch_mode"),
+        "network_calls_by_probe": False,
+        "repository_writes_by_probe": False,
+    }
+
+
+def _runtime_temperature_limit(name: str, default: float = 85.0) -> float:
+    raw = os.environ.get(name)
+    if raw is None:
+        return default
+    try:
+        value = float(raw)
+    except (TypeError, ValueError):
+        return default
+    return value if 50.0 <= value <= 105.0 else default
+
+
+class MiningSafetyMonitorAdapter:
+    """Start a local sensor monitor; no miners are started by this adapter."""
+
+    def __init__(self, supervisor: Any):
+        self.supervisor = supervisor
+        self.monitor: Any = None
+
+    def initialize(self) -> None:
+        from mining.safety_monitor import MiningSafetyMonitor
+        from modules.runtime_telemetry import RuntimeTelemetry
+
+        controller = importlib.import_module("mining.controller")
+        self.monitor = MiningSafetyMonitor(
+            supervisor=self.supervisor,
+            controller=controller,
+            telemetry=RuntimeTelemetry(),
+            cpu_max_temperature_c=_runtime_temperature_limit("NEXUS_MINING_CPU_MAX_TEMP_C"),
+            gpu_max_temperature_c=_runtime_temperature_limit("NEXUS_MINING_GPU_MAX_TEMP_C"),
+        )
+
+    def start(self) -> None:
+        if self.monitor is None:
+            raise RuntimeError("mining safety monitor was not initialized")
+        self.monitor.start()
+
+    def health_check(self) -> dict[str, Any]:
+        if self.monitor is None:
+            return {"ok": False, "reason": "mining_safety_monitor_not_initialized"}
+        return {
+            "ok": True, "module": "mining.safety_monitor",
+            "label": "Mining Safety Monitor",
+            "details": self.monitor.status(),
+            "mode": "local_telemetry_only_no_autostart",
+        }
+
+    def stop(self) -> None:
+        if self.monitor is not None:
+            self.monitor.stop()
+
+    def shutdown(self) -> None:
+        if self.monitor is not None:
+            self.monitor.shutdown()
+            self.monitor = None
+
+
+def build_runtime(
+    root: str | Path | None = None,
+    *,
+    mining_supervisor: Any = None,
+    enable_mining_safety_monitor: bool = False,
+) -> LifecycleManager:
+    """Build the service graph with optional shared mining control and monitoring."""
     base = Path(root or Path(__file__).resolve().parents[1]).resolve()
     manager = LifecycleManager()
+    shared_supervisor = mining_supervisor
+
+    def get_shared_supervisor() -> Any:
+        nonlocal shared_supervisor
+        if shared_supervisor is None:
+            module = importlib.import_module("mining.hybrid_supervisor")
+            shared_supervisor = module.HybridSupervisor()
+        return shared_supervisor
 
     if (base / "mining" / "backend_adapters.py").is_file():
         manager.register(ServiceSpec(
@@ -469,6 +552,14 @@ def build_runtime(root: str | Path | None = None) -> LifecycleManager:
         factory=lambda: ModuleAdapter("modules.integration_registry", _integrations_probe, "Provider Registry"),
         dependencies=("crypto_engine",), critical=False,
     ))
+    if (base / "modules" / "ai_worker_coordinator.py").is_file():
+        manager.register(ServiceSpec(
+            name="ai_worker_coordinator",
+            factory=lambda: ModuleAdapter(
+                "modules.ai_worker_coordinator", _ai_worker_probe, "AI Worker Coordinator"
+            ),
+            dependencies=("crypto_engine", "data_paths"), critical=False,
+        ))
     if (base / "adapters" / "fieldstation" / "crypto_fieldstation" / "app.py").is_file():
         manager.register(ServiceSpec(
             name="depin_fieldstation",
@@ -538,9 +629,15 @@ def build_runtime(root: str | Path | None = None) -> LifecycleManager:
     if (base / "mining" / "hybrid_supervisor.py").is_file():
         manager.register(ServiceSpec(
             name="mining_supervisor",
-            factory=MiningSupervisorAdapter,
+            factory=lambda: MiningSupervisorAdapter(get_shared_supervisor()),
             dependencies=("crypto_engine", "data_paths"), critical=False,
         ))
+        if enable_mining_safety_monitor and (base / "mining" / "safety_monitor.py").is_file():
+            manager.register(ServiceSpec(
+                name="mining_safety_monitor",
+                factory=lambda: MiningSafetyMonitorAdapter(get_shared_supervisor()),
+                dependencies=("mining_supervisor", "data_paths"), critical=False,
+            ))
     return manager
 
 
