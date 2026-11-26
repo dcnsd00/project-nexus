@@ -24,12 +24,18 @@ Aceeași adresă EVM este utilizabilă ca identitate de cont pe Ethereum, Base, 
 ## Cerințe
 
 - Python 3.10+
-- `cryptography` 41+
+- `cryptography` 50+
 
 Instalare într-un mediu Python local:
 
 ```bash
-python -m pip install 'cryptography>=41'
+python -m pip install -r requirements.txt
+```
+
+Pentru teste și dezvoltare, instalează separat:
+
+```bash
+python -m pip install -r requirements-dev.txt
 ```
 
 ## Rulare
@@ -67,7 +73,6 @@ This extension creates 19 deterministic source test wallets and five correspondi
 
 No RPC/network requests are made, no blockchain balances are read, no transactions are signed for broadcast, and no real funds are moved. The mnemonics are public test vectors and all generated addresses are test-only; never fund them.
 
-
 ## NEXUS Wallet Search & Recovery integration (0.10.17)
 
 - Local file discovery: `nexus_wallet_search.py` scans only a user-selected folder, with depth/file caps, symlink exclusion and metadata-only results. It detects common JSON keystores, BIP38 strings, Bitcoin Core `wallet.dat`, Electrum/Monero file hints and MetaMask LevelDB extension storage locations.
@@ -77,8 +82,8 @@ No RPC/network requests are made, no blockchain balances are read, no transactio
 - Web3 V3 imports are immediately re-encrypted into the NEXUS local AES-GCM vault. BIP38 returns only the verified public address and does not export or persist the raw Bitcoin key.
 - Recovery endpoints accept loopback clients only and require explicit owner authorization. No password brute-force, arbitrary blockchain address search, key export or transaction broadcast.
 - `python-mnemonic` is a declared dependency for official BIP39 wordlists; install from `modules/wallet_benchmark/requirements.txt`.
+- Test tooling is separate: install `modules/wallet_benchmark/requirements-dev.txt` to get the supported pytest range.
 - Not native-decrypted: Electrum, MetaMask raw vault, Monero, BIP38 EC-multiplied 0x0143 and EIP-2335. Bitcoin Core password check requires a running local daemon and encrypted wallet.
-
 
 ## NEXUS 0.10.19 — owner-local wallet recovery
 
