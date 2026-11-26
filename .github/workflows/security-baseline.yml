@@ -64,6 +64,9 @@ jobs:
           severity: CRITICAL,HIGH,MEDIUM
           ignore-unfixed: true
           exit-code: "0"
+          list-all-pkgs: true
+        env:
+          TRIVY_DETECTION_PRIORITY: comprehensive
 
       - name: Upload Trivy report
         if: always()
