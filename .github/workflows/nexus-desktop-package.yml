@@ -2,7 +2,7 @@ name: NEXUS Windows Desktop Package
 
 on:
   push:
-    branches: ["main", "feature/edge-replay-protection-sqlite-v1"]
+    branches: ["main", "feature/edge-replay-protection-sqlite-v1", "feature/nexus-ai-worker-mining-safety-v1"]
     paths:
       - "application/**"
       - ".github/workflows/nexus-desktop-package.yml"
