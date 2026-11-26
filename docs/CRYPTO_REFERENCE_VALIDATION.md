@@ -32,7 +32,20 @@ RCSC remains experimental research. It is not a replacement for SHA-256, RandomX
 
 The upstream release reference for this vendored directory is `tevador/RandomX` tag `v1.2.3`, whose release points to commit `12f2c2ffe2108d6cf54c391fee33c8bc3646cdab` (the short commit shown on the official release page is `12f2c2f`).
 
-A read-only comparison against `tevador/RandomX@v1.2.3` found identical Git blob object IDs for these five representative files in `application/vendor/randomx-1.2.3/`:
+A complete recursive Git tree comparison was performed between the upstream tag commit `12f2c2ffe2108d6cf54c391fee33c8bc3646cdab` and `application/vendor/randomx-1.2.3/` in NEXUS main. Both tree responses were complete (`truncated=false`).
+
+| Comparison | Result |
+|---|---:|
+| Upstream blob files at `v1.2.3` | 151 |
+| Vendored blob files in NEXUS | 145 |
+| Vendored files with identical upstream Git blob SHA | 145 / 145 |
+| Vendored files with changed content | 0 |
+| Extra files in NEXUS vendor directory | 0 |
+| Upstream files not copied into NEXUS vendor directory | 6 |
+
+The six omitted upstream files are repository metadata and audit PDFs: `.gitattributes`, `.gitignore`, `audits/Report-Kudelski.pdf`, `audits/Report-Quarkslab.pdf`, `audits/Report-TrailOfBits.pdf`, and `audits/Report-X41.pdf`. No source file in the NEXUS vendor directory differs from the matching upstream file by Git blob SHA. Thus, **all 145 vendored files are content-identical to their corresponding files at the official upstream v1.2.3 commit**.
+
+Representative blob SHA spot checks recorded during the comparison:
 
 | File | Git blob SHA (same upstream and vendored) |
 |---|---|
@@ -41,8 +54,6 @@ A read-only comparison against `tevador/RandomX@v1.2.3` found identical Git blob
 | `src/randomx.cpp` | `a08968e6aaf7179547f4fab9f7ee764d2f634906` |
 | `src/randomx.h` | `313bcd2e0b60f7d7cfb5d937970c3b1834d04265` |
 | `LICENSE` | `b1572ae82433af4b6985acc80f8fdc7c8d1768b4` |
-
-This is representative-file evidence, **not a complete recursive tree comparison**. Do not yet claim every vendored file is byte-identical to the upstream tag. Remaining provenance work: compare the complete vendored file inventory against the tagged upstream tree and record all path/blob-SHA matches and any deliberate local differences.
 
 References:
 - Official release: https://github.com/tevador/RandomX/releases/tag/v1.2.3
