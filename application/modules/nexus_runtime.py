@@ -456,8 +456,9 @@ def _runtime_temperature_limit(name: str, default: float = 85.0) -> float:
 class MiningSafetyMonitorAdapter:
     """Start a local sensor monitor; no miners are started by this adapter."""
 
-    def __init__(self, supervisor: Any):
+    def __init__(self, supervisor: Any, telemetry: Any = None):
         self.supervisor = supervisor
+        self.telemetry = telemetry
         self.monitor: Any = None
 
     def initialize(self) -> None:
@@ -465,10 +466,12 @@ class MiningSafetyMonitorAdapter:
         from modules.runtime_telemetry import RuntimeTelemetry
 
         controller = importlib.import_module("mining.controller")
+        if self.telemetry is None:
+            self.telemetry = RuntimeTelemetry()
         self.monitor = MiningSafetyMonitor(
             supervisor=self.supervisor,
             controller=controller,
-            telemetry=RuntimeTelemetry(),
+            telemetry=self.telemetry,
             cpu_max_temperature_c=_runtime_temperature_limit("NEXUS_MINING_CPU_MAX_TEMP_C"),
             gpu_max_temperature_c=_runtime_temperature_limit("NEXUS_MINING_GPU_MAX_TEMP_C"),
         )
@@ -502,6 +505,7 @@ def build_runtime(
     root: str | Path | None = None,
     *,
     mining_supervisor: Any = None,
+    mining_telemetry: Any = None,
     enable_mining_safety_monitor: bool = False,
 ) -> LifecycleManager:
     """Build the service graph with optional shared mining control and monitoring."""
@@ -635,7 +639,7 @@ def build_runtime(
         if enable_mining_safety_monitor and (base / "mining" / "safety_monitor.py").is_file():
             manager.register(ServiceSpec(
                 name="mining_safety_monitor",
-                factory=lambda: MiningSafetyMonitorAdapter(get_shared_supervisor()),
+                factory=lambda: MiningSafetyMonitorAdapter(get_shared_supervisor(), mining_telemetry),
                 dependencies=("mining_supervisor", "data_paths"), critical=False,
             ))
     return manager
