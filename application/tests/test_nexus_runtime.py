@@ -332,3 +332,44 @@ def test_edge_runtime_adapter_holds_exclusive_database_lock(tmp_path, monkeypatc
     first.shutdown()
     second.initialize()
     second.shutdown()
+
+
+
+def test_runtime_injects_the_api_owned_hybrid_supervisor(tmp_path):
+    from mining.hybrid_supervisor import HybridSupervisor
+
+    shared = HybridSupervisor(runtime_root=tmp_path / "shared-supervisor")
+    manager = build_runtime(mining_supervisor=shared)
+    manager.start_all()
+    adapter = manager.get_service_instance("mining_supervisor")
+    assert adapter.supervisor is shared
+    manager.stop_all()
+
+
+def test_runtime_registers_ai_worker_coordinator_as_read_only_service():
+    manager = build_runtime()
+    snapshot = manager.start_all()
+    by_name = {row["name"]: row for row in snapshot["services"]}
+    details = by_name["ai_worker_coordinator"]["health"]["details"]
+    assert details["workers_registered"] == 11
+    assert details["configured_model_providers"] == 0
+    assert details["active_ai_agents"] == 0
+    assert details["model_invocation_enabled"] is False
+    assert details["network_calls_by_probe"] is False
+    manager.stop_all()
+
+
+def test_runtime_safety_monitor_is_opt_in_and_does_not_autostart_miners(tmp_path):
+    from mining.hybrid_supervisor import HybridSupervisor
+
+    shared = HybridSupervisor(runtime_root=tmp_path / "monitor-supervisor")
+    manager = build_runtime(
+        mining_supervisor=shared, enable_mining_safety_monitor=True
+    )
+    manager.start_all()
+    adapter = manager.get_service_instance("mining_safety_monitor")
+    monitor = adapter.monitor
+    assert monitor.status()["running"] is True
+    assert monitor.status()["miner_autostart_enabled"] is False
+    manager.stop_all()
+    assert monitor.status()["running"] is False
