@@ -123,6 +123,9 @@ def test_gate_klines_order_book_and_recent_trades_are_normalized(monkeypatch):
     trades = client.recent_trades("BTC", limit=1)
 
     assert candles["data"]["candles"][0]["close"] == 11
+    assert candles["data"]["candles"][0]["quote_volume"] == 100
+    assert candles["data"]["candles"][0]["volume"] == 1100
+    assert candles["data"]["candles"][0]["window_closed"] is True
     assert book["data"]["bids"] == [["10", "2"]]
     assert book["freshness"] == "fresh"
     assert trades["data"]["trades"][0]["side"] == "buy"
