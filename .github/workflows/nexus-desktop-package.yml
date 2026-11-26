@@ -84,7 +84,7 @@ jobs:
       - name: Assemble one-click ZIP and SHA-256 manifest
         shell: pwsh
         run: |
-          $Package = Join-Path $env:RUNNER_TEMP "NEXUS_MASTER_0.10.26_WINDOWS"
+          $Package = Join-Path $env:RUNNER_TEMP "NEXUS_MASTER_0.10.27_WINDOWS"
           $PackageDist = Join-Path $Package "dist"
           New-Item -ItemType Directory -Force -Path $PackageDist | Out-Null
           Copy-Item "application\dist\NEXUS" (Join-Path $PackageDist "NEXUS") -Recurse -Force
@@ -92,7 +92,7 @@ jobs:
           Copy-Item "application\INSTALL_NEXUS.bat" $Package
           Copy-Item "application\INSTALL_NEXUS_ONECLICK.ps1" $Package
           $Readme = @(
-            "NEXUS MASTER 0.10.26 — WINDOWS DESKTOP",
+            "NEXUS MASTER 0.10.27 — WINDOWS DESKTOP",
             " ",
             "INSTALARE:",
             "1. Despachetează întregul ZIP.",
@@ -125,14 +125,14 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw "End-to-end one-click installer validation failed with exit code $LASTEXITCODE." }
           $InstalledExe = Join-Path $env:LOCALAPPDATA "Programs\\NEXUS\\NEXUS.exe"
           if (-not (Test-Path $InstalledExe)) { throw "Installer did not place NEXUS.exe in the expected user install directory." }
-          $Zip = Join-Path $env:RUNNER_TEMP "NEXUS_MASTER_0.10.26_WINDOWS_INSTALLER.zip"
+          $Zip = Join-Path $env:RUNNER_TEMP "NEXUS_MASTER_0.10.27_WINDOWS_INSTALLER.zip"
           Compress-Archive -Path (Join-Path $Package "*") -DestinationPath $Zip -CompressionLevel Optimal -Force
           Get-Item $Zip | Select-Object FullName,Length | Format-List
           "NEXUS_PACKAGE_ZIP=$Zip" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
       - name: Upload one-click Windows installer
         uses: actions/upload-artifact@v4
         with:
-          name: NEXUS_MASTER_0.10.26_WINDOWS_INSTALLER
+          name: NEXUS_MASTER_0.10.27_WINDOWS_INSTALLER
           path: ${{ env.NEXUS_PACKAGE_ZIP }}
           if-no-files-found: error
           retention-days: 30
