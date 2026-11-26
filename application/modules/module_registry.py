@@ -17,6 +17,7 @@ MODULES: tuple[dict[str, Any], ...] = (
     {"id": "integrations", "name": "Provider Integrations", "paths": ("modules/integration_registry.py",), "route_prefixes": ("/api/integrations",), "critical": False},
     {"id": "ai_worker_coordinator", "name": "NEXUS AI Worker Coordinator", "paths": ("modules/ai_worker_coordinator.py",), "route_prefixes": ("/api/nexus/workers",), "runtime_service": "ai_worker_coordinator", "critical": False},
     {"id": "gate_info", "name": "Gate Info Research & Paper Trading", "paths": ("modules/gate_paper_trading.py",), "route_prefixes": ("/api/gate", "/gate-paper"), "critical": False},
+    {"id": "market_data", "name": "Public Market Data", "paths": ("modules/market_data.py",), "route_prefixes": ("/api/market-data",), "runtime_service": "market_data", "critical": False},
     {"id": "math_intelligence", "name": "Math Intelligence", "paths": ("modules/math_intelligence.py",), "route_prefixes": ("/api/math",), "critical": False},
     {"id": "research_hub", "name": "Research Hub", "paths": ("modules/research_hub.py",), "route_prefixes": ("/api/research",), "runtime_service": "research_hub", "critical": False},
     {"id": "earnings_intelligence", "name": "Earnings Intelligence", "paths": ("modules/earnings_intelligence.py",), "route_prefixes": ("/api/intel",), "runtime_service": "earnings_intelligence", "critical": False},
