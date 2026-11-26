@@ -16,6 +16,20 @@ engine = CryptoEngine()
 def test_known_empty_message_vectors(algorithm, expected):
     assert engine.digest_hex(algorithm, b"") == expected
 
+@pytest.mark.parametrize("message,expected", [
+    (
+        b"abc",
+        "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
+    ),
+    (
+        b"abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq",
+        "248d6a61d20638e5b8c026930c3e6039a33ce45964ff2167f6ecedd419db06c1",
+    ),
+])
+def test_sha256_fips_180_4_known_vectors(message, expected):
+    assert engine.digest_hex("sha256", message) == expected
+
+
 def test_sha256d_is_double_sha256():
     assert engine.digest("sha256d", b"abc") == hashlib.sha256(hashlib.sha256(b"abc").digest()).digest()
 
