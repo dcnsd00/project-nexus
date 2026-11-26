@@ -566,12 +566,12 @@ def build_runtime(
         factory=lambda: ModuleAdapter("modules.integration_registry", _integrations_probe, "Provider Registry"),
         dependencies=("crypto_engine",), critical=False,
     ))
-        manager.register(ServiceSpec(
+    manager.register(ServiceSpec(
         name="market_data",
         factory=lambda: ModuleAdapter("modules.market_data", _market_data_probe, "Public Market Data"),
         dependencies=("crypto_engine", "data_paths"), critical=False,
     ))
-if (base / "modules" / "ai_worker_coordinator.py").is_file():
+    if (base / "modules" / "ai_worker_coordinator.py").is_file():
         manager.register(ServiceSpec(
             name="ai_worker_coordinator",
             factory=lambda: ModuleAdapter(
