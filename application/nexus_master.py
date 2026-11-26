@@ -55,7 +55,8 @@ async def _nexus_lifespan(application):
         # failures remain visible without taking down independent services.
         import asyncio
         runtime_manager = build_runtime(
-            ROOT, mining_supervisor=hybrid_supervisor, enable_mining_safety_monitor=True
+            ROOT, mining_supervisor=hybrid_supervisor, mining_telemetry=_runtime_telemetry,
+            enable_mining_safety_monitor=True
         )
         await asyncio.to_thread(runtime_manager.start_all)
         application.state.nexus_runtime = runtime_manager
