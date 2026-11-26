@@ -141,3 +141,18 @@ def test_reference_benchmark_is_external_and_never_claimed_as_local():
     assert record["measured_on_this_nexus_installation"] is False
     assert record["local_reproduction_required"] is True
     assert record["source_url"] == "https://xmrig.com/benchmark/5dq62x"
+
+
+
+def test_reference_benchmark_is_external_and_not_local_measurement():
+    import json
+    from pathlib import Path
+
+    path = Path(__file__).resolve().parents[1] / "mining" / "reference_benchmarks.json"
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    record = payload["records"][0]
+    assert record["algorithm"] == "RandomX"
+    assert record["hashrate_hs"] == 1747.75
+    assert record["measured_on_this_nexus_installation"] is False
+    assert record["local_reproduction_required"] is True
+    assert record["source_url"] == "https://xmrig.com/benchmark/5dq62x"
