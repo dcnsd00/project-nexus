@@ -28,7 +28,7 @@ MINERS = {
     'asic': {'name':'ASIC extern (configurare Stratum)', 'executables':[], 'api':None, 'launch':False, 'external_device':True, 'algorithms':['SHA-256d','Scrypt','KHeavyHash','Etchash','Equihash-125-4','X11','Eaglesong','Blake3','NexaPow'], 'device':['ASIC']},
 }
 
-_state: dict[str, Any] = {'status':'stopped','pid':None,'miner_id':None,'miner_name':None,'coin':None,'algorithm':None,'pool':None,'started_at':None,'last_error':None,'last_exit_code':None,'log_path':str(LOG),'api':None}
+_state: dict[str, Any] = {'status':'stopped','pid':None,'miner_id':None,'miner_name':None,'coin':None,'algorithm':None,'device':None,'pool':None,'started_at':None,'last_error':None,'last_exit_code':None,'log_path':str(LOG),'api':None}
 _proc: subprocess.Popen | None = None
 _ARBITER_OWNER = "direct-mining-controller"
 
@@ -301,7 +301,7 @@ def start(req: dict) -> dict:
             worker_pid = getattr(worker_engine, 'pid', None)
             MINING_PROCESS_ARBITER.update_processes(_ARBITER_OWNER, [worker_pid] if isinstance(worker_pid, int) else [])
             _proc=worker_engine
-            _state.update(status='starting',pid=None,miner_id=mid,miner_name=spec['name'],coin='BTC',algorithm=algo,
+            _state.update(status='starting',pid=None,miner_id=mid,miner_name=spec['name'],coin='BTC',algorithm=algo,device='CPU',
                           pool={'name':pool['name'],'host':host,'port':int(port),'tls':bool(req.get('use_ssl'))},
                           started_at=time.time(),last_error=None,last_exit_code=None,api=None)
             return status()
@@ -425,7 +425,7 @@ def start(req: dict) -> dict:
             _state.update(status='error',last_error=_diagnose(str(exc)))
             raise ValueError(f'Nu am putut lansa minerul: {type(exc).__name__}: {exc}')
         MINING_PROCESS_ARBITER.update_processes(_ARBITER_OWNER, [_proc.pid])
-        _state.update(status='starting',pid=_proc.pid,miner_id=mid,miner_name=spec['name'],coin=pool['coin'],algorithm=algo,
+        _state.update(status='starting',pid=_proc.pid,miner_id=mid,miner_name=spec['name'],coin=pool['coin'],algorithm=algo,device=device,
                       pool={'name':pool['name'],'host':host,'port':int(port),'tls':bool(req.get('use_ssl'))},started_at=time.time(),last_error=None,last_exit_code=None)
         return status()
 

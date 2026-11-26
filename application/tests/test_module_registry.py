@@ -84,3 +84,15 @@ def test_registry_rejects_duplicate_module_ids(tmp_path):
     )
     with pytest.raises(ValueError, match="duplicate module registry id: duplicate"):
         build_module_registry(tmp_path, modules=modules)
+
+
+
+def test_ai_worker_registry_entry_is_discoverable_without_claiming_operation():
+    entry = next(item for item in MODULES if item["id"] == "ai_worker_coordinator")
+    assert entry["runtime_service"] == "ai_worker_coordinator"
+    assert entry["route_prefixes"] == ("/api/nexus/workers",)
+
+
+def test_module_registry_ids_remain_unique_after_ai_worker_registration():
+    ids = [item["id"] for item in MODULES]
+    assert len(ids) == len(set(ids))

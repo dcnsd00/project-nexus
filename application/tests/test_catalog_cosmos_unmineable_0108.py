@@ -133,7 +133,7 @@ def test_version_endpoint_matches_current_desktop_release():
     with TestClient(__import__('nexus_master').app) as c:
         r = c.get('/api/nexus/master')
     assert r.status_code == 200
-    assert r.json()['version'] == '0.10.26'
+    assert r.json()['version'] == '0.10.27'
 
 
 def test_unmineable_public_catalog_route_redacts_upstream_exception_text(monkeypatch):

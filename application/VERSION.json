@@ -1,7 +1,7 @@
 {
   "product": "NEXUS MASTER",
-  "version": "0.10.26",
-  "build": "windows-frozen-desktop-one-click-package + hardware-audit + edge-replay-sqlite",
+  "version": "0.10.27",
+  "build": "windows-frozen-desktop-one-click-package + ai-worker-routing + shared-mining-supervisor + thermal-guard",
   "created_utc": "2026-11-19",
   "base": "0.10.20 + corrected native C scanner and optional Stratum backend",
   "mining_catalog": {
@@ -161,7 +161,7 @@
     "decrypts": false,
     "modifies": false
   },
-  "updated": "2026-11-19",
+  "updated": "2026-11-26",
   "wallet_recovery": {
     "search_api": "/api/wallet/recovery/search",
     "bitcoin_core_inspect_api": "/api/wallet/recovery/bitcoin-core/inspect",
@@ -264,7 +264,7 @@
     "port_fallback": "ephemeral loopback port if default occupied",
     "webview": "Edge WebView2 via pywebview",
     "windows_build": "must be built and tested on Windows 10/11 x64",
-    "installer": "INSTALL_NEXUS_WINDOWS.ps1: isolated venv, dependency import verification, Desktop and Start Menu shortcuts; frozen onedir preferred",
+    "installer": "INSTALL_NEXUS.bat -> INSTALL_NEXUS_ONECLICK.ps1; frozen onedir package with manifest validation",
     "validation": "source-level only in this build environment; Windows install and WebView2 runtime not executed here"
   },
   "blockchain_regtest": {
@@ -322,5 +322,26 @@
       "windows_runner": "9 profiles passed; best measured scalar midstate early-exit, 4 threads: 1.307934 MH/s",
       "note": "GitHub-hosted runner measurements only; not representative of the user's laptop. Windows runner exposed only scalar native variants."
     }
-  }
+  },
+  "ai_workers": {
+    "registry": "/api/nexus/workers",
+    "route_preview": "/api/nexus/workers/route",
+    "specialist_domains": 11,
+    "configured_model_providers": 0,
+    "active_ai_agents": 0,
+    "model_invocation_enabled": false
+  },
+  "mining_safety": {
+    "status_api": "/api/mining/safety/status",
+    "cpu_gpu_temperature_preflight": true,
+    "default_cpu_max_temperature_c": 85,
+    "default_gpu_max_temperature_c": 85,
+    "missing_temperature_telemetry": "fail_closed",
+    "monitor_interval_seconds": 5,
+    "automatic_overclock": false,
+    "automatic_undervolt": false,
+    "automatic_fan_curve_changes": false,
+    "hardware_validation": "pending_on_target_laptop"
+  },
+  "reference_benchmarks": "/api/mining/reference-benchmarks"
 }

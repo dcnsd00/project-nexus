@@ -54,7 +54,10 @@ async def _nexus_lifespan(application):
         # Start the safe, local-only NEXUS service graph. Optional service
         # failures remain visible without taking down independent services.
         import asyncio
-        runtime_manager = build_runtime(ROOT)
+        runtime_manager = build_runtime(
+            ROOT, mining_supervisor=hybrid_supervisor, mining_telemetry=_runtime_telemetry,
+            enable_mining_safety_monitor=True
+        )
         await asyncio.to_thread(runtime_manager.start_all)
         application.state.nexus_runtime = runtime_manager
         # Both network adapters must use the exact manager owned by the
@@ -114,6 +117,8 @@ from modules.earnings_intelligence import router as intel_router  # noqa: E402
 app.include_router(intel_router)
 from modules.integration_registry import router as integrations_router  # noqa: E402
 app.include_router(integrations_router)
+from modules.ai_worker_coordinator import router as ai_worker_router  # noqa: E402
+app.include_router(ai_worker_router)
 from modules.gate_paper_trading import router as gate_paper_router  # noqa: E402
 app.include_router(gate_paper_router)
 from modules.pool_failover_api import router as pool_failover_router  # noqa: E402
@@ -300,6 +305,28 @@ def mining_hardware():
         },
         "warning": "No miner is started by this endpoint. Hardware benchmark must be run locally."
     }
+
+@app.get("/api/mining/safety/status")
+def mining_safety_status():
+    runtime_manager = getattr(app.state, "nexus_runtime", None)
+    if runtime_manager is None:
+        return {"state": "not_started", "monitor_running": False}
+    try:
+        adapter = runtime_manager.get_service_instance("mining_safety_monitor")
+    except Exception:
+        return {"state": "not_registered_or_unavailable", "monitor_running": False}
+    if adapter.monitor is None:
+        return {"state": "not_initialized", "monitor_running": False}
+    return adapter.monitor.status()
+
+
+@app.get("/api/mining/reference-benchmarks")
+def mining_reference_benchmarks():
+    path = ROOT / "mining" / "reference_benchmarks.json"
+    if not path.is_file():
+        return {"schema_version": 1, "records": [], "source_data_present": False}
+    return json.loads(path.read_text(encoding="utf-8"))
+
 
 @app.get("/api/mining/native-engine")
 def mining_native_engine_status():
@@ -511,8 +538,29 @@ from modules.mining_switch_controller import (evaluate_candidate, switch_if_appr
 from mining.development_pow import define_experiment  # noqa: E402
 from mining.randomx_benchmark import run_thread_sweep as run_randomx_thread_sweep, run_native_reference_benchmark, run_synthetic_blocks_benchmark as run_randomx_synthetic_blocks_benchmark  # noqa: E402
 from modules.mining_efficiency_optimizer import rank_candidates as rank_mining_candidates  # noqa: E402
-from mining.hybrid_safety import validate_engine_resources  # noqa: E402
+from mining.hybrid_safety import validate_engine_resources, validate_telemetry_snapshot  # noqa: E402
 hybrid_supervisor = HybridSupervisor()
+
+
+def _mining_resource_check(engine: str) -> dict:
+    """Require measured local thermal data before launching a production miner."""
+    if engine not in {"cpu", "gpu"}:
+        return {"allowed": False, "reasons": ["invalid_engine"]}
+    raw_limit = os.environ.get(f"NEXUS_MINING_{engine.upper()}_MAX_TEMP_C")
+    try:
+        maximum = float(raw_limit) if raw_limit is not None else 85.0
+    except (TypeError, ValueError):
+        return {"allowed": False, "reasons": ["invalid_temperature_limit"]}
+    if not 50.0 <= maximum <= 105.0:
+        return {"allowed": False, "reasons": ["invalid_temperature_limit"]}
+    try:
+        snapshot = _runtime_telemetry.sample()
+    except Exception as exc:
+        return {"allowed": False, "reasons": ["telemetry_probe_failed", type(exc).__name__]}
+    limits = {"max_temperature_c": maximum}
+    if engine == "gpu":
+        limits.update({"required_vram_mb": 0, "vram_margin_mb": 256})
+    return validate_telemetry_snapshot(engine, snapshot, limits)
 from mining.solo_bitcoin_rpc import BitcoinRPC, SoloRPCError, benchmark_sha256d, mine_regtest_block  # noqa: E402
 
 class MinerStartRequest(BaseModel):
@@ -551,6 +599,19 @@ def mining_start(req: MinerStartRequest):
         gate=_compatibility(pool,req.miner_id,req.device)
         if not gate.get("compatible"):
             raise HTTPException(status_code=400,detail="START blocat de verificarea de compatibilitate: "+" ".join(gate.get("reasons",[])))
+        requested_lanes = (
+            ["cpu", "gpu"] if req.device == "BOTH"
+            else [req.device.lower()] if req.device in {"CPU", "GPU"}
+            else []
+        )
+        for lane in requested_lanes:
+            guard = _mining_resource_check(lane)
+            if not guard.get("allowed"):
+                raise HTTPException(
+                    status_code=409,
+                    detail={"error": f"{lane}_resource_guard",
+                            "reasons": guard.get("reasons", [])},
+                )
         return mining_controller.start(req.model_dump())
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
@@ -915,18 +976,13 @@ def _hybrid_safe_request(data: dict, engine: str) -> dict:
     gate = _compatibility(pool, req.miner_id, engine.upper())
     if not gate.get("compatible"):
         raise HTTPException(status_code=409, detail={"error": "miner_pool_incompatible", "reasons": gate.get("reasons", [])})
-    if engine == "gpu":
-        gpu_info = mining_hardware().get("gpu", {})
-        first = (gpu_info.get("gpus") or [{}])[0]
-        try:
-            total_vram = float(first.get("memory_mib"))
-        except (TypeError, ValueError):
-            total_vram = None
-        check = validate_engine_resources("gpu", {"available": gpu_info.get("available", False),
-            "memory_total_mb": total_vram, "temperature_c": _safe_float(first.get("temperature_c"))},
-            {"required_vram_mb": 0, "vram_margin_mb": 256, "max_temperature_c": 85})
-        if not check["allowed"]:
-            raise HTTPException(status_code=409, detail={"error": "gpu_resource_guard", "reasons": check["reasons"]})
+    check = _mining_resource_check(engine)
+    if not check.get("allowed"):
+        raise HTTPException(
+            status_code=409,
+            detail={"error": f"{engine}_resource_guard",
+                    "reasons": check.get("reasons", [])},
+        )
     if len(req.args) > 80 or any(not isinstance(x, str) or len(x) > 512 for x in req.args):
         raise HTTPException(status_code=400, detail="invalid_miner_arguments")
     return {"command": [binary, *req.args], "miner_id": req.miner_id, "algorithm": req.algorithm, "coin": pool.get("coin"), "pool_id": pool.get("id")}

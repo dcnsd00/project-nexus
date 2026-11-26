@@ -29,7 +29,7 @@ def test_frozen_spec_bundles_runtime_resources():
 def test_dashboard_version_matches_package_manifest():
     version = json.loads((ROOT / "VERSION.json").read_text(encoding="utf-8"))["version"]
     html = (ROOT / "dashboard.html").read_text(encoding="utf-8")
-    assert version == "0.10.26"
+    assert version == "0.10.27"
     assert f"CONTROL CENTER · {version}" in html
     assert f">{version}<" in html
 
@@ -95,5 +95,5 @@ def test_windows_desktop_package_runs_on_main_and_preserves_existing_triggers():
     if not workflow_path.is_file():
         pytest.skip("GitHub workflow definitions are not included in the Windows runtime artifact")
     workflow = workflow_path.read_text(encoding="utf-8")
-    assert 'branches: ["main", "feature/edge-replay-protection-sqlite-v1"]' in workflow
+    assert 'branches: ["main", "feature/edge-replay-protection-sqlite-v1", "feature/nexus-ai-worker-mining-safety-v1"]' in workflow
     assert "workflow_dispatch:" in workflow
