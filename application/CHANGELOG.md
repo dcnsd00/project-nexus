@@ -1,5 +1,15 @@
 # NEXUS MASTER — Changelog
 
+## 0.10.27 — 2026-11-26 · AI worker routing and mining safety
+
+- Added an 11-domain specialist-worker registry and deterministic central task-routing preview by repository path, feature branch or explicit domain. Model invocation remains disabled until a provider adapter is configured and validated.
+- Injected one shared HybridSupervisor instance into the API and lifecycle runtime.
+- Added fail-closed CPU/GPU thermal preflight and an idle-while-stopped local monitor for NEXUS-managed mining workers.
+- Added an external RandomX reference benchmark record with source provenance; it is not a result from this NEXUS installation.
+- Added regression coverage for worker routing, runtime injection, thermal checks and reference-benchmark provenance.
+- No miner was started, no public pool was contacted, and no wallet or external-provider writes occurred.
+
+
 ## 0.10.23 — 2026-11-11 · Hybrid Mining Supervisor
 - Implemented exclusive Standard / Development modes with independent CPU/GPU worker processes.
 - Added worker-owned miner child lifecycle, separate logs/status/runtime directories, heartbeat checks, bounded shutdown and opt-in bounded restart.
