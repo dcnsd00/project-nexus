@@ -8,6 +8,7 @@ updates:
       time: "09:00"
       timezone: Europe/Bucharest
     open-pull-requests-limit: 10
+
   - package-ecosystem: "pip"
     directory: "/application"
     schedule:
@@ -35,32 +36,6 @@ updates:
         update-types: ["minor", "patch"]
 
   - package-ecosystem: "pip"
-    directory: "/application/adapters/fieldstation/crypto_fieldstation"
-    schedule:
-      interval: "weekly"
-      day: "tuesday"
-      time: "08:00"
-      timezone: "Europe/Bucharest"
-    open-pull-requests-limit: 3
-    groups:
-      fieldstation-python-minor-patch:
-        patterns: ["*"]
-        update-types: ["minor", "patch"]
-
-  - package-ecosystem: "pip"
-    directory: "/application/adapters/multiminer_x/MULTIMINER_X_v1.0"
-    schedule:
-      interval: "weekly"
-      day: "tuesday"
-      time: "08:00"
-      timezone: "Europe/Bucharest"
-    open-pull-requests-limit: 3
-    groups:
-      multiminer-python-minor-patch:
-        patterns: ["*"]
-        update-types: ["minor", "patch"]
-
-  - package-ecosystem: "pip"
     directory: "/application/modules/wallet_benchmark"
     schedule:
       interval: "weekly"
@@ -70,19 +45,6 @@ updates:
     open-pull-requests-limit: 3
     groups:
       wallet-benchmark-python-minor-patch:
-        patterns: ["*"]
-        update-types: ["minor", "patch"]
-
-  - package-ecosystem: "pip"
-    directory: "/application/modules/wallet_benchmark/v05"
-    schedule:
-      interval: "weekly"
-      day: "tuesday"
-      time: "08:00"
-      timezone: "Europe/Bucharest"
-    open-pull-requests-limit: 3
-    groups:
-      wallet-benchmark-v05-python-minor-patch:
         patterns: ["*"]
         update-types: ["minor", "patch"]
 
