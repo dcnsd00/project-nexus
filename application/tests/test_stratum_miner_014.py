@@ -143,6 +143,12 @@ def test_fastapi_start_status_stop_runs_complete_stratum_pipeline(tmp_path, monk
     (tmp_path/'mining'/'pools.json').write_text(json.dumps({'pools':[pool]}),encoding='utf-8')
     monkeypatch.setattr(nexus_master,'ROOT',tmp_path)
     monkeypatch.setattr(controller,'_pool_catalog',lambda:[pool])
+    monkeypatch.setattr(nexus_master._runtime_telemetry, "sample", lambda: {
+        "temperatures": {"available": True, "sensors": [
+            {"name": "CPU Package", "temperature_c": 54.0}
+        ]},
+        "gpu": {"available": False, "devices": []},
+    })
     with TestClient(nexus_master.app) as client:
         response=client.post('/api/mining/start',json={
             'miner_id':'nexus-btc-cpu','pool_id':'custom','wallet':'public-address','worker':'worker',
