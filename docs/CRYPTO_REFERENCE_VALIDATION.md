@@ -15,7 +15,7 @@ Reference: https://csrc.nist.gov/pubs/fips/180-4/upd1/final
 
 The repository vendors the RandomX reference source under `application/vendor/randomx-1.2.3`. The upstream CMake project exposes the `randomx-tests` target; its `src/tests/tests.cpp` contains reference hash vectors, interpreter/compiler paths, cache/dataset checks and commitment tests.
 
-The NEXUS CI runs the upstream CMake configure/build/test sequence on Ubuntu. This validates the vendored reference implementation against its included upstream test vectors. It does not, by itself, validate NEXUS's benchmark adapter, a user's CPU feature detection, a sustained mining session, pool shares or profitability.
+A dedicated NEXUS GitHub Actions workflow is configured to run the upstream CMake configure/build/test sequence on Ubuntu. Its execution result will be recorded after the integration branch's CI run completes. This validates the vendored reference implementation against its included upstream test vectors. It does not, by itself, validate NEXUS's benchmark adapter, a user's CPU feature detection, a sustained mining session, pool shares or profitability.
 
 Upstream project and design reference:
 - https://github.com/tevador/RandomX
