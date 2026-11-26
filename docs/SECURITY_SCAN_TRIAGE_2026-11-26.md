@@ -41,7 +41,19 @@ After setting `TRIVY_DETECTION_PRIORITY=comprehensive`, run `45874983071` identi
 
 These are findings against the **lowest version implied by the range**, not evidence of the exact version installed on a machine. The SARIF report lists remediation versions, including cryptography fixes through 48.0.1 and pytest 9.0.3. The NEXUS root runtime requirements already required `cryptography>=50.0.0,<51`, but the standalone Wallet Benchmark manifest was weaker (`cryptography>=41`, `pytest>=7`).
 
-**Dependency remediation committed on this branch for re-validation:**
+## Post-remediation CI evidence — 2026-11-26
+
+The exact PR head `7cc1b00adbda3bfd3a5bf34891e5137737ec8051` was re-scanned and validated:
+
+- Security workflow run: `45875486691` — Gitleaks, Trivy, and CodeQL Python jobs all completed successfully.
+- Trivy: 5 language-specific requirement/metadata files recognized; pip vulnerability detection ran; SARIF artifact `15144847122` was inspected and contains **0 vulnerability results**.
+- Gitleaks: 840 commits and approximately 4.73 MB scanned; the same 3 `generic-api-key` findings remain. They are still treated as likely false positives pending human review; no allowlist/suppression was introduced.
+- CodeQL Python: job completed successfully. This remains Python-only analysis and does not cover C/C++.
+- Main application CI run: `45875486686` — **14/14 jobs completed successfully**, including Coraza build, Python tests, Windows runtime/compatibility and all eight application shards. Python suite: 750 passed, 1 warning and 10 subtests; separate adapter/wallet/research test suites reported 17, 16, 15 and 7 passed.
+
+This is CI evidence for the exact PR head above. It is not local-machine testing, and it does not remove the remaining coverage limitations below.
+
+**Dependency remediation committed and revalidated on the PR head above:**
 - `application/modules/wallet_benchmark/requirements.txt` now aligns with the root runtime crypto constraint (`cryptography>=50.0.0,<51`) and keeps `mnemonic` as a runtime dependency.
 - Test tooling was moved to `application/modules/wallet_benchmark/requirements-dev.txt` with `pytest>=9.0.3,<10`.
 - `application/requirements-dev.txt` was raised to `pytest>=9.0.3,<10`.
@@ -58,11 +70,10 @@ The Python security-extended workflow completed successfully. C/C++ is explicitl
 
 ## Required follow-up before enforcing gates
 
-1. Inspect the first post-remediation Trivy SARIF on the exact current branch HEAD; verify that the three direct dependency risk floors are gone and check for any remaining findings.
-2. Confirm the three Gitleaks candidates as test/identifier false positives in review; do not suppress them globally.
-3. Provide a resolved/locked dependency inventory to cover transitive Python dependencies and close the site-packages/license inventory gap.
-4. Decide on a separately validated CodeQL C/C++ build mode for native code; retain the Python-only scope statement until then.
-5. Keep Gitleaks and Trivy report-only until the baseline and coverage are reviewed. Convert selected severities to blocking policy only after findings and coverage are understood.
+1. Have a reviewer confirm the three Gitleaks candidates as test/identifier false positives; do not suppress them globally.
+2. Provide a resolved/locked dependency inventory to cover transitive Python dependencies and investigate the site-packages/license inventory gap.
+3. Decide on a separately validated CodeQL C/C++ build mode for native code; retain the Python-only scope statement until then.
+4. Keep Gitleaks and Trivy report-only until the baseline and coverage are reviewed. Convert selected severities to blocking policy only after findings and coverage are understood.
 
 ## Safety boundary
 
