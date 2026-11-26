@@ -5,7 +5,7 @@
 The application cryptographic engine delegates SHA-256 to Python's `hashlib`; it does not implement a custom SHA-256 compression function. The test suite includes known-answer vectors from NIST FIPS 180-4:
 
 - `abc` → `ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad`
-- The standard multi-block test message beginning `abcdbcdec...` → `248d6a61d20638e5b8c026930c3e6039a33ce45964ff2167f6ecedd419db06c1`
+- The standard multi-block test message beginning `abcdbcdec...` → `248d6a61d20638b8e5c026930c3e6039a33ce45964ff2167f6ecedd419db06c1`
 
 `sha256d` is a protocol composition (SHA-256 applied twice), not a separate hash function defined by FIPS 180-4. The Bitcoin header path has separate tests against the Bitcoin genesis-header calculation and the Python `hashlib` fallback. Do not conflate a primitive test with proof that a complete mining or pool-submission path is operational.
 
