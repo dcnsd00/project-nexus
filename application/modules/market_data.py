@@ -362,13 +362,23 @@ class GatePublicMarketDataProvider(_PublicProvider):
         for row in rows:
             if not isinstance(row, list) or len(row) < 6:
                 raise MarketDataError("invalid_kline_payload")
+            window_closed = None
+            if len(row) > 7:
+                raw_closed = row[7]
+                if isinstance(raw_closed, bool):
+                    window_closed = raw_closed
+                elif str(raw_closed).lower() in {"true", "false"}:
+                    window_closed = str(raw_closed).lower() == "true"
+                else:
+                    raise MarketDataError("invalid_kline_payload")
             candles.append({
                 "open_time": _iso(_timestamp(row[0])),
-                "volume": _number(row[1]), "close": _number(row[2]),
+                "volume": _number(row[6]) if len(row) > 6 else None,
+                "quote_volume": _number(row[1]),
+                "close": _number(row[2]),
                 "high": _number(row[3]), "low": _number(row[4]),
                 "open": _number(row[5]),
-                "quote_volume": _number(row[6]) if len(row) > 6 else None,
-                "trade_count": row[7] if len(row) > 7 else None,
+                "window_closed": window_closed,
             })
         source_time = rows[-1][0] if rows else None
         return self._snapshot(
