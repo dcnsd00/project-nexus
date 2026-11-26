@@ -1,4 +1,4 @@
-# NEXUS MASTER 0.10.26
+# NEXUS MASTER 0.10.27
 
 ## Windows desktop package
 
