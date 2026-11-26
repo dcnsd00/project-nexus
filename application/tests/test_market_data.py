@@ -107,7 +107,7 @@ def test_binance_klines_order_book_and_recent_trades_are_normalized(monkeypatch)
 def test_gate_klines_order_book_and_recent_trades_are_normalized(monkeypatch):
     now_s = int(time.time())
     payloads = [
-        [[str(now_s), "100", "11", "12", "9", "10", "1100", "20"]],
+        [[str(now_s), "100", "11", "12", "9", "10", "1100", "true"]],
         {"current": now_s, "update": 1, "bids": [["10", "2"]], "asks": [["11", "3"]]},
         [{"id": 1, "price": "10.5", "amount": "2", "create_time": str(now_s), "side": "buy"}],
     ]
