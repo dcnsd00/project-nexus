@@ -25,16 +25,30 @@ The SARIF artifact redacts matched content. No candidate value is reproduced in 
 
 **No Gitleaks allowlist or ignore rule is added here.** Keep the baseline report available for review; only suppress a finding after confirming its exact source context and preserving a narrow, auditable rationale.
 
-## Trivy coverage limitation
+## Trivy coverage and findings
 
-The Trivy artifact contains an empty SARIF result set. However, the job log also reports:
+The initial Trivy run `45695527479` produced an empty SARIF report and logged `Number of language-specific files num=0`. The reason was identified: NEXUS dependency manifests used ranges such as `>=`, while Trivy defaults to `precise` mode, which by default parses only `==` requirements. Trivy's documented `comprehensive` mode also parses `>=` and `~=` specifiers.
 
-- `Unable to find python site-packages directory. License detection is skipped.`
-- `Number of language-specific files num=0`
+After setting `TRIVY_DETECTION_PRIORITY=comprehensive`, run `45874983071` identified **5 language-specific files** and executed pip vulnerability detection. Its SARIF artifact (`nexus-trivy-baseline`, artifact ID `15143907987`) contained 12 findings:
 
-The scanned source branch contains Python dependency requirement files under `application/` (including `requirements.txt`, `requirements-dev.txt`, and `requirements-edge.txt`). Their direct dependency specifications use ranges such as `>=` rather than exact `==` pins. Trivy's default `precise` detection priority parses only `==` requirements by default; its documented `comprehensive` mode also parses `>=` and `~=` specifiers. The prior run's `num=0` language-specific files is therefore consistent with the default parser skipping these range-based requirements. The separate `site-packages` warning concerns license detection and is not evidence that vulnerability scanning parsed dependencies.
+| Severity | Findings | Package / inferred lower bound |
+|---|---:|---|
+| HIGH | 5 | `cryptography` at minimum version 41 |
+| MEDIUM | 3 | `cryptography` at minimum version 41 |
+| MEDIUM | 1 | `pytest` at minimum version 7 |
+| LOW | 3 | `cryptography` at minimum version 41 |
+| **Total** | **12** | 11 cryptography; 1 pytest |
 
-**Correction committed for re-validation:** the Trivy action now sets `TRIVY_DETECTION_PRIORITY=comprehensive` and `list-all-pkgs: true`. The rerun must demonstrate that packages from the application's requirements are enumerated. Until that exact-head run completes and the report is inspected, dependency coverage remains unvalidated. Comprehensive mode estimates a minimum version from a range and may increase false positives; a resolved, reproducible lock or environment inventory is still preferable for full transitive-dependency coverage. An empty SARIF result alone is not proof of zero vulnerable dependencies.
+These are findings against the **lowest version implied by the range**, not evidence of the exact version installed on a machine. The SARIF report lists remediation versions, including cryptography fixes through 48.0.1 and pytest 9.0.3. The NEXUS root runtime requirements already required `cryptography>=50.0.0,<51`, but the standalone Wallet Benchmark manifest was weaker (`cryptography>=41`, `pytest>=7`).
+
+**Dependency remediation committed on this branch for re-validation:**
+- `application/modules/wallet_benchmark/requirements.txt` now aligns with the root runtime crypto constraint (`cryptography>=50.0.0,<51`) and keeps `mnemonic` as a runtime dependency.
+- Test tooling was moved to `application/modules/wallet_benchmark/requirements-dev.txt` with `pytest>=9.0.3,<10`.
+- `application/requirements-dev.txt` was raised to `pytest>=9.0.3,<10`.
+- The Wallet Benchmark README now distinguishes runtime from test dependencies.
+- The Trivy SARIF step retains `TRIVY_DETECTION_PRIORITY=comprehensive`; the JSON-only `list-all-pkgs` input was removed after Trivy warned that package listing is automatic for SARIF output.
+
+The previous Trivy run also logged `Unable to find python site-packages directory. License detection is skipped.` This remains a license-inventory limitation, separate from dependency vulnerability detection. Comprehensive mode estimates minimum versions from ranges and can increase false positives; a resolved, reproducible lock or environment inventory is still preferable for full transitive-dependency coverage. The 12 findings above are from the pre-remediation scan and must not be presented as the result after the current dependency changes.
 
 Trivy reference: https://trivy.dev/docs/latest/guide/coverage/language/python/
 
@@ -44,10 +58,11 @@ The Python security-extended workflow completed successfully. C/C++ is explicitl
 
 ## Required follow-up before enforcing gates
 
-1. Have a reviewer confirm the three Gitleaks candidates as test/identifier false positives; do not suppress them globally.
-2. Make Trivy enumerate the actual Python dependency set and retain a machine-readable report with package inventory and vulnerability results.
-3. Decide on a separately validated CodeQL C/C++ build mode for native code; retain the Python-only scope statement until then.
-4. Keep Gitleaks and Trivy report-only until baseline triage is reviewed. Convert selected severities to blocking policy only after findings and coverage are understood.
+1. Inspect the first post-remediation Trivy SARIF on the exact current branch HEAD; verify that the three direct dependency risk floors are gone and check for any remaining findings.
+2. Confirm the three Gitleaks candidates as test/identifier false positives in review; do not suppress them globally.
+3. Provide a resolved/locked dependency inventory to cover transitive Python dependencies and close the site-packages/license inventory gap.
+4. Decide on a separately validated CodeQL C/C++ build mode for native code; retain the Python-only scope statement until then.
+5. Keep Gitleaks and Trivy report-only until the baseline and coverage are reviewed. Convert selected severities to blocking policy only after findings and coverage are understood.
 
 ## Safety boundary
 
