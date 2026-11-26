@@ -86,6 +86,14 @@ def test_mining_start_stop_commands_are_connected_to_supervisor(monkeypatch):
     monkeypatch.setattr(nexus_master, "_nvidia", lambda: {
         "available": True, "gpus": [{"name": "test GPU", "memory_mib": "8192"}]
     })
+    monkeypatch.setattr(nexus_master._runtime_telemetry, "sample", lambda: {
+        "temperatures": {"available": True, "sensors": [
+            {"name": "CPU Package", "temperature_c": 52.0}
+        ]},
+        "gpu": {"available": True, "devices": [{
+            "name": "test GPU", "temperature_c": 55.0, "memory_total_mib": 8192
+        }]},
+    })
 
     with TestClient(app) as client:
         client.post("/api/mining/stop")
