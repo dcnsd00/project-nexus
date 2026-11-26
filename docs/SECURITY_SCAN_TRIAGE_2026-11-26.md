@@ -32,9 +32,11 @@ The Trivy artifact contains an empty SARIF result set. However, the job log also
 - `Unable to find python site-packages directory. License detection is skipped.`
 - `Number of language-specific files num=0`
 
-The scanned source branch contains Python dependency requirement files under `application/` (including `requirements.txt`, `requirements-dev.txt`, and `requirements-edge.txt`). The current run therefore does **not** provide reliable evidence that Python dependency vulnerabilities and licenses were inventoried. An empty SARIF result is not proof of zero vulnerable dependencies.
+The scanned source branch contains Python dependency requirement files under `application/` (including `requirements.txt`, `requirements-dev.txt`, and `requirements-edge.txt`). Their direct dependency specifications use ranges such as `>=` rather than exact `==` pins. Trivy's default `precise` detection priority parses only `==` requirements by default; its documented `comprehensive` mode also parses `>=` and `~=` specifiers. The prior run's `num=0` language-specific files is therefore consistent with the default parser skipping these range-based requirements. The separate `site-packages` warning concerns license detection and is not evidence that vulnerability scanning parsed dependencies.
 
-Before treating this as a dependency-security baseline, the workflow needs a validated dependency input that the scanner can resolve (preferably reproducible lock data or a separately installed/resolved dependency environment), and the output must demonstrate that the expected packages were enumerated.
+**Correction committed for re-validation:** the Trivy action now sets `TRIVY_DETECTION_PRIORITY=comprehensive` and `list-all-pkgs: true`. The rerun must demonstrate that packages from the application's requirements are enumerated. Until that exact-head run completes and the report is inspected, dependency coverage remains unvalidated. Comprehensive mode estimates a minimum version from a range and may increase false positives; a resolved, reproducible lock or environment inventory is still preferable for full transitive-dependency coverage. An empty SARIF result alone is not proof of zero vulnerable dependencies.
+
+Trivy reference: https://trivy.dev/docs/latest/guide/coverage/language/python/
 
 ## CodeQL coverage
 
