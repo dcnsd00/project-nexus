@@ -5,7 +5,8 @@ from modules.ai_worker_coordinator import route_task, worker_catalog
 from nexus_master import app
 
 
-def test_catalog_registers_11_specialist_slots_without_claiming_live_ai():
+def test_catalog_registers_11_specialist_slots_without_claiming_live_ai(monkeypatch):
+    monkeypatch.setenv("NEXUS_AI_PROVIDER", "disabled")
     catalog = worker_catalog()
     ids = {row["id"] for row in catalog["workers"]}
     assert len(ids) == 11
@@ -71,3 +72,72 @@ def test_api_exposes_catalog_and_preview_only_routing():
         assert preview.json()["worker_id"] == "mining_compute"
         assert preview.json()["reviewer_worker_id"] == "quality_security"
         assert preview.json()["model_invoked"] is False
+
+
+
+def test_execution_invokes_domain_specialist_and_qa_reviewer_as_text_only(monkeypatch):
+    from modules import ai_worker_coordinator as coordinator
+
+    monkeypatch.setattr(coordinator, "ai_provider_status", lambda: {
+        "provider_status": "configured_not_live_verified",
+        "provider": "mock", "model": "unit-test-model",
+        "configured_model_providers": 1, "model_invocation_enabled": True,
+    })
+    calls = []
+
+    def fake_chat(messages, *, model=None):
+        calls.append(messages)
+        reviewer = "QA, Security" in messages[0]["content"]
+        return {
+            "content": "security review" if reviewer else "specialist proposal",
+            "provider": "mock",
+            "model": model or "unit-test-model",
+            "remote": False,
+            "prompt_tokens": 4,
+            "completion_tokens": 5,
+            "tools_available": False,
+            "tool_calls_executed": 0,
+            "side_effects_performed": False,
+        }
+
+    monkeypatch.setattr(coordinator, "chat_completion", fake_chat)
+    result = coordinator.execute_worker_task(
+        task_kind="implementation",
+        path="application/modules/ai_worker_coordinator.py",
+        branch="feature/nexus-ai-agent-runtime-synapse-v1",
+        prompt="Propose an implementation plan for the provider adapter.",
+    )
+
+    assert result["worker"]["id"] == "ai_platform"
+    assert result["worker"]["output"] == "specialist proposal"
+    assert result["review"]["worker_id"] == "quality_security"
+    assert result["review"]["output"] == "security review"
+    assert len(calls) == 2
+    assert result["model_invoked"] is True
+    assert result["side_effects_performed"] is False
+    assert result["repository_changes"] == 0
+    assert result["miners_started"] == 0
+    assert result["wallet_operations"] == 0
+    assert result["human_review_required"] is True
+    assert all("tools" not in str(call) for call in calls)
+
+
+def test_worker_execution_api_fails_closed_when_provider_is_disabled(monkeypatch):
+    monkeypatch.setenv("NEXUS_AI_PROVIDER", "disabled")
+    with TestClient(app) as client:
+        response = client.post("/api/nexus/workers/execute", json={
+            "task_kind": "analysis",
+            "domain": "mining",
+            "prompt": "Compare RandomX benchmark methods.",
+        })
+    assert response.status_code == 503
+    assert response.json()["detail"] == "ai_provider_not_configured"
+
+
+def test_provider_status_api_never_exposes_environment_api_key(monkeypatch):
+    monkeypatch.setenv("NEXUS_AI_PROVIDER", "disabled")
+    monkeypatch.setenv("NEXUS_AI_API_KEY", "should-never-be-returned")
+    with TestClient(app) as client:
+        response = client.get("/api/nexus/workers/provider-status")
+    assert response.status_code == 200
+    assert "should-never-be-returned" not in response.text
