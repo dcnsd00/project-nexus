@@ -18,6 +18,7 @@ MODULES: tuple[dict[str, Any], ...] = (
     {"id": "ai_worker_coordinator", "name": "NEXUS AI Worker Coordinator", "paths": ("modules/ai_worker_coordinator.py",), "route_prefixes": ("/api/nexus/workers",), "runtime_service": "ai_worker_coordinator", "critical": False},
     {"id": "gate_info", "name": "Gate Info Research & Paper Trading", "paths": ("modules/gate_paper_trading.py",), "route_prefixes": ("/api/gate", "/gate-paper"), "critical": False},
     {"id": "math_intelligence", "name": "Math Intelligence", "paths": ("modules/math_intelligence.py",), "route_prefixes": ("/api/math",), "critical": False},
+    {"id": "puzzle_solver", "name": "Multi-Method Puzzle Solver", "paths": ("modules/puzzle_solver.py",), "route_prefixes": ("/api/puzzles",), "runtime_service": "puzzle_solver", "critical": False},
     {"id": "research_hub", "name": "Research Hub", "paths": ("modules/research_hub.py",), "route_prefixes": ("/api/research",), "runtime_service": "research_hub", "critical": False},
     {"id": "earnings_intelligence", "name": "Earnings Intelligence", "paths": ("modules/earnings_intelligence.py",), "route_prefixes": ("/api/intel",), "runtime_service": "earnings_intelligence", "critical": False},
     {"id": "mining_switch_controller", "name": "Conditional Mining Switch", "paths": ("modules/mining_switch_controller.py",), "route_prefixes": ("/api/mining/hybrid",), "runtime_service": "mining_switch_controller", "critical": False},
