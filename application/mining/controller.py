@@ -35,7 +35,7 @@ _ARBITER_OWNER = "direct-mining-controller"
 _runtime_config_path: Path | None = None
 _SENSITIVE_ARG_FLAGS = {
     "-p", "-P", "--pass", "--password", "--token",
-    "--access-token", "--api-access-token", "--rpc-password",
+    "--access-token", "--api-access-token", "--rpc-password", "--userpass",
 }
 
 
@@ -494,8 +494,8 @@ def start(req: dict) -> dict:
             log_handle.close()
             _cleanup_runtime_config()
             MINING_PROCESS_ARBITER.release(_ARBITER_OWNER)
-            _state.update(status='error',last_error=_diagnose(str(exc)))
-            raise ValueError(f'Nu am putut lansa minerul: {type(exc).__name__}: {exc}')
+            _state.update(status='error',last_error={'code':'MINER_LAUNCH_FAILED','message':type(exc).__name__,'severity':'error','advice':'Verifică executabilul și permisiunile; detaliile sensibile nu sunt incluse în diagnostic.'})
+            raise ValueError(f'Nu am putut lansa minerul: {type(exc).__name__}. Detaliile comenzii au fost redactate.')
         MINING_PROCESS_ARBITER.update_processes(_ARBITER_OWNER, [_proc.pid])
         _state.update(status='starting',pid=_proc.pid,miner_id=mid,miner_name=spec['name'],coin=pool['coin'],algorithm=algo,device=device,
                       pool={'name':pool['name'],'host':host,'port':int(port),'tls':bool(req.get('use_ssl'))},started_at=time.time(),last_error=None,last_exit_code=None)
