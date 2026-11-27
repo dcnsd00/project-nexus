@@ -313,7 +313,7 @@ def _diagnose(message: str) -> dict:
 
 
 def start(req: dict) -> dict:
-    global _proc
+    global _proc, _runtime_config_path
     with LOCK:
         if _proc is not None and _proc.poll() is None:
             raise ValueError('Există deja un miner pornit de NEXUS. Oprește-l înainte de a porni altul.')
