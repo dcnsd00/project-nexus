@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import base64
 import pytest
+from fastapi import FastAPI
+from fastapi.testclient import TestClient
 
 from modules import puzzle_solver
 
@@ -91,3 +93,25 @@ def test_finite_csp_enforces_search_limits_and_rejects_expression_payloads():
 def test_unknown_puzzle_kind_is_rejected():
     with pytest.raises(ValueError, match="unsupported kind"):
         puzzle_solver.solve({"kind": "unbounded_bruteforce"})
+
+
+
+def test_binary_ascii_and_morse_decoding_candidates():
+    binary = puzzle_solver.solve({"kind": "text_decode", "text": "01001000 01101001"})
+    morse = puzzle_solver.solve({"kind": "text_decode", "text": ".... . .-.. .-.. ---"})
+    assert "Hi" in {item["text"] for item in binary["candidates"]}
+    assert "HELLO" in {item["text"] for item in morse["candidates"]}
+
+
+def test_puzzle_solver_fastapi_routes_are_callable():
+    app = FastAPI()
+    app.include_router(puzzle_solver.router)
+    client = TestClient(app)
+    capabilities = client.get("/api/puzzles/capabilities")
+    assert capabilities.status_code == 200
+    assert capabilities.json()["module"] == "NEXUS Multi-Method Puzzle Solver"
+    solved = client.post("/api/puzzles/solve", json={
+        "problem": {"kind": "modular_congruence", "a": 7, "b": 1, "modulus": 10}
+    })
+    assert solved.status_code == 200
+    assert solved.json()["verified"] is True
