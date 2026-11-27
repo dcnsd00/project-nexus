@@ -268,7 +268,8 @@ def catalog() -> dict[str, Any]:
             "geometric antipodal pairing hypotheses",
             "west/east and radial candidate ordering exports",
             "nine-byte ECDSA-s-to-emoji-ID correspondence check",
-            "reverse-word plus ROT13 meta-clue transform",\n            "compressed secp256k1 public-point validation (no scalar derivation)",
+            "reverse-word plus ROT13 meta-clue transform",
+            "compressed secp256k1 public-point validation (no scalar derivation)",
         ],
         "not_implemented": [
             "confirmed tone-to-bit encoding",
