@@ -386,6 +386,9 @@ def analyze_project_file(
 ) -> dict[str, Any]:
     """Analyze supplied PHY emoji metadata without key search or external I/O."""
     started = time.perf_counter()
+    if not isinstance(s_hex, str) or not re.fullmatch(r"(?:[0-9a-fA-F]{2}){1,32}", s_hex):
+        raise ValueError("s_hex must be an even-length hexadecimal string (1–32 bytes).")
+    s_bytes = bytes.fromhex(s_hex)
     points, centre = _normalise_boxes(project_file)
     if centre:
         centre_x, centre_y = centre["cx"], centre["cy"]
@@ -400,7 +403,7 @@ def analyze_project_file(
 
     pairs = _pair_antipodes(points, centre_x, centre_y)
     bit_window_validation = (
-        verify_bit_values_by_id(points, bit_values_by_id, bytes.fromhex(s_hex), centre_x, centre_y)
+        verify_bit_values_by_id(points, bit_values_by_id, s_bytes, centre_x, centre_y)
         if bit_values_by_id is not None else {
             "status": "not_run",
             "reason": "Provide bit_values_by_id with one explicit 0/1 value for every emoji to test the author's 72-bit s-window hint.",
@@ -411,9 +414,6 @@ def analyze_project_file(
     inside_out = sorted(pairs, key=lambda p: (p["mean_radius_px"], p["mid_x"]))
     outside_in = list(reversed(inside_out))
 
-    if not isinstance(s_hex, str) or not re.fullmatch(r"(?:[0-9a-fA-F]{2}){1,32}", s_hex):
-        raise ValueError("s_hex must be an even-length hexadecimal string (1–32 bytes).")
-    s_bytes = bytes.fromhex(s_hex)
     by_id = {point["id"]: point for point in points}
     canvas_id_selected = []
     for value in s_bytes:
