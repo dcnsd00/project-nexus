@@ -145,7 +145,7 @@ The following merges are on `main` and were independently verified after each me
 
 | PR | Integrated capability | Merge commit |
 | --- | --- | --- |
-| [#31](https://github.com/dcnsd00/project-nexus/pull/31) | Security Baseline, immutable-action policy aligned scanning | `3ea880ee9234cc8bbcf9c30b47ab6cecc4210e` |
+| [#31](https://github.com/dcnsd00/project-nexus/pull/31) | Security Baseline, immutable-action policy aligned scanning | `3ea880ee9234cc8bbcf3e4651a4f0b464fbb66dd` |
 | [#46](https://github.com/dcnsd00/project-nexus/pull/46) | Multi-Method Puzzle Solver API and runtime registration | `5f5e9bc4be234da722fbd769cbd5b5d0275d1e51` |
 | [#50](https://github.com/dcnsd00/project-nexus/pull/50) | Opt-in, text-only AI Worker provider and guarded dispatch | `d958bab1fdaa89441e774972dad979e69779d4da` |
 | [#51](https://github.com/dcnsd00/project-nexus/pull/51) | Puzzle Solver page, dashboard shortcut and JS CI validation | `6280cccc78f68a5857a75452b671feb8e509c30d` |
