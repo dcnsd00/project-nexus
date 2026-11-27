@@ -479,7 +479,12 @@ def start(req: dict) -> dict:
             elif device=='GPU': cmd.append('--disable-cpu')
             if algo=='Verthash': cmd.extend(['--gpu-table-slow-build','--send-stales','false'])
             _state['api']=f'http://127.0.0.1:{api_port}/'
-        LOG.write_text(f'NEXUS launch: {time.strftime("%Y-%m-%d %H:%M:%S")}\nExecutable: {binary}\nMiner: {spec["name"]} | Coin: {pool["coin"]} | Algorithm: {algo} | Pool: {host}:{int(port)}\nArguments: {" ".join(_redact_command_args(cmd[1:]))}\n',encoding='utf-8')
+        try:
+            LOG.write_text(f'NEXUS launch: {time.strftime("%Y-%m-%d %H:%M:%S")}\nExecutable: {binary}\nMiner: {spec["name"]} | Coin: {pool["coin"]} | Algorithm: {algo} | Pool: {host}:{int(port)}\nArguments: {" ".join(_redact_command_args(cmd[1:]))}\n',encoding='utf-8')
+            log_handle=open(LOG,'a',encoding='utf-8',errors='replace')
+        except Exception:
+            _cleanup_runtime_config()
+            raise
         log_handle=open(LOG,'a',encoding='utf-8',errors='replace')
         kwargs={'stdout':log_handle,'stderr':subprocess.STDOUT,'cwd':str(RUNTIME)}
         if os.name=='nt': kwargs['creationflags']=getattr(subprocess,'CREATE_NO_WINDOW',0)
@@ -524,8 +529,8 @@ def stop() -> dict:
             MINING_PROCESS_ARBITER.release(_ARBITER_OWNER)
             _cleanup_runtime_config()
         except Exception as exc:
-            _state.update(status='error',last_error=_diagnose(str(exc)))
-            raise ValueError(f'Eroare la oprire: {exc}')
+            _state.update(status='error',last_error={'code':'MINER_STOP_FAILED','message':type(exc).__name__,'severity':'error','advice':'Verifică starea procesului; detaliile sensibile nu sunt incluse în diagnostic.'})
+            raise ValueError(f'Eroare la oprire: {type(exc).__name__}. Detaliile procesului au fost redactate.')
         return status()
 
 
