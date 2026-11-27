@@ -158,6 +158,14 @@ class ProjectAnalysisTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             verify_bit_values_by_id(points, values, s_bytes, 1023.5, 1024.5)
 
+    def test_automatic_bit_features_are_bounded_and_explicitly_heuristic(self):
+        result = analyze_project_file(make_project())
+        report = result["automatic_bit_feature_tests"]
+        self.assertEqual(len(report["features_tested"]), 8)
+        self.assertIn("skin_tone_present", report["features_tested"])
+        self.assertEqual(report["status"], "no_exact_unicode_feature_candidate")
+        self.assertIn("pixel-derived", report["interpretation"])
+
     def test_catalog_does_not_claim_final_solver(self):
         info = catalog()
         self.assertEqual(info["state"], "implemented_local_analysis")
