@@ -29,6 +29,10 @@ Request envelope:
 | `linear_system` | Exact rational solution for square systems, through SymPy and the existing Hybrid Solver |
 | `bitvector_xor` | Exact constructive XOR solution with independent XOR verification |
 | `finite_csp` | Bounded finite-domain constraints: relations, sum, product, XOR and all-different |
+| `vigenere` | Vigenère decrypt when the owner supplies the key |
+| `rail_fence` | Rail Fence decrypt when the rail count is supplied (2–12) |
+| `affine_substitution` | Affine cipher decrypt with supplied coprime parameters |
+| `text_decode` additions | Atbash and A1Z26 candidate decoders |
 
 Example finite-domain puzzle:
 
