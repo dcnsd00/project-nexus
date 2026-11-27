@@ -52,6 +52,13 @@ def capabilities() -> dict[str, Any]:
              "cross_check": "optional Z3"},
             {"id": "finite_csp", "available": True,
              "methods": ["backtracking", "MRV", "constraint_propagation", "independent_verification"]},
+            {"id": "phy_challenge_structure", "available": True,
+             "backend": "modules.phy_challenge_research",
+             "methods": ["unicode_18_classification", "geometric_antipodal_pair_hypotheses",
+                         "radial_phase_fit", "s_byte_ordinal_candidates",
+                         "secp256k1_public_point_validation"],
+             "input": "caller-supplied public emoji mapping JSON",
+             "private_key_search": False},
             {"id": "sha256_reduced_round_research", "available": False,
              "reason": "Existing research implementation is an isolated reduced-round experiment, not a generic puzzle backend."},
             {"id": "natural_language_logic_grid", "available": False,
@@ -424,7 +431,19 @@ def solve(problem: dict[str, Any]) -> dict[str, Any]:
             "verified": False, "method": "affine_known_parameters"}
     if kind == "finite_csp":
         return _solve_csp(problem)
-    raise ValueError("unsupported kind; use text_decode, modular_congruence, linear_system, bitvector_xor or finite_csp")
+    if kind == "phy_challenge":
+        project_file = problem.get("project_file")
+        if not isinstance(project_file, dict):
+            raise ValueError("phy_challenge requires project_file as a JSON object")
+        from modules import phy_challenge_research
+        result = phy_challenge_research.analyze_project_file(
+            project_file, problem.get("s_hex", phy_challenge_research.DEFAULT_S_HEX)
+        )
+        candidate_point = problem.get("candidate_public_key_hex")
+        if candidate_point is not None:
+            result["candidate_public_point"] = phy_challenge_research.validate_compressed_public_key(candidate_point)
+        return {"kind": kind, **result}
+    raise ValueError("unsupported kind; use text_decode, modular_congruence, linear_system, bitvector_xor or finite_csp or phy_challenge")
 
 
 router = APIRouter(prefix="/api/puzzles", tags=["NEXUS Puzzle Solver"])
