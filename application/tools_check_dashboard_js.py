@@ -1,4 +1,4 @@
-"""Syntax-check inline JavaScript in dashboard and wallet HTML when Node is present."""
+"""Syntax-check inline JavaScript in all NEXUS local HTML tools when Node is present."""
 from __future__ import annotations
 from html.parser import HTMLParser
 from pathlib import Path
@@ -22,7 +22,7 @@ def main(root: Path) -> int:
         return 0
     total=0
     with tempfile.TemporaryDirectory(prefix="nexus-js-") as tmp:
-        for name in ("dashboard.html", "wallet.html"):
+        for name in ("dashboard.html", "wallet.html", "puzzle_solver.html"):
             parser=ScriptExtractor(); parser.feed((root/name).read_text(encoding="utf-8"))
             for index, source in enumerate(parser.scripts):
                 if not source.strip(): continue
