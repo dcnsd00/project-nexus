@@ -67,6 +67,22 @@ class ProjectAnalysisTests(unittest.TestCase):
         result = analyze_project_file(make_project())
         self.assertEqual(result["pairing"]["pairs_with_emoji_modifier_base"], 128)
 
+    def test_valid_compressed_public_point(self):
+        from modules.phy_challenge_research import validate_compressed_public_key
+        candidate = "031dffd7ff0d400f0afcc3fdcefc0d400f0da10f3a390f77ff0d400f68fe0d080f"
+        result = validate_compressed_public_key(candidate)
+        self.assertTrue(result["valid_curve_point"])
+        self.assertEqual(result["y_parity"], 1)
+        self.assertFalse(result["private_scalar_derived"])
+        self.assertFalse(result["signature_verified"])
+
+    def test_invalid_compressed_public_point_rejected(self):
+        from modules.phy_challenge_research import validate_compressed_public_key
+        with self.assertRaises(ValueError):
+            validate_compressed_public_key("04" + "00" * 32)
+        with self.assertRaises(ValueError):
+            validate_compressed_public_key("02" + "00" * 32)
+
     def test_invalid_project_rejected(self):
         with self.assertRaises(ValueError):
             analyze_project_file({"boxes": []})
