@@ -102,3 +102,34 @@ def test_write_status_retries_transient_replace_permission_error(tmp_path, monke
     assert attempts == 3
     temp_path = status.with_suffix(status.suffix + f".{hybrid_worker.os.getpid()}.tmp")
     assert not temp_path.exists()
+
+
+def test_request_file_is_deleted_immediately_after_worker_read(tmp_path):
+    request_file = tmp_path / "request.json"
+    payload = {
+        "command": [sys.executable, "-c", "pass"],
+        "pool_password": "xxxxxxxxxxxxxxxxxxxxxxxx",
+    }
+    request_file.write_text(json.dumps(payload), encoding="utf-8")
+    loaded = hybrid_worker._load_request_file(request_file)
+    assert loaded == payload
+    assert not request_file.exists()
+
+
+def test_worker_error_does_not_echo_sensitive_command_exception(monkeypatch, tmp_path):
+    status = tmp_path / "cpu" / "status.json"
+    stop = tmp_path / "cpu" / "stop"
+
+    def fail_with_secret(*args, **kwargs):
+        raise RuntimeError("xxxxxxxxxxxxxxxxxxxxxxxx")
+
+    monkeypatch.setattr(hybrid_worker.subprocess, "Popen", fail_with_secret)
+    rc = run_worker("cpu", {
+        "command": [sys.executable, "-c", "pass"],
+        "log_path": str(tmp_path / "cpu" / "miner.log"),
+    }, str(status), str(stop))
+    data = json.loads(status.read_text(encoding="utf-8"))
+    assert rc == 1
+    assert data["state"] == "failed"
+    assert data["last_error"] == "RuntimeError: worker_execution_failed"
+    assert "xxxxxxxxxxxxxxxxxxxxxxxx" not in json.dumps(data)

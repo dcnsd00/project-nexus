@@ -37,6 +37,21 @@ def _write_status(path: Path, payload: dict[str, Any]) -> None:
             pass
 
 
+def _load_request_file(path: str | Path) -> dict[str, Any]:
+    """Read one private worker request and unlink it immediately afterwards."""
+    request_path = Path(path)
+    try:
+        payload = json.loads(request_path.read_text(encoding="utf-8"))
+        if not isinstance(payload, dict):
+            raise ValueError("worker request must be a JSON object")
+        return payload
+    finally:
+        try:
+            request_path.unlink()
+        except FileNotFoundError:
+            pass
+
+
 def run_worker(engine: str, request: dict, status_path: str, stop_event_path: str) -> int:
     """Launch and own exactly one child miner; return its exit code."""
     status_file, stop_file = Path(status_path), Path(stop_event_path)
@@ -92,7 +107,7 @@ def run_worker(engine: str, request: dict, status_path: str, stop_event_path: st
             except subprocess.TimeoutExpired:
                 child.kill()
                 child.wait(timeout=2)
-        payload.update(state='failed', last_error=f'{type(exc).__name__}: {exc}', heartbeat_unix=time.time())
+        payload.update(state='failed', last_error=f'{type(exc).__name__}: worker_execution_failed', heartbeat_unix=time.time())
         _write_status(status_file, payload)
         return 1
 
@@ -105,7 +120,7 @@ def main(argv=None) -> int:
     parser.add_argument('--status', required=True)
     parser.add_argument('--stop', required=True)
     args = parser.parse_args(argv)
-    request = json.loads(Path(args.request).read_text(encoding='utf-8'))
+    request = _load_request_file(args.request)
     if request.get('executor') == 'development_pow':
         from mining.development_pow import run_development_worker
         return run_development_worker(args.engine, request, args.status, args.stop)

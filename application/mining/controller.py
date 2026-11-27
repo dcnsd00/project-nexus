@@ -1,5 +1,5 @@
 from __future__ import annotations
-import json, os, re, shutil, subprocess, threading, time, urllib.request
+import atexit, json, os, re, shutil, subprocess, tempfile, threading, time, urllib.request
 from pathlib import Path
 from mining.pool_config import pool_endpoint, pool_username
 from mining.process_arbiter import MINING_PROCESS_ARBITER
@@ -31,6 +31,75 @@ MINERS = {
 _state: dict[str, Any] = {'status':'stopped','pid':None,'miner_id':None,'miner_name':None,'coin':None,'algorithm':None,'device':None,'pool':None,'started_at':None,'last_error':None,'last_exit_code':None,'log_path':str(LOG),'api':None}
 _proc: subprocess.Popen | None = None
 _ARBITER_OWNER = "direct-mining-controller"
+
+_runtime_config_path: Path | None = None
+_SENSITIVE_ARG_FLAGS = {
+    "-p", "-P", "--pass", "--password", "--token",
+    "--access-token", "--api-access-token", "--rpc-password", "--userpass",
+}
+
+
+def _redact_command_args(arguments: list[str]) -> list[str]:
+    """Return launch arguments safe for human-readable logs."""
+    safe: list[str] = []
+    redact_next = False
+    for raw in arguments:
+        value = str(raw)
+        if redact_next:
+            safe.append("[REDACTED]")
+            redact_next = False
+            continue
+        flag, separator, _ = value.partition("=")
+        if value.casefold() in _SENSITIVE_ARG_FLAGS:
+            safe.append(value)
+            redact_next = True
+        elif separator and flag.casefold() in _SENSITIVE_ARG_FLAGS:
+            safe.append(f"{flag}=[REDACTED]")
+        else:
+            safe.append(value)
+    if redact_next:
+        safe.append("[MISSING]")
+    return safe
+
+
+def _write_private_xmrig_config(config: dict[str, Any]) -> Path:
+    """Create a per-user temporary config; POSIX mode is owner read/write only."""
+    fd, filename = tempfile.mkstemp(prefix="nexus-xmrig-", suffix=".json")
+    path = Path(filename)
+    try:
+        if os.name != "nt" and hasattr(os, "fchmod"):
+            os.fchmod(fd, 0o600)
+        with os.fdopen(fd, "w", encoding="utf-8") as handle:
+            json.dump(config, handle, indent=2)
+            handle.flush()
+        return path
+    except Exception:
+        try:
+            os.close(fd)
+        except OSError:
+            pass
+        try:
+            path.unlink()
+        except FileNotFoundError:
+            pass
+        raise
+
+
+def _cleanup_runtime_config() -> None:
+    global _runtime_config_path
+    path = _runtime_config_path
+    _runtime_config_path = None
+    if path is not None:
+        try:
+            path.unlink()
+        except FileNotFoundError:
+            pass
+        except OSError:
+            # Keep shutdown reliable; a later operator cleanup can inspect the path.
+            pass
+
+
+atexit.register(_cleanup_runtime_config)
 
 
 def _pool_catalog():
@@ -244,12 +313,13 @@ def _diagnose(message: str) -> dict:
 
 
 def start(req: dict) -> dict:
-    global _proc
+    global _proc, _runtime_config_path
     with LOCK:
         if _proc is not None and _proc.poll() is None:
             raise ValueError('Există deja un miner pornit de NEXUS. Oprește-l înainte de a porni altul.')
         if _proc is not None:
             _proc = None
+            _cleanup_runtime_config()
             MINING_PROCESS_ARBITER.release(_ARBITER_OWNER)
         mid=req['miner_id']; spec=MINERS.get(mid)
         if not spec or not spec['launch']: raise ValueError('Adaptorul de lansare pentru acest miner nu este activ în această versiune.')
@@ -337,8 +407,8 @@ def start(req: dict) -> dict:
             cfg={'autosave':False,'background':False,'colors':False,'donate-level':1,'log-file':str(LOG),
                  'pools':[{'url':f'{host}:{int(port)}','user':login,'pass':req.get('password','x'),'keepalive':True,'tls':bool(req.get('use_ssl')),'daemon':False,'algo':'rx/0' if algo=='RandomX' else algo}],
                  'http':{'enabled':True,'host':'127.0.0.1','port':api_port,'access-token':None,'restricted':True}}
-            cfg_path=RUNTIME/'xmrig.runtime.json'; cfg_path.write_text(json.dumps(cfg,indent=2),encoding='utf-8')
-            cmd=[binary,'-c',str(cfg_path)]
+            _runtime_config_path=_write_private_xmrig_config(cfg)
+            cmd=[binary,'-c',str(_runtime_config_path)]
             _state['api']=f'http://127.0.0.1:{api_port}/1/summary'
         elif mid=='trex':
             if device != 'GPU': raise ValueError('T-Rex este configurat pentru GPU NVIDIA; selectează GPU.')
@@ -409,21 +479,27 @@ def start(req: dict) -> dict:
             elif device=='GPU': cmd.append('--disable-cpu')
             if algo=='Verthash': cmd.extend(['--gpu-table-slow-build','--send-stales','false'])
             _state['api']=f'http://127.0.0.1:{api_port}/'
-        LOG.write_text(f'NEXUS launch: {time.strftime("%Y-%m-%d %H:%M:%S")}\nExecutable: {binary}\nMiner: {spec["name"]} | Coin: {pool["coin"]} | Algorithm: {algo} | Pool: {host}:{int(port)}\nArguments: {" ".join(cmd[1:])}\n',encoding='utf-8')
-        log_handle=open(LOG,'a',encoding='utf-8',errors='replace')
+        try:
+            LOG.write_text(f'NEXUS launch: {time.strftime("%Y-%m-%d %H:%M:%S")}\nExecutable: {binary}\nMiner: {spec["name"]} | Coin: {pool["coin"]} | Algorithm: {algo} | Pool: {host}:{int(port)}\nArguments: {" ".join(_redact_command_args(cmd[1:]))}\n',encoding='utf-8')
+            log_handle=open(LOG,'a',encoding='utf-8',errors='replace')
+        except Exception:
+            _cleanup_runtime_config()
+            raise
         kwargs={'stdout':log_handle,'stderr':subprocess.STDOUT,'cwd':str(RUNTIME)}
         if os.name=='nt': kwargs['creationflags']=getattr(subprocess,'CREATE_NO_WINDOW',0)
         else: kwargs['start_new_session']=True
         if not MINING_PROCESS_ARBITER.acquire(_ARBITER_OWNER):
             log_handle.close()
+            _cleanup_runtime_config()
             raise ValueError('O altă sesiune de minare NEXUS este deja activă prin controllerul direct sau HybridSupervisor.')
         try:
             _proc=subprocess.Popen(cmd,**kwargs)
         except Exception as exc:
             log_handle.close()
+            _cleanup_runtime_config()
             MINING_PROCESS_ARBITER.release(_ARBITER_OWNER)
-            _state.update(status='error',last_error=_diagnose(str(exc)))
-            raise ValueError(f'Nu am putut lansa minerul: {type(exc).__name__}: {exc}')
+            _state.update(status='error',last_error={'code':'MINER_LAUNCH_FAILED','message':type(exc).__name__,'severity':'error','advice':'Verifică executabilul și permisiunile; detaliile sensibile nu sunt incluse în diagnostic.'})
+            raise ValueError(f'Nu am putut lansa minerul: {type(exc).__name__}. Detaliile comenzii au fost redactate.')
         MINING_PROCESS_ARBITER.update_processes(_ARBITER_OWNER, [_proc.pid])
         _state.update(status='starting',pid=_proc.pid,miner_id=mid,miner_name=spec['name'],coin=pool['coin'],algorithm=algo,device=device,
                       pool={'name':pool['name'],'host':host,'port':int(port),'tls':bool(req.get('use_ssl'))},started_at=time.time(),last_error=None,last_exit_code=None)
@@ -434,6 +510,7 @@ def stop() -> dict:
     global _proc
     with LOCK:
         if _proc is None or _proc.poll() is not None:
+            _cleanup_runtime_config()
             MINING_PROCESS_ARBITER.release(_ARBITER_OWNER)
             _state.update(status='stopped',pid=None)
             return status()
@@ -449,9 +526,10 @@ def stop() -> dict:
                 except Exception: pass
             _state.update(status='stopped',last_exit_code=_proc.returncode,pid=None)
             MINING_PROCESS_ARBITER.release(_ARBITER_OWNER)
+            _cleanup_runtime_config()
         except Exception as exc:
-            _state.update(status='error',last_error=_diagnose(str(exc)))
-            raise ValueError(f'Eroare la oprire: {exc}')
+            _state.update(status='error',last_error={'code':'MINER_STOP_FAILED','message':type(exc).__name__,'severity':'error','advice':'Verifică starea procesului; detaliile sensibile nu sunt incluse în diagnostic.'})
+            raise ValueError(f'Eroare la oprire: {type(exc).__name__}. Detaliile procesului au fost redactate.')
         return status()
 
 
@@ -469,6 +547,7 @@ def status() -> dict:
                     except Exception: native_error=None
                 _state.update(status='stopped' if code==0 else 'error',pid=None,last_exit_code=code)
                 MINING_PROCESS_ARBITER.release(_ARBITER_OWNER)
+                _cleanup_runtime_config()
                 if code!=0 and not _state.get('last_error'):
                     _state['last_error']={'code':'STRATUM_CPU_ERROR','message':native_error or 'Motorul intern s-a oprit cu eroare.','severity':'error','advice':'Verifică endpoint-ul Stratum V1, TLS și autentificarea.'} if native_error else _diagnose('\n'.join(read_log(40)))
                 _proc=None
