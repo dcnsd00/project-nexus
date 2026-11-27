@@ -129,7 +129,7 @@ def test_execution_invokes_domain_specialist_and_qa_reviewer_as_text_only(monkey
     assert result["miners_started"] == 0
     assert result["wallet_operations"] == 0
     assert result["human_review_required"] is True
-    assert all("tools" not in str(call) for call in calls)
+    assert all(set(message) == {"role", "content"} for call in calls for message in call)
 
 
 def test_worker_execution_api_fails_closed_when_provider_is_disabled(monkeypatch):
