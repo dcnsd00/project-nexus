@@ -101,3 +101,37 @@ GitHub branches, commits, PRs and CI are the source of truth for implementation 
 - `feature/nexus-edge-foundation` and `integration/nexus-master-0.10.25` retain historical root-level package/import work. Preserve for provenance; do not merge duplicate package paths into the modular monolith.
 
 NEXUS remains local-first. AppDeploy currently hosts Crypto Agent only; NEXUS Control Center is not declared deployed. No secrets, wallets or mining processes are moved to AppDeploy. InVideo, YouTube and Unseen Frontier remain on HOLD.
+
+
+## 7. Verified continuity update — 2026-11-27
+
+This addendum supersedes the earlier `Current main HEAD` and integration-position snapshot above. GitHub was re-queried on 2026-11-27.
+
+- Canonical repository: `dcnsd00/project-nexus`; default branch: `main`.
+- Current main HEAD: `700978e829b75888216785d874cb2cbbc7a4e6b2`.
+- PR #53, **Protect mining pool credentials in logs and worker handoff files**, was merged on 2026-11-27 at 06:36:21 UTC; merge commit is the current main HEAD.
+- PR #53 changed the direct mining controller, HybridSupervisor and HybridWorker, added synthetic regression tests, and added `docs/MINING_CREDENTIAL_HANDLING.md`.
+- The new security document records argument redaction, sanitized launch/stop errors, temporary XMRig configuration cleanup, private worker handoff files and their deletion after read. It also states the remaining limits: process memory is not encrypted, a compromised local account is out of scope, and third-party miners may emit their own logs.
+- The PR metadata records targeted AIScan grade A/100. The GitHub combined-status query returned no status entries for the PR head; this documentation refresh therefore does not claim a separate CI result based on that empty response.
+
+### EDGE and runtime continuity
+
+The 2026-11-17 Recovery Step 01/02 audits are historical snapshots of `integration/source-import-safe-0.10.25`, not the current canonical implementation. Do not repeat their proposed implementation blindly. The 2026-11-25 main status records that the current main EDGE host runtime includes SQLite schema-v4 persistence, monotonic sequence/replay protection, Fernet-encrypted node secrets, rate limits and opt-in HTTPS/MQTTS paths. Remaining validation includes stable `NEXUS_EDGE_STORAGE_KEY` provisioning, physical ESP32/ESP32-C5 hardware-in-the-loop tests, multi-site field testing and production broker validation. No physical-device validation is claimed.
+
+### Open review work at this checkpoint
+
+- PR #23 — shared read-only Binance/Gate market data adapters: open, unmerged at the time of this check.
+- PR #24 — SHA-256 and RandomX reference validation: open, unmerged at the time of this check.
+- PR #25 — this documentation refresh: open and mergeable before this addendum.
+- PR #26 — Gitleaks, Trivy, CodeQL and Python Dependabot coverage: open, unmerged at the time of this check.
+
+Do not merge any of these based only on branch presence. Review exact head commits, required checks and diffs first.
+
+### Next actions
+
+1. Finish and validate this documentation refresh against current main, then update PR #25; keep main unchanged until review/merge approval.
+2. Review PRs #23, #24 and #26 individually, including exact-head CI and security findings.
+3. Continue EDGE key provisioning only against the current main Fernet/SQLite implementation; do not replace schema-v4 or merge an older duplicate store.
+4. Keep Windows laptop installation, ESP32 hardware validation, live pool mining, wallet signing/broadcast and security-service deployment classified as unvalidated until their own acceptance evidence exists.
+
+This addendum records repository metadata and documentation only. It does not claim local Windows installation, live mining, wallet operations or physical EDGE validation.
