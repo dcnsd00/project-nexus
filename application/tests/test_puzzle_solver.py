@@ -213,3 +213,4 @@ def test_puzzle_solver_fastapi_routes_are_callable():
     assert phy.status_code == 200
     assert phy.json()["kind"] == "phy_challenge"
     assert phy.json()["pair_count"] == 128
+    assert phy.json()["bit_window_validation"]["status"] == "not_run"
