@@ -12,6 +12,7 @@ from typing import Any
 
 UNICODE_DATA_VERSION = "18.0.0"
 DEFAULT_S_HEX = "5b890b292ba1abd9b1"
+PUBLIC_HX_CANDIDATE = "1dffd7ff0d400f0afcc3fdcefc0d400f0da10f3a390f77ff0d400f68fe0d080f"
 
 # Unicode 18.0.0 emoji-data.txt, Emoji_Modifier_Base property (136 code points).
 # Source: https://www.unicode.org/Public/18.0.0/ucd/emoji/emoji-data.txt
@@ -223,6 +224,48 @@ def _fit_radial_phase(pairs: list[dict[str, Any]], step_resolution: float = 0.1)
         "ordered_pair_ids": [[item["west_id"], item["east_id"]] for item in ordered],
     }
 
+
+def _position_candidate(
+    ordered_points: list[dict[str, Any]],
+    positions: list[int],
+    index_base: int,
+    order_name: str,
+    reference_hx_hex: str = PUBLIC_HX_CANDIDATE,
+) -> dict[str, Any]:
+    selected = []
+    for position in positions:
+        index = position - index_base
+        if index < 0 or index >= len(ordered_points):
+            continue
+        point = ordered_points[index]
+        cps = _codepoints(point["unified"])
+        low_bytes = [cp & 0xFF for cp in cps]
+        selected.append({
+            "position": position,
+            "ordinal_index_zero_based": index,
+            "canvas_id": point["id"],
+            "char": point["char"],
+            "unicode": point["unified"],
+            "codepoint_low_bytes_hex": bytes(low_bytes).hex(),
+        })
+    stream = bytes(
+        byte
+        for item in selected
+        for byte in bytes.fromhex(item["codepoint_low_bytes_hex"])
+    ).hex()
+    return {
+        "order": order_name,
+        "index_base": index_base,
+        "selection_complete": len(selected) == len(positions),
+        "selected": selected,
+        "raw_codepoint_low_byte_stream_hex": stream,
+        "raw_codepoint_low_byte_stream_length": len(stream) // 2,
+        "matches_public_hx_candidate": stream == reference_hx_hex.lower(),
+        "interpretation": (
+            "candidate indexing only; neither angle nor radius order is established as the true spiral order"
+        ),
+    }
+
 def analyze_project_file(
     project_file: dict[str, Any],
     s_hex: str = DEFAULT_S_HEX,
@@ -251,11 +294,11 @@ def analyze_project_file(
         raise ValueError("s_hex must be an even-length hexadecimal string (1–32 bytes).")
     s_bytes = bytes.fromhex(s_hex)
     by_id = {point["id"]: point for point in points}
-    selected = []
+    canvas_id_selected = []
     for value in s_bytes:
         point = by_id.get(value)
         if point:
-            selected.append({
+            canvas_id_selected.append({
                 "id": value,
                 "char": point["char"],
                 "name": point["name"],
@@ -264,7 +307,18 @@ def analyze_project_file(
                 "tone_levels": point["tone_levels"],
             })
 
-    selected_low_bytes = [cp & 0xFF for item in selected for cp in _codepoints(item["unicode"])]
+    for point in points:
+        point["angle_deg"] = (math.degrees(math.atan2(point["cx"] - centre_x, centre_y - point["cy"])) + 360.0) % 360.0
+        point["radius_px"] = math.hypot(point["cx"] - centre_x, point["cy"] - centre_y)
+    angle_order = sorted(points, key=lambda item: (item["angle_deg"], item["radius_px"], item["id"]))
+    radius_order = sorted(points, key=lambda item: (item["radius_px"], item["angle_deg"], item["id"]))
+    position_candidates = {
+        "angle_zero_based": _position_candidate(angle_order, list(s_bytes), 0, "angle ascending, top=0 clockwise"),
+        "angle_one_based": _position_candidate(angle_order, list(s_bytes), 1, "angle ascending, top=0 clockwise"),
+        "radius_zero_based": _position_candidate(radius_order, list(s_bytes), 0, "radius ascending, centre-out"),
+        "radius_one_based": _position_candidate(radius_order, list(s_bytes), 1, "radius ascending, centre-out"),
+    }
+    canvas_id_low_bytes = [cp & 0xFF for item in canvas_id_selected for cp in _codepoints(item["unicode"])]
     radial_phase_fit = _fit_radial_phase(pairs)
 
     expected_ids = set(range(1, 258))
@@ -293,17 +347,21 @@ def analyze_project_file(
             "community_claim_2026_11_25": "124/124 pair-tone recovery (unverified forum participant claim)",
             "community_claim_reconciled": pairs_with_base == 124,
         },
-        "signature_s_byte_id_check": {
+        "s_byte_position_candidates": {
             "s_hex": s_bytes.hex(),
-            "byte_ids_in_order": list(s_bytes),
-            "all_ids_present": len(selected) == len(s_bytes),
-            "selected_emoji": selected,
-            "interpretation": "set/ID correspondence only; does not validate a key or signature solution",
+            "position_values": list(s_bytes),
+            "reference_hx_hex": PUBLIC_HX_CANDIDATE,
+            "reference_hx_source": "public forum analysis; candidate only, not author-confirmed final key data",
+            "candidate_orders": position_candidates,
         },
-        "selected_codepoint_low_byte_stream": {
-            "length_bytes": len(selected_low_bytes),
-            "hex": bytes(selected_low_bytes).hex(),
-            "interpretation": "raw low bytes of every Unicode codepoint for the nine selected emoji, in s-byte order; not a confirmed H.x encoding",
+        "signature_s_byte_canvas_id_diagnostic": {
+            "s_hex": s_bytes.hex(),
+            "byte_values": list(s_bytes),
+            "direct_canvas_id_lookup_complete": len(canvas_id_selected) == len(s_bytes),
+            "selected_emoji": canvas_id_selected,
+            "raw_codepoint_low_byte_stream_length": len(canvas_id_low_bytes),
+            "raw_codepoint_low_byte_stream_hex": bytes(canvas_id_low_bytes).hex(),
+            "interpretation": "diagnostic only; canvas object IDs are not established as spiral positions",
         },
         "radial_phase_fit": radial_phase_fit,
         "meta_clue": {
@@ -341,7 +399,8 @@ def catalog() -> dict[str, Any]:
             "radial constant-angular-step fit with residual statistics",
             "raw low-byte stream extraction for the nine s-selected emoji",
             "west/east and radial candidate ordering exports",
-            "nine-byte ECDSA-s-to-emoji-ID correspondence check",
+            "nine s-byte values tested as positional selectors across candidate spatial orders",
+            "direct canvas-ID lookup retained only as a diagnostic",
             "reverse-word plus ROT13 meta-clue transform",
             "compressed secp256k1 public-point validation (no scalar derivation)",
         ],
