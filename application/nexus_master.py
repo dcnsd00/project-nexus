@@ -2035,3 +2035,27 @@ def nexus_operator_snapshot():
             "public_chain_writes_enabled": False,
         },
     }
+
+
+# PHY Challenge structural research — offline input only; no key search or signing.
+from modules import phy_challenge_research
+
+@app.get("/api/research/phy-challenge")
+def phy_challenge_research_catalog():
+    return phy_challenge_research.catalog()
+
+
+@app.post("/api/research/phy-challenge/analyze")
+def phy_challenge_research_analyze(payload: dict):
+    project_file = payload.get("project_file") if isinstance(payload, dict) else None
+    if not isinstance(project_file, dict):
+        raise HTTPException(status_code=400, detail="project_file must be a JSON object")
+    s_hex = payload.get("s_hex", phy_challenge_research.DEFAULT_S_HEX)
+    point_hex = payload.get("candidate_public_key_hex")
+    try:
+        result = phy_challenge_research.analyze_project_file(project_file, s_hex)
+        if point_hex is not None:
+            result["candidate_public_point"] = phy_challenge_research.validate_compressed_public_key(point_hex)
+        return result
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
