@@ -1,3 +1,104 @@
+# Current continuation checkpoint — 2026-11-27 (integrated mining, puzzle, wallet, research and AI worker baseline)
+
+This checkpoint supersedes the older November 23 continuation statements for the current canonical repository state. Earlier audit entries remain historical evidence and must not be interpreted as the current `main` state.
+
+## Canonical repository state
+
+- Repository: `dcnsd00/project-nexus`
+- Canonical branch: `main`
+- Verified HEAD: `6280cccc78f68a5857a75452b671feb8e509c30d`
+- Architecture is one modular monolith: one Lifecycle Manager, one Module Registry, one shared runtime and shared persistence boundaries.
+- GitHub is canonical for source, branches, PRs, tests and CI evidence. Notion is the planning/architecture companion. Runtime secrets and operational data remain local/central runtime data, never committed.
+- Original worker branches remain preserved. Do not replace branch history or merge whole divergent branches; continue selective, reviewed integration PRs.
+
+## Verified integrations on main
+
+| PR | Scope | Merge commit |
+| --- | --- | --- |
+| [#31](https://github.com/dcnsd00/project-nexus/pull/31) | Security Baseline, pinned workflow actions, report-only Gitleaks/Trivy/CodeQL Python | `3ea880ee9234cc8bbcf3e4651a4f0b464fbb66dd` |
+| [#46](https://github.com/dcnsd00/project-nexus/pull/46) | Bounded multi-method Puzzle Solver API, runtime and registry integration | `5f5e9bc4be234da722fbd769cbd5b5d0275d1e51` |
+| [#50](https://github.com/dcnsd00/project-nexus/pull/50) | Opt-in text-only AI Worker provider and loopback-only dispatch | `d958bab1fdaa89441e774972dad979e69779d4da` |
+| [#51](https://github.com/dcnsd00/project-nexus/pull/51) | Local Puzzle Solver UI at `/puzzles`, dashboard shortcut and JS syntax check | `6280cccc78f68a5857a75452b671feb8e509c30d` |
+
+The above merge commits were checked against the GitHub PR records. PR CI completed successfully on each PR's exact head before merge.
+
+## Domain capability and truthful operating state
+
+### Mining / compute
+
+- Existing source includes Bitcoin PoW and SHA-256d engine, optional native SHA-256d scanner, RandomX benchmark, CPU/GPU hybrid workers and supervisor, Stratum V1, backend discovery, pool failover and fail-closed safety checks.
+- Current CI validates synthetic/loopback paths, native build and upstream RandomX reference vectors. It does not establish a working public pool session, accepted shares, payout, sustained uptime or actual user-hardware thermal stability.
+- No miner was started and no pool credential was supplied or used in this checkpoint.
+- The separate direct mining controller and HybridSupervisor still need a shared process-arbitration audit before unattended switching is considered. Keep all miner launches and live switching operator-approved.
+
+### Puzzle solver
+
+- API: `GET /api/puzzles/capabilities`, `POST /api/puzzles/solve`; UI: `/puzzles`.
+- Implemented methods: local text candidate decoding (hex, Base64 families, Base32, Base85, Base58, binary/decimal bytes, URL-percent, Caesar, Morse, Atbash, A1Z26, reverse); known-key Vigenère; known-rail Rail Fence; known-parameter Affine; exact modular congruence; exact rational linear systems; XOR; bounded finite-domain CSP.
+- CSP limits: at most 16 variables, 16 integer values/domain, 100,000 visited assignments and 10 returned solutions.
+- Decoder output is a set of candidate interpretations, not semantic proof. Natural-language logic-grid parsing and general graph/constraint/SAT orchestration are not yet integrated.
+- SHA-256 SAT/differential research remains reduced-round only; it is not a full SHA-256 solver or cryptographic break. Optional `python-sat` is absent from CI, so the optional SAT preimage test is skipped.
+- PR #51 CI: NEXUS CI 15/15 jobs passed; Python 789 passed, 1 warning, 10 subtests passed; dashboard, wallet and puzzle page JavaScript syntax checks passed; Windows compatibility and all eight Windows test shards passed; Gitleaks, Trivy, CodeQL Python, RandomX and Gate Info/Paper Trading workflows passed.
+
+### Wallet recovery / decrypt
+
+- The current local UI/API supports NEXUS AES-GCM, Ethereum Web3 Secret Storage V3, BIP38 non-EC (0x0142), and BIP39 validation/derivation/recovery workflows.
+- Solana support is validate-only. Bitcoin Core inspection/passphrase check is local read-only. BIP38 EC-multiply (0x0143) and EIP-2335 remain inactive. Electrum, MetaMask internal vault formats and Monero require official/vendor tooling.
+- Wallet operations are local/loopback-only. The `owner_authorized` request boolean is a user-attestation flag, not cryptographic process authentication. Do not describe it as strong identity/authentication.
+- No user's real wallet, seed phrase, private key or decrypted keystore was processed. CI uses synthetic test material only. Never submit secrets to ChatGPT, AI providers, GitHub issues or CI.
+
+### Algorithm research / RCSC / Math
+
+- Math Intelligence provides exact hash benchmarks, modular congruence solving and candidate triage with measured evidence and manual review; it does not automatically change a miner configuration.
+- SHA-2 research includes exact known-vector checks, CPU/midstate analysis and reduced-round differential/message-modification/SAT experiments.
+- RCSC local modules provide blockchain/header/PoW/Merkle/fee analysis from local datasets or configured read-only sources. No universal mathematical advantage or live network collection is inferred from source presence.
+- Treat all proposed consensus/nonce/algorithm changes as research until independently verified against reference vectors and a real compatible implementation.
+
+### AI worker runtime
+
+- The worker provider supports local Ollama/OpenAI-compatible chat; remote endpoints require explicit enablement, an exact host allowlist, HTTPS and an API key.
+- Provider is disabled by default. Worker endpoints are loopback-only; transport ignores ambient proxy configuration and blocks redirects; prompts are text-only, no tools/function calls. Mutating proposals require QA/human review.
+- No provider has been installed/configured or invoked against a live model. CI uses mocked HTTP responses and synthetic data.
+
+### EDGE / DePIN
+
+- EDGE is registered in the existing runtime and Module Registry; shared EDGE manager is used by gateway adapters.
+- Physical ESP32-C5/HIL, live MQTT broker, public TLS ingress and provider-specific LoRaWAN/IoT network-server validation remain external gates. Single-host/single-process SQLite pilot assumptions remain; do not claim multi-writer or multi-host readiness.
+
+## CI evidence and limits
+
+- PR #46 head `90c0341e1c0980f3ee699742d2fb1ef12b8ba8d0`: 773 Python passed, 1 warning, 10 subtests; all eight Windows shards and required security/RandomX/Gate workflows passed.
+- PR #50 head `7b897e076eee18e6c10c2f2a6082c4df1d291acf`: 786 Python passed, 1 warning, 10 subtests; all Windows and security/RandomX/Gate jobs passed.
+- PR #51 head `c428e5c4dd86748a084a413c1c021ed286dccbf8`: 789 Python passed, 1 warning, 10 subtests; all Windows shards, JS, security, RandomX and Gate workflows passed.
+- Gitleaks still records three historical matches in wallet format/test and public upstream RandomX fixture files; these were not silently suppressed. Trivy previously skipped Python license detection where site-packages was unavailable. CodeQL coverage is Python, not C/C++.
+- CI green means the named CI environment and repository snapshot passed. It does not prove the user's laptop, real wallet, public pool, payout, ESP32 hardware or live AI provider.
+
+## Environment access
+
+- No Bridge host was registered when checked. There is no current remote shell/session to the user's laptop.
+- GitHub-hosted Windows CI is not a substitute for running the desktop app on the user's Windows 11 machine.
+- Do not claim local execution, hardware benchmark, actual public pool connectivity or live wallet decryption without new direct evidence.
+
+## Next actions — recommended order
+
+1. **Mining process arbitration:** inspect and test exclusion between direct `mining.controller` and `HybridSupervisor`; add one shared arbiter and regression tests before enabling automatic switching.
+2. **Wallet authorization boundary:** design a real local process/session authentication or operator-token boundary; preserve local-only behavior and keep real secret handling out of AI/CI.
+3. **Mining target validation:** only after explicit operator approval, run an offline preflight/benchmark first; separate that from live pool connection, which needs credentials and explicit go-ahead. Record accepted share/payout evidence independently.
+4. **Puzzle portfolio:** add SAT/SMT (with pinned optional dependencies), graph/constraint solvers and natural-language puzzle parsing as separate bounded adapters, with reproducible vectors and correctness verification. Keep unsupported methods marked unavailable.
+5. **AI model activation:** only after explicit approval, install/configure an available local provider and test it with harmless text tasks; provider remains disabled by default.
+6. **Algorithm research:** add reproducible experiment fixtures and independent reference verification; do not claim full SHA-256 cryptanalysis.
+7. **EDGE:** physical firmware/HIL, broker/TLS and provider integration tests.
+8. Keep changes on focused branches and PRs; merge only after exact-head CI and compatibility validation. No destructive branch cleanup.
+
+## Security and operator restrictions
+
+- No automatic miner start, wallet unlock, seed/key export, private-key transmission, wallet signing/broadcast, transaction, installation or remote provider activation without explicit approval.
+- Keep wallet secrets and API keys out of Git, CI, Notion and AI prompts.
+- Runtime health checks and capability catalogues must remain read-only.
+- Do not promote a service to LIVE/VALIDATED solely because the source file or API route exists.
+
+---
+
 # Current continuation checkpoint — 2026-11-23 (native SHA-256d block-candidate correctness)
 
 This checkpoint supersedes the 2026-11-23 MASTER API audit checkpoint below for current source state. Earlier audit entries remain historical evidence.
