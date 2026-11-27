@@ -44,7 +44,7 @@ def capabilities() -> dict[str, Any]:
             {"id": "text_decode", "available": True,
              "methods": ["hex", "base64", "base64url", "base32", "base85",
                          "binary_ascii", "decimal_bytes", "base58", "url_percent",
-                         "caesar_26", "morse", "reverse"]},
+                         "caesar_26", "morse", "atbash", "a1z26", "reverse"]},
             {"id": "modular_congruence", "available": True, "backend": "hybrid_solver.native_exact"},
             {"id": "linear_system", "available": True, "backend": "hybrid_solver.sympy_exact_rational",
              "dependency": "SymPy"},
@@ -57,6 +57,7 @@ def capabilities() -> dict[str, Any]:
             {"id": "natural_language_logic_grid", "available": False,
              "reason": "No parser/model adapter is integrated yet; express a supported puzzle as finite_csp constraints."},
         ],
+        "classical_cipher": ["vigenere_known_key", "rail_fence_known_rails", "affine_known_parameters"],
         "limits": {
             "text_characters": MAX_TEXT_LENGTH,
             "csp_variables": MAX_CSP_VARIABLES,
@@ -66,6 +67,70 @@ def capabilities() -> dict[str, Any]:
         },
         "policy": "Local bounded puzzle solving only. No wallet/seed/password/key search, third-party targeting, network access or automatic actions.",
     }
+
+
+def _vigenere_decrypt(value: str, key: str) -> str:
+    if not isinstance(value, str) or not value or len(value) > MAX_TEXT_LENGTH:
+        raise ValueError("text must contain 1..4096 characters")
+    if not isinstance(key, str) or not 1 <= len(key) <= 64 or not key.isascii() or not key.isalpha():
+        raise ValueError("Vigenere key must contain 1..64 ASCII letters")
+    shifts = [ord(char.upper()) - ord("A") for char in key]
+    output = []
+    offset = 0
+    for char in value:
+        if char.isascii() and char.isalpha():
+            base = ord("A") if char.isupper() else ord("a")
+            output.append(chr((ord(char) - base - shifts[offset % len(shifts)]) % 26 + base))
+            offset += 1
+        else:
+            output.append(char)
+    return "".join(output)
+
+
+def _rail_fence_decrypt(value: str, rails: int) -> str:
+    if not isinstance(value, str) or not value or len(value) > MAX_TEXT_LENGTH:
+        raise ValueError("text must contain 1..4096 characters")
+    if isinstance(rails, bool) or not isinstance(rails, int) or not 2 <= rails <= 12:
+        raise ValueError("rails must be an integer from 2 to 12")
+    if rails >= len(value):
+        return value
+    pattern = []
+    rail, direction = 0, 1
+    for _ in value:
+        pattern.append(rail)
+        if rail == 0:
+            direction = 1
+        elif rail == rails - 1:
+            direction = -1
+        rail += direction
+    counts = [pattern.count(index) for index in range(rails)]
+    rows = []
+    cursor = 0
+    for count in counts:
+        rows.append(list(value[cursor:cursor + count]))
+        cursor += count
+    offsets = [0] * rails
+    result = []
+    for rail_index in pattern:
+        result.append(rows[rail_index][offsets[rail_index]])
+        offsets[rail_index] += 1
+    return "".join(result)
+
+
+def _affine_decrypt(value: str, a: int, b: int) -> str:
+    if isinstance(a, bool) or not isinstance(a, int) or isinstance(b, bool) or not isinstance(b, int):
+        raise ValueError("affine parameters a and b must be integers")
+    if math.gcd(a, 26) != 1:
+        raise ValueError("affine parameter a must be coprime with 26")
+    inverse = pow(a, -1, 26)
+    output = []
+    for char in value:
+        if char.isascii() and char.isalpha():
+            base = ord("A") if char.isupper() else ord("a")
+            output.append(chr(((inverse * ((ord(char) - base) - b)) % 26) + base))
+        else:
+            output.append(char)
+    return "".join(output)
 
 
 def _decode_text(value: str) -> dict[str, Any]:
@@ -91,6 +156,19 @@ def _decode_text(value: str) -> dict[str, Any]:
     add("identity", value)
     add("url_percent", unquote(value))
     add("reverse", value[::-1])
+
+    atbash = "".join(
+        chr((ord("Z") - (ord(ch) - ord("A")))) if ch.isupper()
+        else chr(ord("z") - (ord(ch) - ord("a"))) if ch.islower()
+        else ch
+        for ch in value
+    )
+    add("atbash", atbash)
+
+    if re.fullmatch(r"\\d{1,2}(?:[ \\-,;/]+\\d{1,2})+", compact):
+        numbers = [int(item) for item in re.split(r"[ \\-,;/]+", compact)]
+        if all(1 <= number <= 26 for number in numbers):
+            add("a1z26", "".join(chr(ord("A") + number - 1) for number in numbers))
 
     compact = value.strip()
     hex_text = compact[2:] if compact.lower().startswith("0x") else compact
@@ -332,6 +410,16 @@ def solve(problem: dict[str, Any]) -> dict[str, Any]:
     if kind == "bitvector_xor":
         return {"kind": kind, **hybrid_solver.solve_bitvector_xor(
             problem.get("variables"), problem.get("target"), problem.get("width", 32))}
+    if kind == "vigenere":
+        return {"kind": kind, "plaintext": _vigenere_decrypt(problem.get("text"), problem.get("key")),
+                "verified": False, "method": "vigenere_known_key"}
+    if kind == "rail_fence":
+        return {"kind": kind, "plaintext": _rail_fence_decrypt(problem.get("text"), problem.get("rails")),
+                "verified": False, "method": "rail_fence_known_rails"}
+    if kind == "affine_substitution":
+        return {"kind": kind, "plaintext": _affine_decrypt(
+            problem.get("text"), problem.get("a"), problem.get("b")),
+            "verified": False, "method": "affine_known_parameters"}
     if kind == "finite_csp":
         return _solve_csp(problem)
     raise ValueError("unsupported kind; use text_decode, modular_congruence, linear_system, bitvector_xor or finite_csp")
