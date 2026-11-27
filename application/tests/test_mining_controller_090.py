@@ -106,3 +106,99 @@ def test_compatibility_blocks_kawpow_when_vram_below_dag(monkeypatch):
     d=_compatibility(pool,'srbminer','GPU')
     assert d['compatible'] is False
     assert any('VRAM insuficient' in x for x in d['reasons'])
+
+
+def test_redact_command_args_hides_split_and_inline_secrets():
+    from mining import controller as mc
+    command = [
+        "miner.exe", "--user", "wallet.worker", "--pass", "POOL_SECRET_SENTINEL",
+        "--password=INLINE_SECRET_SENTINEL", "-p", "SHORT_SECRET_SENTINEL",
+        "--api-access-token", "TOKEN_SECRET_SENTINEL",
+    ]
+    rendered = " ".join(mc._redact_command_args(command))
+    for secret in (
+        "POOL_SECRET_SENTINEL", "INLINE_SECRET_SENTINEL",
+        "SHORT_SECRET_SENTINEL", "TOKEN_SECRET_SENTINEL",
+    ):
+        assert secret not in rendered
+    assert rendered.count("[REDACTED]") == 4
+
+
+def test_controller_launch_log_redacts_pool_password(monkeypatch, tmp_path):
+    from mining import controller as mc
+
+    class FakeProc:
+        def __init__(self, *args, **kwargs):
+            self.args = args[0]
+            self.returncode = None
+            self.pid = 48761
+        def poll(self): return self.returncode
+        def terminate(self): self.returncode = 0
+        def wait(self, timeout=None): return self.returncode
+        def kill(self): self.returncode = -9
+
+    monkeypatch.setattr(mc, "LOG", tmp_path / "miner.log")
+    monkeypatch.setattr(mc, "_resolve_binary", lambda mid, explicit_path=None: "C:/fake/SRBMiner-MULTI.exe")
+    monkeypatch.setattr(mc.subprocess, "Popen", FakeProc)
+    monkeypatch.setattr(mc, "_metrics", lambda: {
+        "api_connected": False, "hashrate_hs": None, "hashrate_display": None,
+        "accepted_shares": None, "rejected_shares": None, "gpu": {}, "system": {},
+        "raw_api": None,
+    })
+    secret = "POOL_SECRET_SENTINEL"
+    started = mc.start({
+        "miner_id": "srbminer", "pool_id": "2miners-rvn-eu",
+        "wallet": "RWalletExample123", "worker": "testRig",
+        "algorithm": "KawPoW", "device": "GPU", "use_ssl": False,
+        "password": secret,
+    })
+    assert started["pid"] == 48761
+    log = mc.LOG.read_text(encoding="utf-8")
+    assert secret not in log
+    assert "[REDACTED]" in log
+    mc.stop()
+
+
+def test_xmrig_config_is_private_temporary_and_deleted_on_stop(monkeypatch, tmp_path):
+    import os
+    from mining import controller as mc
+
+    class FakeProc:
+        def __init__(self, *args, **kwargs):
+            self.args = args[0]
+            self.returncode = None
+            self.pid = 48762
+        def poll(self): return self.returncode
+        def terminate(self): self.returncode = 0
+        def wait(self, timeout=None): return self.returncode
+        def kill(self): self.returncode = -9
+
+    monkeypatch.setattr(mc, "tempfile.tempdir", str(tmp_path))
+    monkeypatch.setattr(mc, "LOG", tmp_path / "miner.log")
+    monkeypatch.setattr(mc, "_resolve_binary", lambda mid, explicit_path=None: "C:/fake/xmrig.exe")
+    monkeypatch.setattr(mc.subprocess, "Popen", FakeProc)
+    monkeypatch.setattr(mc, "_metrics", lambda: {
+        "api_connected": False, "hashrate_hs": None, "hashrate_display": None,
+        "accepted_shares": None, "rejected_shares": None, "gpu": {}, "system": {},
+        "raw_api": None,
+    })
+    secret = "XMRIG_SECRET_SENTINEL"
+    started = mc.start({
+        "miner_id": "xmrig", "pool_id": "unmineable-randomx-xmr",
+        "wallet": "XMRWalletExample123", "worker": "testRig",
+        "algorithm": "RandomX", "device": "CPU", "use_ssl": False,
+        "password": secret,
+    })
+    config_path = mc._runtime_config_path
+    assert config_path is not None and config_path.exists()
+    assert config_path.name.startswith("nexus-xmrig-")
+    assert config_path != mc.RUNTIME / "xmrig.runtime.json"
+    config = __import__("json").loads(config_path.read_text(encoding="utf-8"))
+    assert config["pools"][0]["pass"] == secret
+    assert secret not in mc.LOG.read_text(encoding="utf-8")
+    if os.name != "nt":
+        assert config_path.stat().st_mode & 0o777 == 0o600
+    assert started["status"] in {"starting", "running"}
+    mc.stop()
+    assert not config_path.exists()
+    assert mc._runtime_config_path is None
