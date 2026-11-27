@@ -12,42 +12,28 @@ GitHub Codespaces is the primary reproducible development workspace. GitHub Acti
 
 ```text
 /
-├── application/                 # integrated canonical application source
-│   ├── dashboard.html             # unified NEXUS control center
-│   ├── puzzle_solver.html         # local multi-method puzzle UI
-│   ├── wallet.html                # local wallet recovery UI
-│   ├── nexus_master.py            # current application entry point
-│   ├── modules/                   # Lifecycle Manager, Module Registry, services
-│   ├── nexus_edge/                # EDGE manager, agents, transport adapters
-│   ├── mining/                    # mining supervisor, pools, workers and Stratum
-│   ├── research/                  # SHA-2, RCSC and research workflows
-│   ├── nexus_master.py           # current application entry point
-│   ├── core/                     # CORE, API, configuration, security
-│   ├── modules/                  # Lifecycle Manager, Module Registry, runtime
-│   ├── nexus_edge/               # EDGE manager, agents, transport adapters
-│   ├── crypto/                   # crypto engine and chain interfaces
-│   ├── mining/                   # mining supervisor, pools, workers
-│   ├── wallet/                   # wallet abstractions and safe signing boundary
-│   ├── math_engine/              # mathematical models and optimizers
-│   ├── rcsc/                     # collection, chain analysis and validation
-│   ├── depin/                    # device/node/DePIN integrations
-│   ├── research/                 # AI and research workflows
-│   ├── shared/                   # shared contracts, event bus, repositories
-│   └── tests/                    # application tests
-├── infrastructure/
-│   ├── database/                 # migrations, schema, seed fixtures
-│   ├── messaging/                # event-bus and transport configuration
-│   └── deployment/               # reproducible deployment definitions
-├── tests/
-│   ├── integration/
-│   ├── contract/
-│   └── security/
+├── application/
+│   ├── nexus_master.py                 # FastAPI application entry point
+│   ├── dashboard.html                  # NEXUS control center
+│   ├── puzzle_solver.html              # multi-method puzzle UI
+│   ├── wallet.html                     # local wallet recovery UI
+│   ├── modules/
+│   │   ├── lifecycle_manager.py        # single Lifecycle Manager
+│   │   ├── module_registry.py          # single Module Registry
+│   │   ├── nexus_runtime.py            # shared runtime composition
+│   │   ├── puzzle_solver.py            # bounded multi-method solver
+│   │   ├── ai_worker_coordinator.py    # text-only worker dispatch
+│   │   ├── wallet_benchmark/           # wallet formats/recovery
+│   │   └── ...                         # mining, math, RCSC, research services
+│   ├── mining/                         # workers, Stratum, supervisors, safety
+│   ├── nexus_edge/                     # EDGE manager, stores, transports
+│   ├── research/                       # SHA-2 and RCSC research
+│   ├── adapters/                       # DePIN and external adapters
+│   ├── core/                           # shared CORE/local network guards
+│   └── tests/                          # application test suites
 ├── docs/
-├── scripts/
 ├── .github/workflows/
-├── pyproject.toml
-├── requirements*.txt
-└── NEXUS_STATUS.md
+└── application/packaging/              # Windows desktop packaging
 ```
 
 The tree above is a navigation summary, not a mandate to create duplicate package roots such as `crypto/`, `wallet/` or `math_engine/` where equivalent modules already exist. Preserve the observed repository paths and use shared adapters; never move or duplicate a module solely to match a conceptual diagram.
