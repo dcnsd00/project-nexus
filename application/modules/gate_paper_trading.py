@@ -12,63 +12,28 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Literal
 
-import httpx
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, Field
 
 from modules.data_paths import data_path
+from modules.market_data import (
+    DEFAULT_GATE_BASE_URL, GATE_PAPER_ASSETS as ASSETS,
+    GATE_PUBLIC_PROVIDER, GatePublicMarketDataProvider, MarketDataError,
+)
 
 router = APIRouter(tags=["Gate Info · Research & Paper Trading"])
 
-ASSETS = ("BTC", "ETH", "SOL", "BNB", "XRP", "AIOZ", "GRASS", "TAO", "NEAR", "FIL")
 QUOTE = "USDT"
 INITIAL_CAPITAL_RON = 100.0
-GATE_API = "https://api.gateio.ws/api/v4"
+GATE_API = DEFAULT_GATE_BASE_URL
 PAPER_DB_PATH = data_path("db", "gate_paper_trading.sqlite3")
 
 
-class GateAPIError(RuntimeError):
-    pass
-
-
-class GatePublicClient:
-    """Minimal public-only Gate API v4 client; no authentication support."""
-
-    def __init__(self, base_url: str = GATE_API, timeout: float = 8.0):
-        self.base_url = base_url.rstrip("/")
-        self.timeout = timeout
-
-    def _get(self, path: str, params: dict | None = None):
-        try:
-            response = httpx.get(
-                self.base_url + path, params=params, timeout=self.timeout,
-                headers={"Accept": "application/json", "User-Agent": "NEXUS-MASTER/0.10"}
-            )
-            response.raise_for_status()
-            return response.json()
-        except (httpx.HTTPError, ValueError) as exc:
-            raise GateAPIError(type(exc).__name__) from exc
-
-    def tickers(self) -> list[dict]:
-        data = self._get("/spot/tickers", {"timezone": "utc0"})
-        if not isinstance(data, list):
-            raise GateAPIError("invalid_ticker_payload")
-        wanted = {f"{asset}_{QUOTE}" for asset in ASSETS}
-        return [row for row in data if row.get("currency_pair") in wanted]
-
-    def orderbook(self, symbol: str, limit: int = 5) -> dict:
-        return self._get("/spot/order_book", {
-            "currency_pair": f"{symbol}_{QUOTE}", "limit": limit
-        })
-
-    def candles(self, symbol: str, interval: str = "15m", limit: int = 100) -> list:
-        return self._get("/spot/candlesticks", {
-            "currency_pair": f"{symbol}_{QUOTE}", "interval": interval, "limit": limit
-        })
-
-
-GATE_CLIENT = GatePublicClient()
+# Backward-compatible names for the existing Gate paper-trading surface.
+GateAPIError = MarketDataError
+GatePublicClient = GatePublicMarketDataProvider
+GATE_CLIENT = GATE_PUBLIC_PROVIDER
 
 
 def _db_path() -> Path:
