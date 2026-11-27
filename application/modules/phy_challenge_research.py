@@ -312,6 +312,7 @@ def analyze_project_file(
         point["radius_px"] = math.hypot(point["cx"] - centre_x, point["cy"] - centre_y)
     angle_order = sorted(points, key=lambda item: (item["angle_deg"], item["radius_px"], item["id"]))
     radius_order = sorted(points, key=lambda item: (item["radius_px"], item["angle_deg"], item["id"]))
+    angle_index_86_id = angle_order[86]["id"] if len(angle_order) > 86 else None
     position_candidates = {
         "angle_zero_based": _position_candidate(angle_order, list(s_bytes), 0, "angle ascending, top=0 clockwise"),
         "angle_one_based": _position_candidate(angle_order, list(s_bytes), 1, "angle ascending, top=0 clockwise"),
@@ -346,6 +347,12 @@ def analyze_project_file(
             "pairs_with_literal_skin_tone_codepoints": pairs_with_tones,
             "community_claim_2026_11_25": "124/124 pair-tone recovery (unverified forum participant claim)",
             "community_claim_reconciled": pairs_with_base == 124,
+        },
+        "reference_observations": {
+            "angle_order_zero_based_index_86_canvas_id": angle_index_86_id,
+            "forum_reported_canvas_id_at_index_86": 217,
+            "matches_forum_angle_order_observation": angle_index_86_id == 217,
+            "interpretation": "single coordinate-order sanity check only; does not establish the complete true spiral order",
         },
         "s_byte_position_candidates": {
             "s_hex": s_bytes.hex(),
