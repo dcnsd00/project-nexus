@@ -119,6 +119,45 @@ class ProjectAnalysisTests(unittest.TestCase):
         self.assertIn("not established as spiral positions", diagnostic["interpretation"])
         self.assertEqual(diagnostic["raw_codepoint_low_byte_stream_length"], 9)
 
+    def test_s_window_verifier_accepts_exact_prefix_candidate(self):
+        from modules.phy_challenge_research import verify_bit_values_by_id
+        project = make_project()
+        points = [{
+            "id": box["id"], "cx": box["x"] + box["w"] / 2.0,
+            "cy": box["y"] + box["h"] / 2.0
+        } for box in project["boxes"] if box["id"] != 258]
+        s_bytes = bytes.fromhex("5b890b292ba1abd9b1")
+        s_bits = "".join(f"{value:08b}" for value in s_bytes)
+        ordered_ids = sorted(point["id"] for point in points)
+        values = {
+            box_id: int(s_bits[index]) if index < 72 else ((index * 7) % 2)
+            for index, box_id in enumerate(ordered_ids)
+        }
+        result = verify_bit_values_by_id(points, values, s_bytes)
+        self.assertEqual(result["status"], "verified_bit_window")
+        self.assertTrue(any(
+            item["order"] == "canvas_id_ascending"
+            and item["stream_direction"] == "forward"
+            and item["window"] == "first_72"
+            and item["expected_s_orientation"] == "s_big_endian"
+            for item in result["exact_matches"]
+        ))
+
+    def test_s_window_verifier_rejects_incomplete_or_invalid_maps(self):
+        from modules.phy_challenge_research import verify_bit_values_by_id
+        project = make_project()
+        points = [{
+            "id": box["id"], "cx": box["x"] + box["w"] / 2.0,
+            "cy": box["y"] + box["h"] / 2.0
+        } for box in project["boxes"] if box["id"] != 258]
+        s_bytes = bytes.fromhex("5b890b292ba1abd9b1")
+        with self.assertRaises(ValueError):
+            verify_bit_values_by_id(points, {}, s_bytes)
+        values = {point["id"]: 0 for point in points}
+        values[points[0]["id"]] = 2
+        with self.assertRaises(ValueError):
+            verify_bit_values_by_id(points, values, s_bytes)
+
     def test_catalog_does_not_claim_final_solver(self):
         info = catalog()
         self.assertEqual(info["state"], "implemented_local_analysis")
