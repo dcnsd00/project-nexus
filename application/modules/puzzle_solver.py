@@ -437,7 +437,9 @@ def solve(problem: dict[str, Any]) -> dict[str, Any]:
             raise ValueError("phy_challenge requires project_file as a JSON object")
         from modules import phy_challenge_research
         result = phy_challenge_research.analyze_project_file(
-            project_file, problem.get("s_hex", phy_challenge_research.DEFAULT_S_HEX)
+            project_file,
+            problem.get("s_hex", phy_challenge_research.DEFAULT_S_HEX),
+            problem.get("bit_values_by_id"),
         )
         candidate_point = problem.get("candidate_public_key_hex")
         if candidate_point is not None:
