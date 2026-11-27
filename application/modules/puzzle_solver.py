@@ -203,6 +203,8 @@ def _csp_validate(problem: dict[str, Any]) -> tuple[dict[str, list[int]], list[d
             if (not isinstance(names, list) or len(names) < 2 or
                     any(not isinstance(n, str) or n not in variables for n in names)):
                 raise ValueError(f"{kind} requires at least two declared variables")
+            if len(set(names)) != len(names):
+                raise ValueError(f"{kind} variable names must be unique")
             if kind == "all_different":
                 checked.append({"type": kind, "variables": list(names)})
             else:
@@ -236,9 +238,9 @@ def _constraint_ready(constraint: dict[str, Any], assignment: dict[str, int]) ->
     if kind == "all_different":
         return len(assigned) == len(set(assigned))
     if kind == "sum_eq":
-        target = constraint["target"]
-        partial = sum(assigned)
-        return partial <= target or len(assigned) < len(names)
+        if len(assigned) < len(names):
+            return True
+        return sum(assigned) == constraint["target"]
     if len(assigned) < len(names):
         return True
     if kind == "product_eq":
