@@ -386,3 +386,16 @@ def test_runtime_safety_monitor_is_opt_in_and_does_not_autostart_miners(tmp_path
     assert monitor.status()["miner_autostart_enabled"] is False
     manager.stop_all()
     assert monitor.status()["running"] is False
+
+
+def test_market_data_runtime_probe_is_read_only_and_makes_no_network_calls():
+    manager = build_runtime()
+    snapshot = manager.start_all()
+    by_name = {row["name"]: row for row in snapshot["services"]}
+    health = by_name["market_data"]["health"]
+    assert health["ok"] is True
+    assert set(health["details"]["providers"]) == {"binance", "gate"}
+    assert health["details"]["auth_required"] is False
+    assert health["details"]["write_capabilities"] is False
+    assert health["details"]["network_calls_by_probe"] is False
+    assert manager.stop_all()["running"] == 0
