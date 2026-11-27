@@ -55,6 +55,7 @@ Example finite-domain puzzle:
 - CSP is capped at 16 variables, 16 integer values per domain, 100,000 visited assignments and 10 returned solutions.
 - Text inputs are capped at 4,096 characters.
 - Text decoding returns candidate interpretations; it does not claim a candidate is semantically correct.
+- `phy_challenge` accepts optional `bit_values_by_id` (256 explicit 0/1 assignments) and checks whether the first/last 72 bits match the public ECDSA `s` bytes under candidate order/orientation variants. The visual bit-assignment rule is not inferred automatically.
 - Linear systems require SymPy. The route reports an explicit dependency/runtime error if it is unavailable.
 - The existing SHA-256 SAT and differential work remains an isolated reduced-round research experiment. It is not advertised as a backend that can solve full SHA-256 or arbitrary SHA puzzles.
 - Natural-language logic-grid parsing and external AI-worker execution are not included in this slice. A logic puzzle can be represented as finite-domain variables and constraints.
