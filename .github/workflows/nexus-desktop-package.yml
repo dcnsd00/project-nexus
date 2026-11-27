@@ -6,6 +6,10 @@ on:
     paths:
       - "application/**"
       - ".github/workflows/nexus-desktop-package.yml"
+  pull_request:
+    paths:
+      - "application/**"
+      - ".github/workflows/nexus-desktop-package.yml"
   workflow_dispatch:
 
 permissions:
@@ -60,18 +64,18 @@ jobs:
         run: |
           Push-Location application
           try {
-            python -m PyInstaller --noconfirm --clean packaging\NEXUS_DESKTOP.spec
+            python -m PyInstaller --noconfirm --clean packaging\\NEXUS_DESKTOP.spec
             if ($LASTEXITCODE -ne 0) { throw "PyInstaller failed." }
           } finally {
             Pop-Location
           }
-          $Exe = "application\dist\NEXUS\NEXUS.exe"
+          $Exe = "application\\dist\\NEXUS\\NEXUS.exe"
           if (-not (Test-Path $Exe)) { throw "Frozen NEXUS.exe missing." }
-          if (-not (Test-Path "application\dist\NEXUS\_internal")) { throw "PyInstaller _internal runtime missing." }
+          if (-not (Test-Path "application\\dist\\NEXUS\\_internal")) { throw "PyInstaller _internal runtime missing." }
       - name: Test the actual frozen executable
         shell: pwsh
         run: |
-          $Exe = (Resolve-Path "application\dist\NEXUS\NEXUS.exe").Path
+          $Exe = (Resolve-Path "application\\dist\\NEXUS\\NEXUS.exe").Path
           Write-Host "Running packaged application: $Exe --self-test"
           $p = Start-Process -FilePath $Exe -ArgumentList "--self-test" -WorkingDirectory (Split-Path $Exe) -Wait -PassThru
           if ($p.ExitCode -ne 0) { throw "Packaged NEXUS self-test failed with exit code $($p.ExitCode)." }
@@ -87,10 +91,10 @@ jobs:
           $Package = Join-Path $env:RUNNER_TEMP "NEXUS_MASTER_0.10.27_WINDOWS"
           $PackageDist = Join-Path $Package "dist"
           New-Item -ItemType Directory -Force -Path $PackageDist | Out-Null
-          Copy-Item "application\dist\NEXUS" (Join-Path $PackageDist "NEXUS") -Recurse -Force
-          Copy-Item "application\VERSION.json" (Join-Path $Package "VERSION.json")
-          Copy-Item "application\INSTALL_NEXUS.bat" $Package
-          Copy-Item "application\INSTALL_NEXUS_ONECLICK.ps1" $Package
+          Copy-Item "application\\dist\\NEXUS" (Join-Path $PackageDist "NEXUS") -Recurse -Force
+          Copy-Item "application\\VERSION.json" (Join-Path $Package "VERSION.json")
+          Copy-Item "application\\INSTALL_NEXUS.bat" $Package
+          Copy-Item "application\\INSTALL_NEXUS_ONECLICK.ps1" $Package
           $Readme = @(
             "NEXUS MASTER 0.10.27 — WINDOWS DESKTOP",
             " ",
@@ -106,10 +110,10 @@ jobs:
             "Cod sursă: https://github.com/dcnsd00/project-nexus"
           )
           $Readme | Set-Content -Path (Join-Path $Package "README_INSTALL_RO.txt") -Encoding UTF8
-          $BuildRoot = (Resolve-Path (Join-Path $Package "dist\NEXUS")).Path
+          $BuildRoot = (Resolve-Path (Join-Path $Package "dist\\NEXUS")).Path
           $Files = @(Get-ChildItem $BuildRoot -File -Recurse | ForEach-Object {
             [PSCustomObject]@{
-              path = $_.FullName.Substring($BuildRoot.Length + 1).Replace('\','/')
+              path = $_.FullName.Substring($BuildRoot.Length + 1).Replace('\\','/')
               sha256 = (Get-FileHash -Algorithm SHA256 -Path $_.FullName).Hash.ToLowerInvariant()
             }
           })
