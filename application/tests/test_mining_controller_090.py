@@ -173,7 +173,7 @@ def test_xmrig_config_is_private_temporary_and_deleted_on_stop(monkeypatch, tmp_
         def wait(self, timeout=None): return self.returncode
         def kill(self): self.returncode = -9
 
-    monkeypatch.setattr(mc, "tempfile.tempdir", str(tmp_path))
+    monkeypatch.setattr(mc.tempfile, "tempdir", str(tmp_path))
     monkeypatch.setattr(mc, "LOG", tmp_path / "miner.log")
     monkeypatch.setattr(mc, "_resolve_binary", lambda mid, explicit_path=None: "C:/fake/xmrig.exe")
     monkeypatch.setattr(mc.subprocess, "Popen", FakeProc)
