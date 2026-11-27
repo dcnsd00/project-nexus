@@ -543,9 +543,11 @@ def analyze_project_file(
         "automatic_bit_feature_tests": automatic_bit_features,
         "meta_clue": {
             "input": "gvonys fhelucrM kbZ",
-            "decoded": decode_meta_clue(),
-            "reading": "reverse each word, then ROT13",
-            "interpretation": "Latin phrase; Zephyrus is the west wind. Directional hint, not a confirmed emoji bit order.",
+            "exploratory_transform": decode_meta_clue(),
+            "transforms_tested": ["reverse each word", "ROT13"],
+            "classification": "rejected_hypothesis",
+            "author_feedback": "ROT-13 = No",
+            "interpretation": "Exploratory text transformation only; do not treat as the accepted clue decoding.",
         },
         "pair_orders": {
             "west_to_east": [[p["west_id"], p["east_id"]] for p in west_east],
@@ -577,10 +579,11 @@ def catalog() -> dict[str, Any]:
             "raw low-byte stream extraction for the nine s-selected emoji",
             "explicit 256-bit stream verification against first/last 72 bits of s",
             "automatic Unicode-derived one-bit feature hypotheses against s windows",
+            "72-bit signature-window verification for supplied 256-bit maps",
             "west/east and radial candidate ordering exports",
             "nine s-byte values tested as positional selectors across candidate spatial orders",
             "direct canvas-ID lookup retained only as a diagnostic",
-            "reverse-word plus ROT13 meta-clue transform",
+            "exploratory reverse/ROT13 meta-clue probe (author-rejected)",
             "compressed secp256k1 public-point validation (no scalar derivation)",
         ],
         "not_implemented": [
