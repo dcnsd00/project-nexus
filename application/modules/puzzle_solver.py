@@ -227,12 +227,14 @@ def _decode_text(value: str) -> dict[str, Any]:
         add("morse", "".join(MORSE[token] for token in morse_tokens))
 
     for shift in range(1, 26):
-        translated = "".join(
-            chr((ord(ch) - base - shift) % 26 + base) if ch.isalpha() and ch.isascii() else ch
-            for ch in value
-            for base in ([ord("A") if ch.isupper() else ord("a")],)
-        )
-        add(f"caesar_shift_{shift}", translated)
+        translated_chars = []
+        for ch in value:
+            if ch.isascii() and ch.isalpha():
+                base = ord("A") if ch.isupper() else ord("a")
+                translated_chars.append(chr((ord(ch) - base - shift) % 26 + base))
+            else:
+                translated_chars.append(ch)
+        add(f"caesar_shift_{shift}", "".join(translated_chars))
 
     candidates.sort(key=lambda item: (item["printable_ratio"], item["method"] == "identity"), reverse=True)
     return {"kind": "text_decode", "candidate_count": len(candidates),
