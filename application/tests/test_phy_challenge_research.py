@@ -109,6 +109,7 @@ class ProjectAnalysisTests(unittest.TestCase):
         self.assertIn("radius_one_based", candidates)
         self.assertTrue(candidates["angle_zero_based"]["selection_complete"])
         self.assertEqual(len(candidates["angle_zero_based"]["selected"]), 9)
+        self.assertIn("matches_forum_angle_order_observation", result["reference_observations"])
         self.assertIn("not established as the true spiral order",
                       candidates["angle_zero_based"]["interpretation"])
 
