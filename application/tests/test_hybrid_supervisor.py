@@ -257,7 +257,7 @@ def test_worker_request_is_owner_private_and_removed_after_worker_start(tmp_path
     from mining.hybrid_supervisor import _write_private_request
 
     request_path = tmp_path / "private" / "request.json"
-    payload = {"command": _cmd(), "pool_password": "POOL_SECRET_SENTINEL"}
+    payload = {"command": _cmd(), "pool_password": "xxxxxxxxxxxxxxxxxxxxxxxx"}
     _write_private_request(request_path, payload)
     assert json.loads(request_path.read_text(encoding="utf-8")) == payload
     if os.name != "nt":
