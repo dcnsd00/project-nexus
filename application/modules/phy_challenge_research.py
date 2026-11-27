@@ -268,7 +268,7 @@ def catalog() -> dict[str, Any]:
             "geometric antipodal pairing hypotheses",
             "west/east and radial candidate ordering exports",
             "nine-byte ECDSA-s-to-emoji-ID correspondence check",
-            "reverse-word plus ROT13 meta-clue transform",
+            "reverse-word plus ROT13 meta-clue transform",\n            "compressed secp256k1 public-point validation (no scalar derivation)",
         ],
         "not_implemented": [
             "confirmed tone-to-bit encoding",
@@ -278,4 +278,33 @@ def catalog() -> dict[str, Any]:
         "network_access": False,
         "wallet_access": False,
         "auto_execution": False,
+    }
+
+
+SECP256K1_P = 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEFFFFFC2F
+
+
+def validate_compressed_public_key(point_hex: str) -> dict[str, Any]:
+    """Validate a supplied 33-byte compressed secp256k1 point; never derives a scalar."""
+    if not isinstance(point_hex, str) or not re.fullmatch(r"(?:02|03)[0-9a-fA-F]{64}", point_hex):
+        raise ValueError("Compressed secp256k1 point must be 33 bytes with prefix 02 or 03.")
+    raw = bytes.fromhex(point_hex)
+    x = int.from_bytes(raw[1:], "big")
+    if x >= SECP256K1_P:
+        raise ValueError("Compressed point x-coordinate is outside the secp256k1 field.")
+    rhs = (pow(x, 3, SECP256K1_P) + 7) % SECP256K1_P
+    y = pow(rhs, (SECP256K1_P + 1) // 4, SECP256K1_P)
+    if pow(y, 2, SECP256K1_P) != rhs:
+        raise ValueError("Compressed point does not lie on secp256k1.")
+    if (y & 1) != (raw[0] & 1):
+        y = SECP256K1_P - y
+    return {
+        "valid_curve_point": True,
+        "curve": "secp256k1",
+        "compressed_hex": raw.hex(),
+        "x_hex": format(x, "064x"),
+        "y_parity": y & 1,
+        "classification": "public-point-format-and-curve-check_only",
+        "private_scalar_derived": False,
+        "signature_verified": False,
     }
