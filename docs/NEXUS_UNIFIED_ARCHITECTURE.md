@@ -30,10 +30,10 @@ GitHub Codespaces is the primary reproducible development workspace. GitHub Acti
 │   ├── research/                       # SHA-2 and RCSC research
 │   ├── adapters/                       # DePIN and external adapters
 │   ├── core/                           # shared CORE/local network guards
-│   └── tests/                          # application test suites
+│   ├── tests/                          # application test suites
+│   └── packaging/                      # Windows desktop packaging
 ├── docs/
-├── .github/workflows/
-└── application/packaging/              # Windows desktop packaging
+└── .github/workflows/
 ```
 
 The tree above is a navigation summary, not a mandate to create duplicate package roots such as `crypto/`, `wallet/` or `math_engine/` where equivalent modules already exist. Preserve the observed repository paths and use shared adapters; never move or duplicate a module solely to match a conceptual diagram.
