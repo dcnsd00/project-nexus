@@ -5,7 +5,7 @@ def test_runtime_registers_local_services_without_starting_them():
     manager = build_runtime()
     snapshot = manager.snapshot()
     names = {row["name"] for row in snapshot["services"]}
-    assert {"data_paths", "crypto_engine", "math_intelligence", "provider_registry", "rcsc_research", "research_hub", "mining_switch_controller", "blockchain_regtest", "edge_manager", "earnings_intelligence", "coin_catalog", "mining_optimizer", "depin_fieldstation"} <= names
+    assert {"data_paths", "crypto_engine", "math_intelligence", "puzzle_solver", "provider_registry", "rcsc_research", "research_hub", "mining_switch_controller", "blockchain_regtest", "edge_manager", "earnings_intelligence", "coin_catalog", "mining_optimizer", "depin_fieldstation"} <= names
     assert snapshot["running"] == 0
     assert snapshot["system_ready"] is False
 
@@ -195,6 +195,19 @@ def test_fieldstation_runtime_probe_does_not_create_data_or_start_server(tmp_pat
     assert details["miner_autostart_enabled"] is False
     assert not fieldstation.DATA_DIR.exists()
     assert manager.stop_all()["running"] == 0
+
+def test_puzzle_solver_runtime_probe_reports_bounded_local_strategies():
+    manager = build_runtime()
+    snapshot = manager.start_all()
+    by_name = {row["name"]: row for row in snapshot["services"]}
+    health = by_name["puzzle_solver"]["health"]
+    assert health["ok"] is True
+    ids = {item["id"]: item for item in health["details"]["strategies"]}
+    assert ids["finite_csp"]["available"] is True
+    assert ids["sha256_reduced_round_research"]["available"] is False
+    assert health["details"]["policy"].startswith("Local bounded puzzle solving only")
+    assert manager.stop_all()["running"] == 0
+
 
 def test_math_intelligence_runtime_executes_safe_local_self_tests():
     manager = build_runtime()
