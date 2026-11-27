@@ -26,6 +26,16 @@ def test_path_routes_mining_work_to_specialist():
     assert result["model_invoked"] is False
 
 
+def test_path_routes_puzzle_solver_to_math_crypto_worker():
+    result = route_task(
+        task_kind="implementation",
+        path="application/modules/puzzle_solver.py",
+    )
+    assert result["worker_id"] == "math_crypto"
+    assert result["route_reason"] == "repository_path"
+    assert result["model_invoked"] is False
+
+
 def test_branch_routes_edge_feature():
     result = route_task(
         task_kind="research",
