@@ -124,7 +124,7 @@ def test_pythonnet_or_webview_failure_falls_back_to_default_browser(monkeypatch,
     launcher = _load_desktop_launcher(
         monkeypatch, webview_error=RuntimeError("Python.Runtime.Loader.Initialize failed")
     )
-    launcher["ROOT"] = tmp_path
+    launcher["write_launcher_log"].__globals__["ROOT"] = tmp_path
 
     class Server:
         should_exit = False
