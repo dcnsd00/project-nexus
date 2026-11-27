@@ -40,6 +40,9 @@ def make_project():
 class MetaClueTests(unittest.TestCase):
     def test_reverse_then_rot13(self):
         self.assertEqual(decode_meta_clue(), "flabit Zephyrus Mox")
+        report = analyze_project_file(make_project())["meta_clue"]
+        self.assertEqual(report["classification"], "rejected_hypothesis")
+        self.assertEqual(report["author_feedback"], "ROT-13 = No")
 
     def test_rejects_oversized_input(self):
         with self.assertRaises(ValueError):
