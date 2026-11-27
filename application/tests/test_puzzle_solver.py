@@ -24,6 +24,26 @@ def test_text_decode_base64_and_caesar_candidates():
     assert result["candidate_count"] >= 2
 
 
+def test_classical_atbash_and_a1z26_decoders():
+    text_result = puzzle_solver.solve({"kind": "text_decode", "text": "SVOOL"})
+    candidates = {item["text"]: item["method"] for item in text_result["candidates"]}
+    assert candidates["HELLO"] == "atbash"
+    number_result = puzzle_solver.solve({"kind": "text_decode", "text": "8-5-12-12-15"})
+    assert "HELLO" in {item["text"] for item in number_result["candidates"]}
+
+
+def test_vigenere_rail_fence_and_affine_known_parameter_decoders():
+    assert puzzle_solver.solve({
+        "kind": "vigenere", "text": "LXFOPVEFRNHR", "key": "LEMON"
+    })["plaintext"] == "ATTACKATDAWN"
+    assert puzzle_solver.solve({
+        "kind": "rail_fence", "text": "WECRLTEERDSOEEFEAOCAIVDEN", "rails": 3
+    })["plaintext"] == "WEAREDISCOVEREDFLEEATONCE"
+    assert puzzle_solver.solve({
+        "kind": "affine_substitution", "text": "IHHWVC", "a": 5, "b": 8
+    })["plaintext"] == "AFFINE"
+
+
 def test_modular_congruence_routes_to_existing_exact_solver():
     result = puzzle_solver.solve({"kind": "modular_congruence", "a": 14, "b": 30, "modulus": 100})
     assert result["solvable"] is True
