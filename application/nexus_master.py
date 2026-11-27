@@ -360,6 +360,10 @@ def wallet_vault_audit():
 def wallet_page():
     return (ROOT / "wallet.html").read_text(encoding="utf-8")
 
+@app.get("/puzzles", response_class=HTMLResponse)
+def puzzle_solver_page():
+    return (ROOT / "puzzle_solver.html").read_text(encoding="utf-8")
+
 # NEXUS 0.7.0 cryptographic primitives API
 from pydantic import BaseModel, Field, ValidationError
 from modules.crypto_engine import CryptoEngine, CryptoInputError, AlgorithmUnavailable
