@@ -39,9 +39,18 @@ def _load_desktop_launcher(monkeypatch, *, webview_error=None, browser_result=Tr
     uvicorn = types.ModuleType("uvicorn")
     uvicorn.Config = lambda *args, **kwargs: object()
     uvicorn.Server = type("Server", (), {})
+    class Event:
+        def __init__(self):
+            self.callback = None
+
+        def __iadd__(self, callback):
+            self.callback = callback
+            return self
+
+    event = Event()
     webview = types.ModuleType("webview")
     webview.create_window = lambda *args, **kwargs: types.SimpleNamespace(
-        events=types.SimpleNamespace(closed=types.SimpleNamespace(__iadd__=lambda self, cb: self))
+        events=types.SimpleNamespace(closed=event)
     )
     if webview_error:
         def fail_start(*args, **kwargs):
@@ -99,6 +108,16 @@ def test_desktop_launcher_readiness_uses_its_own_server_state(monkeypatch):
             return False
 
     assert launcher["wait_ready"](StoppedServer(), StoppedThread(), timeout=1.0) is False
+
+
+def test_embedded_webview_success_keeps_native_window_path(monkeypatch):
+    launcher = _load_desktop_launcher(monkeypatch)
+
+    class Server:
+        should_exit = False
+
+    server = Server()
+    assert launcher["launch_desktop_ui"](server, "http://127.0.0.1:8765/api/nexus/dashboard") == "embedded"
 
 
 def test_pythonnet_or_webview_failure_falls_back_to_default_browser(monkeypatch, tmp_path):
