@@ -1,2 +1,2 @@
-cryptography>=50.0.0,<51
+cryptography>=50.0.2,<51
 mnemonic>=0.21
