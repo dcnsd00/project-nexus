@@ -307,6 +307,8 @@ def verify_bit_values_by_id(
     points: list[dict[str, Any]],
     bit_values_by_id: dict[Any, Any],
     s_bytes: bytes,
+    centre_x: float,
+    centre_y: float,
 ) -> dict[str, Any]:
     """Compare caller-provided one-bit-per-emoji values against s prefix/suffix windows."""
     if not isinstance(bit_values_by_id, dict):
@@ -333,8 +335,6 @@ def verify_bit_values_by_id(
         raise ValueError(
             f"bit_values_by_id must cover all 256 emoji IDs exactly; missing={missing[:8]}, extra={extra[:8]}."
         )
-    centre_x = sum(point["cx"] for point in points) / len(points)
-    centre_y = sum(point["cy"] for point in points) / len(points)
     angle_order = sorted(
         points,
         key=lambda item: (
@@ -400,7 +400,7 @@ def analyze_project_file(
 
     pairs = _pair_antipodes(points, centre_x, centre_y)
     bit_window_validation = (
-        verify_bit_values_by_id(points, bit_values_by_id, bytes.fromhex(s_hex))
+        verify_bit_values_by_id(points, bit_values_by_id, bytes.fromhex(s_hex), centre_x, centre_y)
         if bit_values_by_id is not None else {
             "status": "not_run",
             "reason": "Provide bit_values_by_id with one explicit 0/1 value for every emoji to test the author's 72-bit s-window hint.",
