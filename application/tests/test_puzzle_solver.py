@@ -1,11 +1,39 @@
 from __future__ import annotations
 
 import base64
+import math
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from modules import puzzle_solver
+
+
+def make_phy_project():
+    boxes = []
+    centre_x, centre_y = 1023.5, 1024.5
+    for index in range(128):
+        angle = math.radians(index * 2.8)
+        radius = 250.0 + index * 2.0
+        for side, offset, emoji in (
+            (0, 0.0, "1F468"),
+            (1, math.pi, "1F600"),
+        ):
+            boxes.append({
+                "id": index * 2 + side + 1,
+                "x": centre_x + radius * math.cos(angle + offset),
+                "y": centre_y + radius * math.sin(angle + offset),
+                "w": 0,
+                "h": 0,
+                "char": "test",
+                "name": "test emoji",
+                "unified": emoji,
+            })
+    boxes.append({
+        "id": 258, "x": centre_x, "y": centre_y, "w": 0, "h": 0,
+        "char": "b", "name": "BITCOIN LOGO CENTER", "unified": "0062",
+    })
+    return {"natW": 2048, "natH": 2048, "boxes": boxes}
 
 
 def test_capabilities_distinguish_supported_and_experimental_strategies():
@@ -144,10 +172,9 @@ def test_phy_challenge_dispatch_requires_public_mapping_payload():
 
 
 def test_phy_challenge_dispatch_reaches_offline_analyzer():
-    from tests.test_phy_challenge_research import make_project
     result = puzzle_solver.solve({
         "kind": "phy_challenge",
-        "project_file": make_project(),
+        "project_file": make_phy_project(),
     })
     assert result["kind"] == "phy_challenge"
     assert result["status"] == "structural_analysis_only"
@@ -180,3 +207,9 @@ def test_puzzle_solver_fastapi_routes_are_callable():
     })
     assert solved.status_code == 200
     assert solved.json()["verified"] is True
+    phy = client.post("/api/puzzles/solve", json={
+        "problem": {"kind": "phy_challenge", "project_file": make_phy_project()}
+    })
+    assert phy.status_code == 200
+    assert phy.json()["kind"] == "phy_challenge"
+    assert phy.json()["pair_count"] == 128
