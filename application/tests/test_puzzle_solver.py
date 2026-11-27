@@ -130,6 +130,31 @@ def test_finite_csp_enforces_search_limits_and_rejects_expression_payloads():
         })
 
 
+def test_phy_challenge_is_exposed_as_a_bounded_puzzle_strategy():
+    capabilities = puzzle_solver.capabilities()
+    strategy = next(item for item in capabilities["strategies"]
+                    if item["id"] == "phy_challenge_structure")
+    assert strategy["available"] is True
+    assert strategy["private_key_search"] is False
+
+
+def test_phy_challenge_dispatch_requires_public_mapping_payload():
+    with pytest.raises(ValueError, match="project_file"):
+        puzzle_solver.solve({"kind": "phy_challenge"})
+
+
+def test_phy_challenge_dispatch_reaches_offline_analyzer():
+    from tests.test_phy_challenge_research import make_project
+    result = puzzle_solver.solve({
+        "kind": "phy_challenge",
+        "project_file": make_project(),
+    })
+    assert result["kind"] == "phy_challenge"
+    assert result["status"] == "structural_analysis_only"
+    assert result["pair_count"] == 128
+    assert result["reference_observations"]["forum_reported_canvas_id_at_index_86"] == 217
+
+
 def test_unknown_puzzle_kind_is_rejected():
     with pytest.raises(ValueError, match="unsupported kind"):
         puzzle_solver.solve({"kind": "unbounded_bruteforce"})
