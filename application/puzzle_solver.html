@@ -121,7 +121,7 @@ function readProblem(){
   let data;
   try{data=JSON.parse($("jsonProblem").value);}catch(e){throw new Error("JSON invalid: "+e.message);}
   if(!data || typeof data!=="object" || Array.isArray(data)) throw new Error("Problema JSON trebuie să fie un obiect.");
-  return {kind,...data};
+  return {...data,kind};
 }
 async function loadCapabilities(){
   try{
