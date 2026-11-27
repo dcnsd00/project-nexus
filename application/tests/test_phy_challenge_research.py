@@ -133,7 +133,7 @@ class ProjectAnalysisTests(unittest.TestCase):
             box_id: int(s_bits[index]) if index < 72 else ((index * 7) % 2)
             for index, box_id in enumerate(ordered_ids)
         }
-        result = verify_bit_values_by_id(points, values, s_bytes)
+        result = verify_bit_values_by_id(points, values, s_bytes, 1023.5, 1024.5)
         self.assertEqual(result["status"], "verified_bit_window")
         self.assertTrue(any(
             item["order"] == "canvas_id_ascending"
@@ -152,11 +152,11 @@ class ProjectAnalysisTests(unittest.TestCase):
         } for box in project["boxes"] if box["id"] != 258]
         s_bytes = bytes.fromhex("5b890b292ba1abd9b1")
         with self.assertRaises(ValueError):
-            verify_bit_values_by_id(points, {}, s_bytes)
+            verify_bit_values_by_id(points, {}, s_bytes, 1023.5, 1024.5)
         values = {point["id"]: 0 for point in points}
         values[points[0]["id"]] = 2
         with self.assertRaises(ValueError):
-            verify_bit_values_by_id(points, values, s_bytes)
+            verify_bit_values_by_id(points, values, s_bytes, 1023.5, 1024.5)
 
     def test_catalog_does_not_claim_final_solver(self):
         info = catalog()
