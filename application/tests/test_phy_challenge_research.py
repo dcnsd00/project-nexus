@@ -100,7 +100,7 @@ class ProjectAnalysisTests(unittest.TestCase):
         stream = result["signature_s_byte_canvas_id_diagnostic"]
         self.assertEqual(stream["raw_codepoint_low_byte_stream_length"], 9)
         self.assertEqual(len(stream["raw_codepoint_low_byte_stream_hex"]), 18)
-        self.assertIn("not a confirmed H.x encoding", stream["interpretation"])
+        self.assertIn("diagnostic only", stream["interpretation"])
 
     def test_position_candidates_are_not_mislabeled_as_canvas_ids(self):
         result = analyze_project_file(make_project())
