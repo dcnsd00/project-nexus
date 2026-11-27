@@ -154,11 +154,74 @@ def _pair_antipodes(points: list[dict[str, Any]], centre_x: float, centre_y: flo
                 math.hypot(west["cx"] - centre_x, west["cy"] - centre_y)
                 + math.hypot(east["cx"] - centre_x, east["cy"] - centre_y)
             ) / 2.0,
+            "west_cx": west["cx"],
+            "west_cy": west["cy"],
+            "east_cx": east["cx"],
+            "east_cy": east["cy"],
+            "axis_angle_deg": _pair_axis_angle(west, east, centre_x, centre_y),
         })
     if len(pairs) != 128 or len(used) != 256:
         raise ValueError("Could not form 128 disjoint antipodal pairs from the supplied boxes.")
     return pairs
 
+
+
+def _pair_axis_angle(
+    west: dict[str, Any], east: dict[str, Any], centre_x: float, centre_y: float
+) -> float:
+    """Return the pair's undirected orientation in degrees [0, 180)."""
+    angles = []
+    for point in (west, east):
+        angle = math.atan2(point["cx"] - centre_x, centre_y - point["cy"])
+        angles.append(angle)
+    sin_sum = math.sin(2.0 * angles[0]) + math.sin(2.0 * angles[1])
+    cos_sum = math.cos(2.0 * angles[0]) + math.cos(2.0 * angles[1])
+    if abs(sin_sum) + abs(cos_sum) < 1e-12:
+        return (math.degrees(angles[0]) % 180.0)
+    return (math.degrees(math.atan2(sin_sum, cos_sum)) / 2.0) % 180.0
+
+
+def _fit_radial_phase(pairs: list[dict[str, Any]], step_resolution: float = 0.1) -> dict[str, Any]:
+    """Fit a constant undirected angular increment to pairs ordered inside-out."""
+    if not 0.001 <= step_resolution <= 5.0:
+        raise ValueError("step_resolution must be between 0.001 and 5 degrees.")
+    ordered = sorted(pairs, key=lambda item: (item["mean_radius_px"], item["mid_x"]))
+    if len(ordered) < 3:
+        raise ValueError("At least three pairs are required for radial phase fitting.")
+    angles = [float(item["axis_angle_deg"]) % 180.0 for item in ordered]
+    anchor = angles[0]
+    count = max(1, int(math.ceil(180.0 / step_resolution)))
+    best_step = 0.0
+    best_loss = float("inf")
+    best_residuals: list[float] = []
+    for index in range(count):
+        step = (index * step_resolution) % 180.0
+        residuals = [
+            ((angle - (anchor + position * step) + 90.0) % 180.0) - 90.0
+            for position, angle in enumerate(angles)
+        ]
+        loss = sum(abs(value) for value in residuals) / len(residuals)
+        if loss < best_loss:
+            best_loss = loss
+            best_step = step
+            best_residuals = residuals
+    absolute = sorted(abs(value) for value in best_residuals)
+    p90_index = min(len(absolute) - 1, math.ceil(0.90 * len(absolute)) - 1)
+    return {
+        "classification": "geometric heuristic; not an author-confirmed spiral index",
+        "order": "pairs sorted by mean radius, inside-out",
+        "sample_count": len(ordered),
+        "step_resolution_degrees": step_resolution,
+        "candidate_angular_increment_degrees": round(best_step, 3),
+        "mean_absolute_residual_degrees": round(best_loss, 3),
+        "median_absolute_residual_degrees": round(absolute[len(absolute) // 2], 3),
+        "p90_absolute_residual_degrees": round(absolute[p90_index], 3),
+        "rms_residual_degrees": round(
+            math.sqrt(sum(value * value for value in best_residuals) / len(best_residuals)), 3
+        ),
+        "max_absolute_residual_degrees": round(max(absolute), 3),
+        "ordered_pair_ids": [[item["west_id"], item["east_id"]] for item in ordered],
+    }
 
 def analyze_project_file(
     project_file: dict[str, Any],
@@ -201,6 +264,9 @@ def analyze_project_file(
                 "tone_levels": point["tone_levels"],
             })
 
+    selected_low_bytes = [cp & 0xFF for item in selected for cp in _codepoints(item["unicode"])]
+    radial_phase_fit = _fit_radial_phase(pairs)
+
     expected_ids = set(range(1, 258))
     observed_ids = set(by_id)
     missing_ids = sorted(expected_ids - observed_ids)
@@ -234,6 +300,12 @@ def analyze_project_file(
             "selected_emoji": selected,
             "interpretation": "set/ID correspondence only; does not validate a key or signature solution",
         },
+        "selected_codepoint_low_byte_stream": {
+            "length_bytes": len(selected_low_bytes),
+            "hex": bytes(selected_low_bytes).hex(),
+            "interpretation": "raw low bytes of every Unicode codepoint for the nine selected emoji, in s-byte order; not a confirmed H.x encoding",
+        },
+        "radial_phase_fit": radial_phase_fit,
         "meta_clue": {
             "input": "gvonys fhelucrM kbZ",
             "decoded": decode_meta_clue(),
@@ -266,6 +338,8 @@ def catalog() -> dict[str, Any]:
         "operations": [
             "Unicode 18.0 Emoji_Modifier_Base and skin-tone classification",
             "geometric antipodal pairing hypotheses",
+            "radial constant-angular-step fit with residual statistics",
+            "raw low-byte stream extraction for the nine s-selected emoji",
             "west/east and radial candidate ordering exports",
             "nine-byte ECDSA-s-to-emoji-ID correspondence check",
             "reverse-word plus ROT13 meta-clue transform",
