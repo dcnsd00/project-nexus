@@ -65,6 +65,26 @@ def test_finite_csp_solves_and_verifies_all_different_sum_puzzle():
     assert {tuple(sorted(item.values())) for item in result["solutions"]} == {(1, 3)}
 
 
+def test_finite_csp_sum_constraint_handles_negative_domains():
+    result = puzzle_solver.solve({
+        "kind": "finite_csp",
+        "variables": {"x": [5], "y": [-2, -1]},
+        "constraints": [{"type": "sum_eq", "variables": ["x", "y"], "target": 3}],
+    })
+    assert result["status"] == "SOLVED"
+    assert result["solutions"] == [{"x": 5, "y": -2}]
+    assert result["verified"] is True
+
+
+def test_finite_csp_rejects_duplicate_variable_names_in_constraint():
+    with pytest.raises(ValueError, match="must be unique"):
+        puzzle_solver.solve({
+            "kind": "finite_csp",
+            "variables": {"x": [1, 2], "y": [1, 2]},
+            "constraints": [{"type": "sum_eq", "variables": ["x", "x"], "target": 2}],
+        })
+
+
 def test_finite_csp_reports_unsat():
     result = puzzle_solver.solve({
         "kind": "finite_csp",
