@@ -13,7 +13,7 @@ def make_project():
     ids = [value for value in range(1, 258) if value != 23]
     cx, cy = 1023.5, 1024.5
     for index in range(128):
-        angle = (2.0 * math.pi * index) / 128.0
+        angle = math.radians(index * 2.8)
         radius = 250.0 + (index * 2.0)
         west_codepoint = "1F468" if index % 2 == 0 else "1F600"
         east_codepoint = "1F600" if index % 2 == 0 else "1F468"
@@ -86,6 +86,21 @@ class ProjectAnalysisTests(unittest.TestCase):
     def test_invalid_project_rejected(self):
         with self.assertRaises(ValueError):
             analyze_project_file({"boxes": []})
+
+    def test_radial_phase_fit_recovers_known_increment(self):
+        result = analyze_project_file(make_project())
+        fit = result["radial_phase_fit"]
+        self.assertEqual(fit["sample_count"], 128)
+        self.assertAlmostEqual(fit["candidate_angular_increment_degrees"], 2.8, delta=0.1)
+        self.assertEqual(fit["classification"],
+                         "geometric heuristic; not an author-confirmed spiral index")
+
+    def test_low_byte_stream_is_reported_without_claiming_hx_match(self):
+        result = analyze_project_file(make_project())
+        stream = result["selected_codepoint_low_byte_stream"]
+        self.assertEqual(stream["length_bytes"], 9)
+        self.assertEqual(len(stream["hex"]), 18)
+        self.assertIn("not a confirmed H.x encoding", stream["interpretation"])
 
     def test_catalog_does_not_claim_final_solver(self):
         info = catalog()
