@@ -485,7 +485,6 @@ def start(req: dict) -> dict:
         except Exception:
             _cleanup_runtime_config()
             raise
-        log_handle=open(LOG,'a',encoding='utf-8',errors='replace')
         kwargs={'stdout':log_handle,'stderr':subprocess.STDOUT,'cwd':str(RUNTIME)}
         if os.name=='nt': kwargs['creationflags']=getattr(subprocess,'CREATE_NO_WINDOW',0)
         else: kwargs['start_new_session']=True
