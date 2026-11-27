@@ -31,7 +31,7 @@ def test_path_routes_puzzle_solver_to_math_crypto_worker():
         task_kind="implementation",
         path="application/modules/puzzle_solver.py",
     )
-    assert result["worker_id"] == "math_crypto"
+    assert result["worker_id"] == "cryptography_research"
     assert result["route_reason"] == "repository_path"
     assert result["model_invoked"] is False
 
