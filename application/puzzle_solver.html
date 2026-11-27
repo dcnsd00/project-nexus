@@ -1,0 +1,168 @@
+<!doctype html>
+<html lang="ro">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>NEXUS · Puzzle Solver</title>
+<style>
+:root{color-scheme:dark;--bg:#0b1220;--panel:#121d30;--line:#263752;--txt:#e8eef8;--muted:#9aabc4;--accent:#62a5ff;--green:#38c99a;--warn:#f3bf62}
+*{box-sizing:border-box}body{margin:0;background:linear-gradient(140deg,#0a1220,#111d31);color:var(--txt);font:15px/1.5 Segoe UI,Arial,sans-serif}
+header{padding:18px 24px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap}
+h1,h2,h3{margin:0 0 8px}h1{font-size:24px}.muted{color:var(--muted)}.wrap{max-width:1180px;margin:24px auto;padding:0 18px}
+.hero,.card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:18px;margin-bottom:14px}
+.hero{background:linear-gradient(110deg,#183a60,#172a48);border-color:#2d527a}
+.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+.field{display:flex;flex-direction:column;gap:6px;margin:12px 0}.field label{font-size:12px;color:var(--muted)}
+input,select,textarea{width:100%;background:#0b1525;color:var(--txt);border:1px solid var(--line);border-radius:9px;padding:11px;font:inherit}
+textarea{min-height:140px;font:12px/1.5 Consolas,monospace;resize:vertical}
+button,.link{display:inline-block;border:0;border-radius:9px;padding:10px 14px;font-weight:650;cursor:pointer;text-decoration:none}
+.action{background:var(--accent);color:#061222}.secondary{background:#253854;color:var(--txt);border:1px solid var(--line)}
+button:disabled{opacity:.5;cursor:wait}.row{display:flex;gap:9px;align-items:center;flex-wrap:wrap}
+.pill{border:1px solid var(--line);border-radius:99px;padding:5px 10px;color:var(--muted);font-size:12px}
+.output{background:#091321;border:1px solid var(--line);border-radius:9px;padding:12px;white-space:pre-wrap;overflow-wrap:anywhere;overflow:auto;max-height:520px;font:12px/1.5 Consolas,monospace;min-height:100px}
+.good{color:var(--green)}.warn{color:var(--warn)}.small{font-size:12px}
+@media(max-width:700px){.grid{grid-template-columns:1fr}header{padding:14px}.wrap{margin:16px auto}}
+</style>
+</head>
+<body>
+<header>
+  <div><h1>NEXUS · Multi-Method Puzzle Solver</h1><div class="muted">Solver local, bounded și verificabil</div></div>
+  <div class="row"><span class="pill" id="apiStatus">API: verificare…</span><a class="link secondary" href="/api/nexus/dashboard">Înapoi la Dashboard</a></div>
+</header>
+<main class="wrap">
+  <section class="hero">
+    <h2>Rezolvarea puzzle-urilor prin metode distincte</h2>
+    <p class="muted">Alege o familie de metode. Rezultatele decoderelor sunt candidați, nu soluții semantice garantate. Solverul nu caută parole, seed phrases, chei private sau date de autentificare.</p>
+  </section>
+  <section class="card">
+    <div class="grid">
+      <div class="field"><label for="kind">Metodă</label>
+        <select id="kind">
+          <option value="text_decode">Decodare automată text</option>
+          <option value="vigenere">Vigenère · cheie cunoscută</option>
+          <option value="rail_fence">Rail Fence · număr de șine cunoscut</option>
+          <option value="affine_substitution">Affine · parametri cunoscuți</option>
+          <option value="modular_congruence">Congruență modulară exactă</option>
+          <option value="linear_system">Sistem liniar exact (JSON)</option>
+          <option value="bitvector_xor">XOR bit-vector exact (JSON)</option>
+          <option value="finite_csp">Constrângeri finite CSP (JSON)</option>
+        </select>
+      </div>
+      <div class="field"><label for="example">Exemplu</label>
+        <select id="example">
+          <option value="">Alege un exemplu</option>
+          <option value="base64">Base64: NEXUS puzzle</option>
+          <option value="morse">Morse: HELLO</option>
+          <option value="a1z26">A1Z26: HELLO</option>
+          <option value="vigenere">Vigenère: ATTACKATDAWN</option>
+          <option value="rail">Rail Fence: WEAREDISCOVEREDFLEEATONCE</option>
+          <option value="affine">Affine: AFFINE</option>
+          <option value="modular">Modular: 14x = 30 (mod 100)</option>
+          <option value="linear">Sistem liniar 2x2</option>
+          <option value="xor">XOR pe 8 biți</option>
+          <option value="csp">CSP cu două variabile</option>
+        </select>
+      </div>
+    </div>
+    <div id="fields"></div>
+    <div class="row">
+      <button class="action" id="solve" type="button">Rulează solverul</button>
+      <button class="secondary" id="clear" type="button">Curăță</button>
+      <span class="small muted" id="requestStatus" aria-live="polite">Nu a fost trimisă nicio problemă.</span>
+    </div>
+  </section>
+  <section class="card">
+    <h3>Rezultat</h3>
+    <div class="output" id="result" role="status" aria-live="polite">Rezultatele apar aici.</div>
+  </section>
+  <section class="card">
+    <h3>Metode și limite active</h3>
+    <div class="output" id="capabilities">Se încarcă registrul de capabilități…</div>
+    <p class="small warn">CSP este limitat la maximum 16 variabile, 16 valori per domeniu, 100.000 vizite de căutare și 10 soluții returnate. Cercetarea SAT SHA-256 este doar reduced-round; nu este un motor de spargere SHA-256 completă.</p>
+  </section>
+</main>
+<script>
+"use strict";
+const $ = id => document.getElementById(id);
+const presets = {
+  base64: ["text_decode", {text:"TkVYVVMgcHV6emxl"}],
+  morse: ["text_decode", {text:".... . .-.. .-.. ---"}],
+  a1z26: ["text_decode", {text:"8-5-12-12-15"}],
+  vigenere: ["vigenere", {text:"LXFOPVEFRNHR", key:"LEMON"}],
+  rail: ["rail_fence", {text:"WECRLTEERDSOEEFEAOCAIVDEN", rails:3}],
+  affine: ["affine_substitution", {text:"IHHWVC", a:5, b:8}],
+  modular: ["modular_congruence", {a:14, b:30, modulus:100}],
+  linear: ["linear_system", {matrix:[[2,1],[1,-1]], rhs:[5,1]}],
+  xor: ["bitvector_xor", {variables:["a","b","c"], target:165, width:8}],
+  csp: ["finite_csp", {variables:{x:[1,2,3],y:[1,2,3]},constraints:[
+    {type:"all_different",variables:["x","y"]},
+    {type:"sum_eq",variables:["x","y"],target:4}
+  ]}]
+};
+function field(label,id,value,type="text",attrs=""){
+  return '<div class="field"><label for="'+id+'">'+label+'</label><input id="'+id+'" type="'+type+'" value="'+String(value)+'" '+attrs+'></div>';
+}
+function renderFields(kind, values={}){
+  if(kind==="text_decode") return field("Text / codificat", "text", values.text??"");
+  if(kind==="vigenere") return '<div class="grid">'+field("Text cifrat","text",values.text??"")+field("Cheie (1–64 litere ASCII)","key",values.key??"")+'</div>';
+  if(kind==="rail_fence") return '<div class="grid">'+field("Text cifrat","text",values.text??"")+field("Număr șine (2–12)","rails",values.rails??3,"number",'min="2" max="12"')+'</div>';
+  if(kind==="affine_substitution") return '<div class="grid">'+field("Text cifrat","text",values.text??"")+field("Parametrul a","a",values.a??5,"number")+field("Parametrul b","b",values.b??8,"number")+'</div>';
+  if(kind==="modular_congruence") return '<div class="grid">'+field("Coeficient a","a",values.a??14,"number")+field("Valoare b","b",values.b??30,"number")+field("Modul m","modulus",values.modulus??100,"number",'min="2"')+'</div>';
+  return '<div class="field"><label for="jsonProblem">Problemă JSON</label><textarea id="jsonProblem" spellcheck="false">'+JSON.stringify(values,null,2)+'</textarea></div>';
+}
+function readProblem(){
+  const kind=$("kind").value;
+  const number=id=>{const v=Number($(id).value);if(!Number.isSafeInteger(v))throw new Error("Câmpul "+id+" trebuie să fie întreg.");return v;};
+  if(kind==="text_decode") return {kind,text:$("text").value};
+  if(kind==="vigenere") return {kind,text:$("text").value,key:$("key").value};
+  if(kind==="rail_fence") return {kind,text:$("text").value,rails:number("rails")};
+  if(kind==="affine_substitution") return {kind,text:$("text").value,a:number("a"),b:number("b")};
+  if(kind==="modular_congruence") return {kind,a:number("a"),b:number("b"),modulus:number("modulus")};
+  let data;
+  try{data=JSON.parse($("jsonProblem").value);}catch(e){throw new Error("JSON invalid: "+e.message);}
+  if(!data || typeof data!=="object" || Array.isArray(data)) throw new Error("Problema JSON trebuie să fie un obiect.");
+  return {...data,kind};
+}
+async function loadCapabilities(){
+  try{
+    const response=await fetch("/api/puzzles/capabilities",{headers:{Accept:"application/json"}});
+    if(!response.ok) throw new Error("HTTP "+response.status);
+    const data=await response.json();
+    $("capabilities").textContent=JSON.stringify(data,null,2);
+    $("apiStatus").textContent="API: disponibil";
+    $("apiStatus").classList.add("good");
+  }catch(error){
+    $("capabilities").textContent="API indisponibil: "+error.message;
+    $("apiStatus").textContent="API: eroare";
+  }
+}
+$("kind").addEventListener("change",()=>{$("fields").innerHTML=renderFields($("kind").value);});
+$("example").addEventListener("change",()=>{
+  const preset=presets[$("example").value];if(!preset)return;
+  $("kind").value=preset[0];$("fields").innerHTML=renderFields(preset[0],preset[1]);
+  $("requestStatus").textContent="Exemplu încărcat. Verifică valorile înainte de rulare.";
+});
+$("solve").addEventListener("click",async()=>{
+  $("solve").disabled=true;$("requestStatus").textContent="Solver în execuție…";
+  try{
+    const problem=readProblem();
+    const response=await fetch("/api/puzzles/solve",{method:"POST",headers:{"Content-Type":"application/json","Accept":"application/json"},body:JSON.stringify({problem})});
+    const payload=await response.json();
+    $("result").textContent=JSON.stringify(payload,null,2);
+    if(!response.ok) throw new Error(payload.detail||"HTTP "+response.status);
+    $("requestStatus").textContent="Execuție terminată.";
+  }catch(error){
+    $("result").textContent="Eroare: "+error.message;
+    $("requestStatus").textContent="Problema nu a fost rezolvată.";
+  }finally{$("solve").disabled=false;}
+});
+$("clear").addEventListener("click",()=>{
+  $("example").value="";$("fields").innerHTML=renderFields($("kind").value);
+  $("result").textContent="Rezultatele apar aici.";
+  $("requestStatus").textContent="Formular curățat.";
+});
+$("fields").innerHTML=renderFields($("kind").value);
+loadCapabilities();
+</script>
+</body>
+</html>
