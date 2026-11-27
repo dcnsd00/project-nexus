@@ -58,10 +58,10 @@ class ProjectAnalysisTests(unittest.TestCase):
         result = analyze_project_file(make_project())
         self.assertEqual(result["missing_box_ids_1_to_257"], [23])
         self.assertEqual(
-            result["signature_s_byte_id_check"]["byte_ids_in_order"],
+            result["s_byte_position_candidates"]["position_values"],
             [91, 137, 11, 41, 43, 161, 171, 217, 177],
         )
-        self.assertTrue(result["signature_s_byte_id_check"]["all_ids_present"])
+        self.assertTrue(result["signature_s_byte_canvas_id_diagnostic"]["direct_canvas_id_lookup_complete"])
 
     def test_unicode_modifier_base_property(self):
         result = analyze_project_file(make_project())
@@ -97,10 +97,26 @@ class ProjectAnalysisTests(unittest.TestCase):
 
     def test_low_byte_stream_is_reported_without_claiming_hx_match(self):
         result = analyze_project_file(make_project())
-        stream = result["selected_codepoint_low_byte_stream"]
-        self.assertEqual(stream["length_bytes"], 9)
-        self.assertEqual(len(stream["hex"]), 18)
+        stream = result["signature_s_byte_canvas_id_diagnostic"]
+        self.assertEqual(stream["raw_codepoint_low_byte_stream_length"], 9)
+        self.assertEqual(len(stream["raw_codepoint_low_byte_stream_hex"]), 18)
         self.assertIn("not a confirmed H.x encoding", stream["interpretation"])
+
+    def test_position_candidates_are_not_mislabeled_as_canvas_ids(self):
+        result = analyze_project_file(make_project())
+        candidates = result["s_byte_position_candidates"]["candidate_orders"]
+        self.assertIn("angle_zero_based", candidates)
+        self.assertIn("radius_one_based", candidates)
+        self.assertTrue(candidates["angle_zero_based"]["selection_complete"])
+        self.assertEqual(len(candidates["angle_zero_based"]["selected"]), 9)
+        self.assertIn("not established as the true spiral order",
+                      candidates["angle_zero_based"]["interpretation"])
+
+    def test_canvas_id_lookup_is_diagnostic_only(self):
+        result = analyze_project_file(make_project())
+        diagnostic = result["signature_s_byte_canvas_id_diagnostic"]
+        self.assertIn("not established as spiral positions", diagnostic["interpretation"])
+        self.assertEqual(diagnostic["raw_codepoint_low_byte_stream_length"], 9)
 
     def test_catalog_does_not_claim_final_solver(self):
         info = catalog()
