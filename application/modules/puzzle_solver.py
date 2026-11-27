@@ -136,6 +136,7 @@ def _affine_decrypt(value: str, a: int, b: int) -> str:
 def _decode_text(value: str) -> dict[str, Any]:
     if not isinstance(value, str) or not value or len(value) > MAX_TEXT_LENGTH:
         raise ValueError(f"text must contain 1..{MAX_TEXT_LENGTH} characters")
+    compact = value.strip()
     candidates: list[dict[str, Any]] = []
     seen: set[tuple[str, str]] = set()
 
@@ -165,12 +166,11 @@ def _decode_text(value: str) -> dict[str, Any]:
     )
     add("atbash", atbash)
 
-    if re.fullmatch(r"\\d{1,2}(?:[ \\-,;/]+\\d{1,2})+", compact):
-        numbers = [int(item) for item in re.split(r"[ \\-,;/]+", compact)]
+    if re.fullmatch(r"\d{1,2}(?:[\s,;/|-]+\d{1,2})+", compact):
+        numbers = [int(item) for item in re.split(r"[\s,;/|-]+", compact)]
         if all(1 <= number <= 26 for number in numbers):
             add("a1z26", "".join(chr(ord("A") + number - 1) for number in numbers))
 
-    compact = value.strip()
     hex_text = compact[2:] if compact.lower().startswith("0x") else compact
     if len(hex_text) % 2 == 0 and re.fullmatch(r"[0-9a-fA-F]+", hex_text or "!", flags=0):
         try:
