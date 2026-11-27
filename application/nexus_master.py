@@ -123,6 +123,8 @@ from modules.gate_paper_trading import router as gate_paper_router  # noqa: E402
 app.include_router(gate_paper_router)
 from modules.pool_failover_api import router as pool_failover_router  # noqa: E402
 app.include_router(pool_failover_router)
+from modules.puzzle_solver import router as puzzle_solver_router  # noqa: E402
+app.include_router(puzzle_solver_router)
 from tools_audit_vault import audit as audit_wallet_vault  # noqa: E402
 
 # NEXUS EDGE transport runtime: strictly opt-in; no broker connection by default.
@@ -255,6 +257,7 @@ def nexus_master_manifest():
             "private_research_hub": {"present": (ROOT/"modules"/"research_hub.py").is_file(), "runtime": "local-only research shortcuts, bounded toy brute-force, truncated-hash collision lab, scheduler and executive summaries"},
             "earnings_intelligence": {"present": (ROOT/"modules"/"earnings_intelligence.py").is_file(), "runtime": "opportunity diligence, device inventory, telemetry, reward ledger, payout evidence, wallet watch and shadow scheduler"},
             "math_intelligence": {"present": (ROOT/"modules"/"math_intelligence.py").is_file(), "runtime": "SHA-2/SHA-3 exact benchmarks, modular congruence solver and measured candidate triage; manual review only"},
+            "puzzle_solver": {"present": (ROOT/"modules"/"puzzle_solver.py").is_file(), "runtime": "bounded multi-method puzzle API: text decoding, finite-domain CSP, exact modular/linear math and XOR; local-only, no secret search"},
             "integrations": {"present": (ROOT/"modules"/"integration_registry.py").is_file(), "runtime": "12-provider read-only configuration registry; live API adapters pending provider-specific validation"},
             "sha2_research_package": {"present": (ROOT/"research"/"sha2_independent"/"nexus_sha"/"sha256_advanced.py").is_file(), "runtime": "independent SHA-256/SHA-512 research, differential/message-modification experiments, SAT/CNF, statistical analysis and exact benchmark; research-only, no miner auto-application"},
             "rcsc": {"present": (ROOT/"research"/"rcsc"/"nexus_rcsc"/"nexus_rcsc"/"collector.py").is_file(), "runtime": "read-only Bitcoin block collection, header SHA256d/PoW verification, full TXID Merkle reconstruction, fee extraction, SQLite persistence and chronological holdout research"},

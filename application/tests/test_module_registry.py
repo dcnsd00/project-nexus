@@ -87,6 +87,12 @@ def test_registry_rejects_duplicate_module_ids(tmp_path):
 
 
 
+def test_puzzle_solver_registry_entry_is_discoverable_without_claiming_operation():
+    entry = next(item for item in MODULES if item["id"] == "puzzle_solver")
+    assert entry["runtime_service"] == "puzzle_solver"
+    assert entry["route_prefixes"] == ("/api/puzzles",)
+
+
 def test_ai_worker_registry_entry_is_discoverable_without_claiming_operation():
     entry = next(item for item in MODULES if item["id"] == "ai_worker_coordinator")
     assert entry["runtime_service"] == "ai_worker_coordinator"

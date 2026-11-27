@@ -551,6 +551,12 @@ def build_runtime(
         factory=lambda: ModuleAdapter("modules.math_intelligence", _math_probe, "Math Intelligence"),
         dependencies=("crypto_engine", "data_paths"), critical=False,
     ))
+    if (base / "modules" / "puzzle_solver.py").is_file():
+        manager.register(ServiceSpec(
+            name="puzzle_solver",
+            factory=lambda: ModuleAdapter("modules.puzzle_solver", lambda module: module.capabilities(), "Puzzle Solver"),
+            dependencies=("crypto_engine", "data_paths"), critical=False,
+        ))
     manager.register(ServiceSpec(
         name="provider_registry",
         factory=lambda: ModuleAdapter("modules.integration_registry", _integrations_probe, "Provider Registry"),
