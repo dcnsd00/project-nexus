@@ -379,6 +379,52 @@ def verify_bit_values_by_id(
     }
 
 
+
+def automatic_bit_feature_tests(
+    points: list[dict[str, Any]],
+    s_bytes: bytes,
+    centre_x: float,
+    centre_y: float,
+) -> dict[str, Any]:
+    """Test simple Unicode-derived one-bit-per-emoji hypotheses against s windows."""
+    feature_specs = {
+        "emoji_modifier_base": lambda item: item["modifier_base"],
+        "skin_tone_present": lambda item: bool(item["tone_levels"]),
+        "skin_tone_odd_level": lambda item: any(level % 2 for level in item["tone_levels"]),
+        "skin_tone_even_level": lambda item: any(level % 2 == 0 for level in item["tone_levels"]),
+        "skin_tone_dark_4_or_5": lambda item: any(level >= 4 for level in item["tone_levels"]),
+        "gender_marker_present": lambda item: any(cp in (0x2640, 0x2642) for cp in _codepoints(item["unified"])),
+        "zero_width_joiner_present": lambda item: 0x200D in _codepoints(item["unified"]),
+        "multiple_codepoints": lambda item: len(_codepoints(item["unified"])) > 1,
+    }
+    if len(s_bytes) != 9:
+        return {
+            "status": "not_run",
+            "reason": "Automatic bit-feature checks require a 9-byte (72-bit) ECDSA s value.",
+            "features_tested": [],
+        }
+    reports = []
+    for name, feature in feature_specs.items():
+        values = {item["id"]: int(bool(feature(item))) for item in points}
+        report = verify_bit_values_by_id(points, values, s_bytes, centre_x, centre_y)
+        hamming = min(candidate["hamming_distance"] for candidate in report["best_candidates"])
+        reports.append({
+            "feature": name,
+            "one_count": sum(values.values()),
+            "exact_match_count": report["exact_match_count"],
+            "best_hamming_distance": hamming,
+            "best_candidates": report["best_candidates"][:3],
+        })
+    reports.sort(key=lambda item: (item["exact_match_count"] == 0, item["best_hamming_distance"]))
+    return {
+        "status": "exact_candidate_found" if any(item["exact_match_count"] for item in reports) else "no_exact_unicode_feature_candidate",
+        "features_tested": list(feature_specs),
+        "exact_match_count": sum(item["exact_match_count"] for item in reports),
+        "results": reports,
+        "interpretation": "These are simple Unicode-only hypotheses; a pixel-derived skin-tone or grayscale rule is not tested here.",
+    }
+
+
 def analyze_project_file(
     project_file: dict[str, Any],
     s_hex: str = DEFAULT_S_HEX,
@@ -409,6 +455,7 @@ def analyze_project_file(
             "reason": "Provide bit_values_by_id with one explicit 0/1 value for every emoji to test the author's 72-bit s-window hint.",
         }
     )
+    automatic_bit_features = automatic_bit_feature_tests(points, s_bytes, centre_x, centre_y)
     west_east = sorted(pairs, key=lambda p: (p["mid_x"], p["mean_radius_px"]))
     east_west = list(reversed(west_east))
     inside_out = sorted(pairs, key=lambda p: (p["mean_radius_px"], p["mid_x"]))
@@ -493,6 +540,7 @@ def analyze_project_file(
         },
         "radial_phase_fit": radial_phase_fit,
         "bit_window_validation": bit_window_validation,
+        "automatic_bit_feature_tests": automatic_bit_features,
         "meta_clue": {
             "input": "gvonys fhelucrM kbZ",
             "decoded": decode_meta_clue(),
@@ -528,6 +576,7 @@ def catalog() -> dict[str, Any]:
             "radial constant-angular-step fit with residual statistics",
             "raw low-byte stream extraction for the nine s-selected emoji",
             "explicit 256-bit stream verification against first/last 72 bits of s",
+            "automatic Unicode-derived one-bit feature hypotheses against s windows",
             "west/east and radial candidate ordering exports",
             "nine s-byte values tested as positional selectors across candidate spatial orders",
             "direct canvas-ID lookup retained only as a diagnostic",
