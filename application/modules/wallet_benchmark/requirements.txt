@@ -1,3 +1,2 @@
-cryptography>=41
-pytest>=7
+cryptography>=50.0.0,<51
 mnemonic>=0.21

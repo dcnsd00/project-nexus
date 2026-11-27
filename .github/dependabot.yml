@@ -8,3 +8,68 @@ updates:
       time: "09:00"
       timezone: Europe/Bucharest
     open-pull-requests-limit: 10
+
+  - package-ecosystem: "pip"
+    directory: "/application"
+    schedule:
+      interval: "weekly"
+      day: "tuesday"
+      time: "08:00"
+      timezone: "Europe/Bucharest"
+    open-pull-requests-limit: 5
+    groups:
+      application-python-minor-patch:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
+
+  - package-ecosystem: "pip"
+    directory: "/application/core/PROJECT-NEXUS-LOCAL"
+    schedule:
+      interval: "weekly"
+      day: "tuesday"
+      time: "08:00"
+      timezone: "Europe/Bucharest"
+    open-pull-requests-limit: 3
+    groups:
+      local-core-python-minor-patch:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
+
+  - package-ecosystem: "pip"
+    directory: "/application/modules/wallet_benchmark"
+    schedule:
+      interval: "weekly"
+      day: "tuesday"
+      time: "08:00"
+      timezone: "Europe/Bucharest"
+    open-pull-requests-limit: 3
+    groups:
+      wallet-benchmark-python-minor-patch:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
+
+  - package-ecosystem: "pip"
+    directory: "/application/nexus_research"
+    schedule:
+      interval: "weekly"
+      day: "tuesday"
+      time: "08:00"
+      timezone: "Europe/Bucharest"
+    open-pull-requests-limit: 3
+    groups:
+      nexus-research-python-minor-patch:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
+
+  - package-ecosystem: "pip"
+    directory: "/application/research/sha2_independent"
+    schedule:
+      interval: "weekly"
+      day: "tuesday"
+      time: "08:00"
+      timezone: "Europe/Bucharest"
+    open-pull-requests-limit: 3
+    groups:
+      sha2-research-python-minor-patch:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
