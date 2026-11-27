@@ -158,9 +158,10 @@ class HybridSupervisor:
             raise ValueError('development mode accepts only the isolated development_pow executor')
         request_path = runtime / 'request.json'
         _write_private_request(request_path, req)
-        worker_log = (runtime / 'worker-process.log').open('ab')
+        worker_log = None
         project_root = Path(__file__).resolve().parents[1]
         try:
+            worker_log = (runtime / 'worker-process.log').open('ab')
             process = subprocess.Popen([sys.executable, '-m', 'mining.hybrid_worker', '--engine', engine,
                                         '--request', str(request_path), '--status', str(status_path),
                                         '--stop', str(stop_path)], cwd=str(project_root), stdin=subprocess.DEVNULL,
@@ -168,7 +169,8 @@ class HybridSupervisor:
                                        start_new_session=(os.name != 'nt'),
                                        creationflags=(subprocess.CREATE_NEW_PROCESS_GROUP if os.name == 'nt' else 0))
         except Exception:
-            worker_log.close()
+            if worker_log is not None:
+                worker_log.close()
             try:
                 request_path.unlink()
             except FileNotFoundError:
