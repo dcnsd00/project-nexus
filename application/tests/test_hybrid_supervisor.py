@@ -248,3 +248,27 @@ def test_switch_engine_rejects_missing_candidate_backend_without_stopping_curren
     assert sup.status()['engines']['cpu']['state'] == 'running'
     assert sup._workers['cpu']['request']['coin'] == 'COIN-A'
     sup.stop_mode()
+
+
+def test_worker_request_is_owner_private_and_removed_after_worker_start(tmp_path):
+    import json
+    import os
+    import pytest
+    from mining.hybrid_supervisor import _write_private_request
+
+    request_path = tmp_path / "private" / "request.json"
+    payload = {"command": _cmd(), "pool_password": "POOL_SECRET_SENTINEL"}
+    _write_private_request(request_path, payload)
+    assert json.loads(request_path.read_text(encoding="utf-8")) == payload
+    if os.name != "nt":
+        assert request_path.stat().st_mode & 0o777 == 0o600
+
+    sup = HybridSupervisor(runtime_root=tmp_path / "runtime")
+    result = sup.start({"cpu": payload}, mode="standard")
+    assert result["started"] is True
+    request = sup._workers["cpu"]["request_path"]
+    deadline = time.time() + 5
+    while time.time() < deadline and request.exists():
+        time.sleep(0.05)
+    assert not request.exists()
+    sup.stop_mode()
