@@ -56,6 +56,7 @@ def capabilities() -> dict[str, Any]:
              "backend": "modules.phy_challenge_research",
              "methods": ["unicode_18_classification", "geometric_antipodal_pair_hypotheses",
                          "radial_phase_fit", "s_byte_ordinal_candidates",
+                         "automatic_unicode_bit_feature_tests", "72_bit_s_window_verification",
                          "secp256k1_public_point_validation"],
              "input": "caller-supplied public emoji mapping JSON",
              "private_key_search": False},
