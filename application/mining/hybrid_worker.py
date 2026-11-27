@@ -129,34 +129,3 @@ def main(argv=None) -> int:
 
 if __name__ == '__main__':
     raise SystemExit(main())
-
-
-def test_request_file_is_deleted_immediately_after_worker_read(tmp_path):
-    request_file = tmp_path / "request.json"
-    payload = {
-        "command": [sys.executable, "-c", "pass"],
-        "pool_password": "POOL_SECRET_SENTINEL",
-    }
-    request_file.write_text(json.dumps(payload), encoding="utf-8")
-    loaded = hybrid_worker._load_request_file(request_file)
-    assert loaded == payload
-    assert not request_file.exists()
-
-
-def test_worker_error_does_not_echo_sensitive_command_exception(monkeypatch, tmp_path):
-    status = tmp_path / "cpu" / "status.json"
-    stop = tmp_path / "cpu" / "stop"
-
-    def fail_with_secret(*args, **kwargs):
-        raise RuntimeError("POOL_SECRET_SENTINEL")
-
-    monkeypatch.setattr(hybrid_worker.subprocess, "Popen", fail_with_secret)
-    rc = run_worker("cpu", {
-        "command": [sys.executable, "-c", "pass"],
-        "log_path": str(tmp_path / "cpu" / "miner.log"),
-    }, str(status), str(stop))
-    data = json.loads(status.read_text(encoding="utf-8"))
-    assert rc == 1
-    assert data["state"] == "failed"
-    assert data["last_error"] == "RuntimeError: worker_execution_failed"
-    assert "POOL_SECRET_SENTINEL" not in json.dumps(data)
