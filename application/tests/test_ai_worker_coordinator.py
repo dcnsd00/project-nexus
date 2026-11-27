@@ -70,7 +70,7 @@ def test_path_traversal_unknown_domain_and_task_are_rejected():
 
 
 def test_api_exposes_catalog_and_preview_only_routing():
-    with TestClient(app, client=("127.0.0.1", 54321)) as client:
+    with TestClient(app, base_url="http://127.0.0.1", client=("127.0.0.1", 54321)) as client:
         catalog = client.get("/api/nexus/workers")
         assert catalog.status_code == 200
         assert catalog.json()["model_invocation_enabled"] is False
@@ -134,7 +134,7 @@ def test_execution_invokes_domain_specialist_and_qa_reviewer_as_text_only(monkey
 
 def test_worker_execution_api_fails_closed_when_provider_is_disabled(monkeypatch):
     monkeypatch.setenv("NEXUS_AI_PROVIDER", "disabled")
-    with TestClient(app, client=("127.0.0.1", 54321)) as client:
+    with TestClient(app, base_url="http://127.0.0.1", client=("127.0.0.1", 54321)) as client:
         response = client.post("/api/nexus/workers/execute", json={
             "task_kind": "analysis",
             "domain": "mining",
@@ -147,7 +147,7 @@ def test_worker_execution_api_fails_closed_when_provider_is_disabled(monkeypatch
 def test_provider_status_api_never_exposes_environment_api_key(monkeypatch):
     monkeypatch.setenv("NEXUS_AI_PROVIDER", "disabled")
     monkeypatch.setenv("NEXUS_AI_API_KEY", "should-never-be-returned")
-    with TestClient(app, client=("127.0.0.1", 54321)) as client:
+    with TestClient(app, base_url="http://127.0.0.1", client=("127.0.0.1", 54321)) as client:
         response = client.get("/api/nexus/workers/provider-status")
     assert response.status_code == 200
     assert "should-never-be-returned" not in response.text
@@ -156,7 +156,7 @@ def test_provider_status_api_never_exposes_environment_api_key(monkeypatch):
 def test_worker_provider_endpoints_reject_non_loopback_clients(monkeypatch):
     monkeypatch.setenv("NEXUS_AI_PROVIDER", "ollama")
     monkeypatch.setenv("NEXUS_AI_MODEL", "test-model")
-    with TestClient(app, client=("192.0.2.10", 54321)) as client:
+    with TestClient(app, base_url="http://127.0.0.1", client=("192.0.2.10", 54321)) as client:
         status = client.get("/api/nexus/workers/provider-status")
         execute = client.post("/api/nexus/workers/execute", json={
             "task_kind": "analysis",
@@ -164,6 +164,6 @@ def test_worker_provider_endpoints_reject_non_loopback_clients(monkeypatch):
             "prompt": "Test non-loopback request rejection.",
         })
     assert status.status_code == 403
-    assert status.json()["detail"] == "worker_api_loopback_only"
+    assert status.json()["detail"] == "NEXUS CORE accepts local loopback requests only"
     assert execute.status_code == 403
-    assert execute.json()["detail"] == "worker_api_loopback_only"
+    assert execute.json()["detail"] == "NEXUS CORE accepts local loopback requests only"
