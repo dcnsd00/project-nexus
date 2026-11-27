@@ -209,7 +209,7 @@ def _decode_text(value: str) -> dict[str, Any]:
 
     if re.fullmatch(r"(?:[01]{8}[ \t\r\n]*)+", compact):
         try:
-            binary_text = re.sub(r"\\s+", "", compact)
+            binary_text = "".join(compact.split())
             raw = bytes(int(binary_text[i:i + 8], 2) for i in range(0, len(binary_text), 8))
             add("binary_ascii", raw.decode("utf-8"))
         except (ValueError, UnicodeDecodeError):
