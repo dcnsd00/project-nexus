@@ -1,3 +1,3 @@
 -r requirements.txt
 # Optional secure MQTT transport for NEXUS EDGE.
-paho-mqtt>=2,<3
+paho-mqtt>=2.2.0,<3
