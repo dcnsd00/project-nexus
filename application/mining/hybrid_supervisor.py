@@ -20,6 +20,28 @@ _VALID_MODES = {'standard', 'development'}
 _VALID_ENGINES = {'cpu', 'gpu'}
 
 
+def _write_private_request(path: Path, request: dict) -> None:
+    """Persist worker startup data with owner-only POSIX permissions."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    try:
+        if os.name != "nt" and hasattr(os, "fchmod"):
+            os.fchmod(fd, 0o600)
+        with os.fdopen(fd, "w", encoding="utf-8") as handle:
+            json.dump(request, handle, ensure_ascii=False)
+            handle.flush()
+    except Exception:
+        try:
+            os.close(fd)
+        except OSError:
+            pass
+        try:
+            path.unlink()
+        except FileNotFoundError:
+            pass
+        raise
+
+
 class HybridSupervisor:
     def __init__(self, runtime_root: str | Path | None = None, heartbeat_timeout: float = 5.0):
         self.runtime_root = Path(runtime_root).expanduser().resolve() if runtime_root else data_path('mining', 'hybrid').resolve()
@@ -135,19 +157,28 @@ class HybridSupervisor:
         if mode == 'development' and (req.get('executor') != 'development_pow' or 'command' in req):
             raise ValueError('development mode accepts only the isolated development_pow executor')
         request_path = runtime / 'request.json'
-        request_path.write_text(json.dumps(req, ensure_ascii=False), encoding='utf-8')
+        _write_private_request(request_path, req)
         worker_log = (runtime / 'worker-process.log').open('ab')
         project_root = Path(__file__).resolve().parents[1]
-        process = subprocess.Popen([sys.executable, '-m', 'mining.hybrid_worker', '--engine', engine,
-                                    '--request', str(request_path), '--status', str(status_path),
-                                    '--stop', str(stop_path)], cwd=str(project_root), stdin=subprocess.DEVNULL,
-                                   stdout=worker_log, stderr=subprocess.STDOUT, shell=False,
-                                   start_new_session=(os.name != 'nt'),
-                                   creationflags=(subprocess.CREATE_NEW_PROCESS_GROUP if os.name == 'nt' else 0))
+        try:
+            process = subprocess.Popen([sys.executable, '-m', 'mining.hybrid_worker', '--engine', engine,
+                                        '--request', str(request_path), '--status', str(status_path),
+                                        '--stop', str(stop_path)], cwd=str(project_root), stdin=subprocess.DEVNULL,
+                                       stdout=worker_log, stderr=subprocess.STDOUT, shell=False,
+                                       start_new_session=(os.name != 'nt'),
+                                       creationflags=(subprocess.CREATE_NEW_PROCESS_GROUP if os.name == 'nt' else 0))
+        except Exception:
+            worker_log.close()
+            try:
+                request_path.unlink()
+            except FileNotFoundError:
+                pass
+            raise
         worker_log.close()
         self._workers[engine] = {'process': process, 'status_path': status_path, 'stop_path': stop_path,
-                                 'request': req, 'runtime': runtime, 'started_at': time.time(),
-                                 'restart_count': restart_count, 'worker_instance_id': worker_instance_id}
+                                 'request': req, 'request_path': request_path, 'runtime': runtime,
+                                 'started_at': time.time(), 'restart_count': restart_count,
+                                 'worker_instance_id': worker_instance_id}
         self._sync_arbiter(release_when_idle=False)
 
     def stop(self, engine: str | None = None, *, release_lease: bool = True) -> dict:
@@ -199,6 +230,11 @@ class HybridSupervisor:
                         try: proc.wait(timeout=2)
                         except subprocess.TimeoutExpired: pass
                 results[name] = 'stopped' if proc.poll() is not None else 'unconfirmed_shutdown'
+                if proc.poll() is not None:
+                    try:
+                        item.get('request_path', Path('')).unlink(missing_ok=True)
+                    except OSError:
+                        pass
             if engine is None and all(v == 'stopped' for v in results.values()):
                 self._mode = None
                 self._mode_state = 'stopped'
