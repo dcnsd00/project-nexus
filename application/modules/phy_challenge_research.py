@@ -266,9 +266,123 @@ def _position_candidate(
         ),
     }
 
+
+def _bit_window_report(bits: str, s_bytes: bytes, order_name: str) -> dict[str, Any]:
+    if len(bits) != 256 or any(bit not in "01" for bit in bits):
+        raise ValueError("A candidate emoji bitstream must contain exactly 256 binary digits.")
+    if len(s_bytes) != 9:
+        raise ValueError("s_hex must encode exactly 9 bytes (72 bits) for PHY prefix/suffix verification.")
+    expected_options = {
+        "s_big_endian": "".join(f"{value:08b}" for value in s_bytes),
+        "s_bytes_reversed": "".join(f"{value:08b}" for value in reversed(s_bytes)),
+        "s_bits_reversed": "".join(f"{value:08b}" for value in s_bytes)[::-1],
+    }
+    candidates = []
+    for stream_name, candidate_stream in (("forward", bits), ("reverse", bits[::-1])):
+        for complement in (False, True):
+            candidate = candidate_stream.translate(str.maketrans("01", "10")) if complement else candidate_stream
+            for expected_name, expected in expected_options.items():
+                for window_name, window in (("first_72", candidate[:72]), ("last_72", candidate[-72:])):
+                    distance = sum(left != right for left, right in zip(window, expected))
+                    candidates.append({
+                        "stream_direction": stream_name,
+                        "complemented": complement,
+                        "expected_s_orientation": expected_name,
+                        "window": window_name,
+                        "hamming_distance": distance,
+                        "exact_match": distance == 0,
+                    })
+    candidates.sort(key=lambda item: (item["hamming_distance"], item["stream_direction"] != "forward", item["complemented"]))
+    return {
+        "order": order_name,
+        "bit_count": 256,
+        "s_bit_count": 72,
+        "exact_matches": [item for item in candidates if item["exact_match"]],
+        "best_candidates": candidates[:6],
+        "interpretation": "A zero Hamming distance confirms only the 72-bit window check, not the full puzzle solution.",
+    }
+
+
+def verify_bit_values_by_id(
+    points: list[dict[str, Any]],
+    bit_values_by_id: dict[Any, Any],
+    s_bytes: bytes,
+) -> dict[str, Any]:
+    """Compare caller-provided one-bit-per-emoji values against s prefix/suffix windows."""
+    if not isinstance(bit_values_by_id, dict):
+        raise ValueError("bit_values_by_id must be an object mapping each emoji box ID to 0 or 1.")
+    expected_ids = {point["id"] for point in points}
+    normalized: dict[int, int] = {}
+    for key, value in bit_values_by_id.items():
+        try:
+            box_id = int(key)
+        except (TypeError, ValueError):
+            raise ValueError("bit_values_by_id keys must be integer emoji box IDs.") from None
+        if isinstance(value, bool):
+            bit = int(value)
+        elif isinstance(value, int) and value in (0, 1):
+            bit = value
+        else:
+            raise ValueError("Every value in bit_values_by_id must be 0 or 1.")
+        if box_id in normalized:
+            raise ValueError("Duplicate emoji box IDs in bit_values_by_id.")
+        normalized[box_id] = bit
+    if set(normalized) != expected_ids:
+        missing = sorted(expected_ids - set(normalized))
+        extra = sorted(set(normalized) - expected_ids)
+        raise ValueError(
+            f"bit_values_by_id must cover all 256 emoji IDs exactly; missing={missing[:8]}, extra={extra[:8]}."
+        )
+    centre_x = sum(point["cx"] for point in points) / len(points)
+    centre_y = sum(point["cy"] for point in points) / len(points)
+    angle_order = sorted(
+        points,
+        key=lambda item: (
+            (math.degrees(math.atan2(item["cx"] - centre_x, centre_y - item["cy"])) + 360.0) % 360.0,
+            item["id"],
+        ),
+    )
+    radius_order = sorted(
+        points,
+        key=lambda item: (math.hypot(item["cx"] - centre_x, item["cy"] - centre_y), item["id"]),
+    )
+    orders = {
+        "canvas_id_ascending": sorted(points, key=lambda item: item["id"]),
+        "canvas_id_descending": sorted(points, key=lambda item: item["id"], reverse=True),
+        "angle_ascending_top_clockwise": angle_order,
+        "angle_descending": list(reversed(angle_order)),
+        "radius_ascending_center_out": radius_order,
+        "radius_descending_outside_in": list(reversed(radius_order)),
+    }
+    reports = []
+    for order_name, ordered in orders.items():
+        bitstream = "".join(str(normalized[point["id"]]) for point in ordered)
+        reports.append(_bit_window_report(bitstream, s_bytes, order_name))
+    exact = [
+        {"order": report["order"], **match}
+        for report in reports
+        for match in report["exact_matches"]
+    ]
+    best = sorted(
+        ({"order": report["order"], **candidate} for report in reports for candidate in report["best_candidates"]),
+        key=lambda item: item["hamming_distance"],
+    )[:12]
+    return {
+        "status": "verified_bit_window" if exact else "no_exact_72_bit_window_match",
+        "source": "caller_supplied_bit_values_by_canvas_id",
+        "orders_tested": list(orders),
+        "exact_match_count": len(exact),
+        "exact_matches": exact,
+        "best_candidates": best,
+        "per_order": reports,
+        "interpretation": "Bit assignments are external input; this check validates the 72-bit s window and does not infer the visual bit-mapping rule.",
+    }
+
+
 def analyze_project_file(
     project_file: dict[str, Any],
     s_hex: str = DEFAULT_S_HEX,
+    bit_values_by_id: dict[Any, Any] | None = None,
 ) -> dict[str, Any]:
     """Analyze supplied PHY emoji metadata without key search or external I/O."""
     started = time.perf_counter()
@@ -285,6 +399,13 @@ def analyze_project_file(
         centre_source = "canvas_midpoint_fallback"
 
     pairs = _pair_antipodes(points, centre_x, centre_y)
+    bit_window_validation = (
+        verify_bit_values_by_id(points, bit_values_by_id, bytes.fromhex(s_hex))
+        if bit_values_by_id is not None else {
+            "status": "not_run",
+            "reason": "Provide bit_values_by_id with one explicit 0/1 value for every emoji to test the author's 72-bit s-window hint.",
+        }
+    )
     west_east = sorted(pairs, key=lambda p: (p["mid_x"], p["mean_radius_px"]))
     east_west = list(reversed(west_east))
     inside_out = sorted(pairs, key=lambda p: (p["mean_radius_px"], p["mid_x"]))
@@ -371,6 +492,7 @@ def analyze_project_file(
             "interpretation": "diagnostic only; canvas object IDs are not established as spiral positions",
         },
         "radial_phase_fit": radial_phase_fit,
+        "bit_window_validation": bit_window_validation,
         "meta_clue": {
             "input": "gvonys fhelucrM kbZ",
             "decoded": decode_meta_clue(),
@@ -405,6 +527,7 @@ def catalog() -> dict[str, Any]:
             "geometric antipodal pairing hypotheses",
             "radial constant-angular-step fit with residual statistics",
             "raw low-byte stream extraction for the nine s-selected emoji",
+            "explicit 256-bit stream verification against first/last 72 bits of s",
             "west/east and radial candidate ordering exports",
             "nine s-byte values tested as positional selectors across candidate spatial orders",
             "direct canvas-ID lookup retained only as a diagnostic",
