@@ -545,8 +545,8 @@ def execute_coordinated_task(
     selected_domains = list(domains or ([route["domain"]] if route["domain"] != "coordination" else []))
     if not selected_domains:
         raise ValueError("at_least_one_specialist_domain_required")
-    if len(selected_domains) > 3:
-        raise ValueError("maximum_three_specialist_domains")
+    if len(selected_domains) > 10:
+        raise ValueError("maximum_ten_specialist_domains")
     if len(set(selected_domains)) != len(selected_domains):
         raise ValueError("duplicate_specialist_domain")
     unknown = [item for item in selected_domains if item not in WORKER_BY_DOMAIN or item == "coordination"]
@@ -570,7 +570,10 @@ def execute_coordinated_task(
     )
 
     worker_results: list[dict[str, Any]] = []
-    for selected_domain in selected_domains:
+    # The quality profile is reserved for the final independent review when
+    # selected explicitly; it must not run twice in a full 10-specialist task.
+    execution_domains = [item for item in selected_domains if item != "quality"]
+    for selected_domain in execution_domains:
         worker = WORKER_BY_DOMAIN[selected_domain]
         worker_route = route_task(
             task_kind=task_kind,
@@ -603,7 +606,11 @@ def execute_coordinated_task(
         })
 
     review = None
-    if task_kind in MUTATING_TASKS or len(worker_results) > 1:
+    if (
+        "quality" in selected_domains
+        or task_kind in MUTATING_TASKS
+        or len(selected_domains) > 1
+    ):
         reviewer = WORKER_BY_DOMAIN["quality"]
         review_input = "\n\n".join(
             f"Specialist {item['id']} ({item['domain']}):\n{item['output']}"
@@ -670,7 +677,8 @@ class WorkerExecuteRequest(WorkerRouteRequest):
 
 
 class WorkerCoordinatedExecuteRequest(WorkerExecuteRequest):
-    domains: list[str] = Field(default_factory=list, max_length=3)
+    # Ten specialist profiles plus the central coordinator equals all 11 agents.
+    domains: list[str] = Field(default_factory=list, max_length=10)
 
 
 def _require_loopback_client(request: Request) -> None:
