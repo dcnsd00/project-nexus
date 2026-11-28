@@ -88,3 +88,35 @@ def test_no_verified_incumbent_does_not_authorize_automatic_switch():
     result = rank_candidates([candidate()], current_candidate_id="missing")
     assert result["recommendation"] == "manual_review_no_verified_incumbent"
     assert result["automatic_switching"] is False
+
+
+def test_profit_intelligence_api_is_recommendation_only():
+    from fastapi.testclient import TestClient
+    from nexus_master import app
+
+    payload = {
+        "candidates": [{
+            "candidate_id": "pool-a",
+            "reward_coin_per_day": 0.01,
+            "stable_price_ron": 200000,
+            "live_price_ron": 210000,
+            "power_w": 120,
+            "electricity_price_ron_kwh": 1.5,
+            "pool_accuracy": 0.99,
+            "accepted_shares": 990,
+            "rejected_shares": 10,
+            "measured_hashrate_hs": 100,
+            "benchmark_hashrate_hs": 100,
+            "source_age_seconds": 60,
+        }],
+        "current_candidate_id": "pool-a",
+    }
+    with TestClient(app, base_url="http://127.0.0.1",
+                    client=("127.0.0.1", 51300)) as client:
+        status = client.get("/api/mining/profit-intelligence/status")
+        ranked = client.post("/api/mining/profit-intelligence/rank", json=payload)
+    assert status.status_code == 200
+    assert status.json()["automatic_switching"] is False
+    assert ranked.status_code == 200
+    assert ranked.json()["recommendation"] == "hold_current"
+    assert ranked.json()["automatic_switching"] is False
