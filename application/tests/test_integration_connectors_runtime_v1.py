@@ -53,8 +53,9 @@ def test_configured_health_probe_verifies_only_after_a_real_adapter_response(mon
     )
 
     result = registry.probe_connector("aioz")
-    assert result["status"] == "reachable"
+    assert result["status"] == "live_verified"
     assert result["operational_verified"] is True
+    assert result["contract_verified"] is True
     assert result["http_status"] == 200
     assert result["response_summary"]["keys"] == ["id", "jsonrpc", "result"]
 
