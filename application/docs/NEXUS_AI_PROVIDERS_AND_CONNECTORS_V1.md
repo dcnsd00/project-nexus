@@ -109,11 +109,16 @@ These instructions are injected into each specialist system prompt. They can cha
 
 - `GET /api/nexus/workers/local-models` — catalogue, model roles, runtime IDs and license notes. No downloads occur.
 - `GET /api/nexus/workers/local-runtime-status` — checks only loopback Ollama and llama.cpp endpoints, and reports installed model IDs. It does not load a model or start a runtime.
+- `POST /api/nexus/workers/local-models/{profile_id}/pull` — explicitly asks an already-running local Ollama instance to pull one of five allowlisted text models (LFM3, Qwen3-4B, DeepSeek-R1 Distill 1.5B/7B or GPT-OSS-20B). It does not install Ollama or start the Ollama service.
+- `GET /api/nexus/workers/local-models/pulls/{profile_id}` — reports the local Ollama pull status and byte progress while NEXUS remains running.
 - `GET /api/nexus/workers/provider-status` — status of the selected provider.
 - `POST /api/nexus/workers/provider-test` — a real inference round-trip against the selected model.
 - `POST /api/nexus/workers/self-test` — provider probe plus one actual model call through each of the 11 worker profiles.
 
 The model catalogue and runtime discovery do not install weights, run shell commands, start background daemons or download model artifacts. Model downloads and runtime installation remain explicit owner actions.
+
+Model pulls are explicit, local-only owner actions. NEXUS first verifies that the configured Ollama API is already reachable on loopback, then sends the fixed catalog model name to Ollama's `/api/pull` stream. Only one model pull may run at a time. The pull endpoint accepts a profile ID, not an arbitrary model name or URL. It does not use a shell, install the Ollama runtime, or start a service. Pull progress is held in memory and is available while this NEXUS process is running; a NEXUS restart does not preserve the in-memory progress handle. A completed download is not an inference test and does not set `operational_verified`.
+
 
 ### Owner-controlled model behaviour
 
