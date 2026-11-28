@@ -237,7 +237,7 @@ def _safe_config(env: Mapping[str, str]) -> ProviderConfig | None:
         auth_header = "x-goog-api-key" if api_key else None
         api_version = None
     else:
-        if path not in {"/v1", "/api/v1", "/"}:
+        if path not in {"", "/v1", "/api/v1", "/"}:
             raise AIProviderError("openai_compatible_base_url_must_target_v1")
         base_path = path or "/v1"
         endpoint = "chat/completions"
