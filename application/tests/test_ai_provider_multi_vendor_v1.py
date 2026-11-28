@@ -166,3 +166,69 @@ def test_provider_status_reports_registered_protocols_but_not_live_success(monke
         "openai", "anthropic", "gemini", "ollama", "openai_compatible",
         "groq", "openrouter", "mistral", "together", "deepseek", "fireworks", "cerebras",
     ]
+
+
+def test_provider_live_probe_marks_only_the_exact_config_as_verified(monkeypatch):
+    monkeypatch.setenv("NEXUS_AI_PROVIDER", "ollama")
+    monkeypatch.setenv("NEXUS_AI_MODEL", "probe-model")
+    monkeypatch.delenv("NEXUS_AI_BASE_URL", raising=False)
+    monkeypatch.delenv("NEXUS_AI_API_KEY", raising=False)
+    monkeypatch.setattr(
+        provider,
+        "_transport_open",
+        lambda request, timeout: FakeResponse({
+            "message": {"content": "NEXUS_PROVIDER_HEALTH_OK"},
+            "prompt_eval_count": 8,
+            "eval_count": 2,
+        }),
+    )
+
+    result = provider.probe_ai_provider()
+    assert result["operational_verified"] is True
+    assert result["status"] == "live_verified"
+    assert result["provider"] == "ollama"
+    assert provider.provider_status()["operational_verified"] is True
+
+    monkeypatch.setenv("NEXUS_AI_MODEL", "different-model")
+    assert provider.provider_status()["operational_verified"] is False
+
+
+def test_provider_live_probe_fails_if_model_does_not_return_exact_marker(monkeypatch):
+    monkeypatch.setenv("NEXUS_AI_PROVIDER", "ollama")
+    monkeypatch.setenv("NEXUS_AI_MODEL", "probe-model")
+    monkeypatch.setattr(
+        provider,
+        "_transport_open",
+        lambda request, timeout: FakeResponse({
+            "message": {"content": "I can help with that."},
+        }),
+    )
+    import pytest
+    with pytest.raises(provider.AIProviderError, match="provider_probe_response_mismatch"):
+        provider.probe_ai_provider()
+
+
+def test_provider_live_test_api_is_loopback_only_and_reports_real_probe(monkeypatch):
+    from fastapi.testclient import TestClient
+    from nexus_master import app
+
+    monkeypatch.setenv("NEXUS_AI_PROVIDER", "ollama")
+    monkeypatch.setenv("NEXUS_AI_MODEL", "probe-model")
+    monkeypatch.setattr(
+        provider,
+        "_transport_open",
+        lambda request, timeout: FakeResponse({
+            "message": {"content": "NEXUS_PROVIDER_HEALTH_OK"},
+        }),
+    )
+    with TestClient(app, base_url="http://127.0.0.1",
+                    client=("127.0.0.1", 54220)) as client:
+        response = client.post("/api/nexus/workers/provider-test")
+    assert response.status_code == 200
+    assert response.json()["operational_verified"] is True
+    assert response.json()["tools_available"] is False
+
+    with TestClient(app, base_url="http://127.0.0.1",
+                    client=("192.0.2.25", 54220)) as client:
+        blocked = client.post("/api/nexus/workers/provider-test")
+    assert blocked.status_code == 403
