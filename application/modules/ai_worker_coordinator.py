@@ -17,6 +17,7 @@ from pydantic import BaseModel, Field
 from modules.ai_worker_provider import (
     AIProviderError,
     chat_completion,
+    probe_ai_provider,
     model_for_worker,
     provider_status as ai_provider_status,
 )
@@ -203,6 +204,10 @@ def worker_catalog() -> dict[str, Any]:
         "coordinator": "central_coordinator",
         "workers": rows,
         "worker_count": len(rows),
+        "registered_agent_profiles": len(rows),
+        "registered_specialist_count": len(rows) - 1,
+        "dispatch_ready_worker_profiles": len(rows) if enabled else 0,
+        "provider_live_verified": bool(provider.get("operational_verified")),
         "provider": provider,
         "configured_model_providers": provider.get("configured_model_providers", 0),
         "active_ai_agents": 0,
@@ -537,6 +542,16 @@ def _require_loopback_client(request: Request) -> None:
 def worker_provider_status(request: Request) -> dict[str, Any]:
     _require_loopback_client(request)
     return ai_provider_status()
+
+
+@router.post("/provider-test")
+def worker_provider_test(request: Request) -> dict[str, Any]:
+    """Explicitly perform one real, bounded provider round-trip."""
+    _require_loopback_client(request)
+    try:
+        return probe_ai_provider()
+    except AIProviderError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
 
 
 @router.post("/execute")
