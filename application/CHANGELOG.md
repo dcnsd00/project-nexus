@@ -1,5 +1,16 @@
 # NEXUS MASTER — Changelog
 
+## 0.10.28 — 2026-11-28 · RainbowMiner telemetry, profit intelligence and central AI coordination
+
+- Added authenticated, loopback-only RainbowMiner Report API ingestion with strict field allowlists, PII/secret/log filtering, bounded payloads and SQLite retention under the central NEXUS data directory.
+- Added an independent stable/live price and pool-confidence scoring engine with RON/kWh electricity cost, stale-evidence rejection and configurable switching hysteresis. Results are recommendations only; no automatic pool or miner switching is performed.
+- Connected the RainbowMiner telemetry router to FastAPI, Lifecycle Manager health checks and Module Registry.
+- Added central-first multi-specialist AI execution for up to three domains per request, branch-aware integration routing and QA/security review for multi-domain or mutating task classes.
+- AI calls remain opt-in, sequential and text-only. No repository writes, shell execution, miner starts, wallet access or provider writes are available to model workers.
+- RainbowMiner source is GPL-3.0; this increment uses an independent implementation and does not copy RainbowMiner source code.
+- Tests added for telemetry authentication/privacy, profit calculations/hysteresis, module registry integration, branch routing and central/specialist/QA orchestration.
+- Live RainbowMiner reports, configured model provider, target Windows installation, external pool shares, physical ASIC/GPU communication and profitability are not yet validated.
+
 ## 0.10.27 — 2026-11-26 · AI worker routing and mining safety
 
 - Added an 11-domain specialist-worker registry and deterministic central task-routing preview by repository path, feature branch or explicit domain. Model invocation remains disabled until a provider adapter is configured and validated.
