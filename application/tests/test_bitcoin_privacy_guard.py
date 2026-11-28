@@ -30,7 +30,8 @@ def test_clearnet_transaction_relay_is_flagged_without_exposing_peer_data():
     assert result["onion_peers"] == 1
     assert result["wallet_state"] == "not_inspected"
     assert result["wallet_broadcast_setting"] == "not_inspected"
-    assert result["addresses_or_transactions_read"] is False
+    assert result["peer_address_fields_inspected"] is False
+    assert result["transaction_data_inspected"] is False
     assert result["peer_addresses_returned"] is False
     assert "203.0.113.9" not in repr(result)
     assert "192.0.2.7" not in repr(result)
