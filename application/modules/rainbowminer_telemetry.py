@@ -296,8 +296,10 @@ def normalize_extra_payload(kind: str, raw_bytes: bytes, *,
         decoded = json.loads(raw_bytes.decode("utf-8-sig"))
     except (UnicodeDecodeError, ValueError):
         raise RainbowMinerReportError("invalid_extra_payload_json") from None
-    if not isinstance(decoded, dict):
-        raise RainbowMinerReportError("extra_payload_must_be_object")
+    if kind == "minerdata" and not isinstance(decoded, dict):
+        raise RainbowMinerReportError("minerdata_payload_must_be_object")
+    if kind == "poolsdata" and not isinstance(decoded, (dict, list)):
+        raise RainbowMinerReportError("poolsdata_payload_must_be_array_or_object")
 
     worker = str(worker).strip()
     if not worker or len(worker) > 128 or any(ord(char) < 32 for char in worker):
@@ -319,7 +321,9 @@ def normalize_extra_payload(kind: str, raw_bytes: bytes, *,
         # OCprofiles are deliberately excluded: they are configuration data,
         # not required for pool scoring or benchmark comparison.
     else:
-        rows = decoded.get("Pools", decoded.get("pools", decoded))
+        rows = decoded if isinstance(decoded, list) else decoded.get(
+            "Pools", decoded.get("pools", decoded)
+        )
         payload["pools"] = _filtered_rows(
             rows, POOL_BENCHMARK_FIELDS, "poolsdata", MAX_EXTRA_ROWS
         )
