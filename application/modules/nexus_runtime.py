@@ -455,10 +455,13 @@ def _mining_backend_adapter_probe(module: Any) -> dict[str, Any]:
 
 def _ai_worker_probe(module: Any) -> dict[str, Any]:
     catalog = module.worker_catalog()
+    local_models = module.local_model_catalog()
     return {
         "workers_registered": catalog.get("worker_count", 0),
         "registered_specialists": catalog.get("registered_specialist_count", 0),
         "dispatch_ready_worker_profiles": catalog.get("dispatch_ready_worker_profiles", 0),
+        "local_open_weight_model_profiles": local_models.get("count", 0),
+        "local_default_model": local_models.get("default_local_agent"),
         "configured_model_providers": catalog.get("configured_model_providers", 0),
         "provider_live_verified": catalog.get("provider_live_verified", False),
         "worker_self_test": catalog.get("worker_self_test", {"status": "not_run"}),
@@ -466,9 +469,13 @@ def _ai_worker_probe(module: Any) -> dict[str, Any]:
         "active_ai_agents": catalog.get("active_ai_agents", 0),
         "model_invocation_enabled": catalog.get("model_invocation_enabled", False),
         "task_execution": catalog.get("dispatch_mode"),
-        "self_test_endpoint": "/api/nexus/workers/self-test",
+        "provider_test_endpoint": "/api/nexus/workers/provider-test",
+        "worker_self_test_endpoint": "/api/nexus/workers/self-test",
+        "local_model_catalog_endpoint": "/api/nexus/workers/local-models",
+        "local_runtime_status_endpoint": "/api/nexus/workers/local-runtime-status",
         "network_calls_by_probe": False,
         "repository_writes_by_probe": False,
+        "model_downloads_by_probe": False,
     }
 
 
