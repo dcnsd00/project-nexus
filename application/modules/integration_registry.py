@@ -218,10 +218,18 @@ def _config(item: dict[str, Any], source: Mapping[str, str]) -> dict[str, Any]:
 
     normalized_host = host.casefold().rstrip(".")
     local = _is_loopback(host)
+    allowed_hosts = _host_allowlist(item, source)
+    using_documented_default = bool(
+        item.get("default_base_url")
+        and raw_url.rstrip("/") == str(item["default_base_url"]).rstrip("/")
+        and not str(source.get(url_env, "")).strip()
+    )
+    if using_documented_default:
+        allowed_hosts.add(normalized_host)
     if not local:
         if parts.scheme != "https" or port not in (None, 443):
             raise ConnectorError("remote_connector_requires_https_443")
-        if normalized_host not in _host_allowlist(item, source):
+        if normalized_host not in allowed_hosts:
             raise ConnectorError("connector_host_not_allowlisted")
 
     suffix = item["id"].upper()
@@ -262,7 +270,7 @@ def _config(item: dict[str, Any], source: Mapping[str, str]) -> dict[str, Any]:
             str(source.get(key, "")) for key in item["env"][1:3]
         )
     fingerprint = sha256(
-        (raw_url + "|" + auth_fingerprint + "|" + ",".join(sorted(_host_allowlist(item, source)))).encode("utf-8")
+        (raw_url + "|" + auth_fingerprint + "|" + ",".join(sorted(allowed_hosts))).encode("utf-8")
     ).hexdigest()
     return {
         "base_url": base_url,
