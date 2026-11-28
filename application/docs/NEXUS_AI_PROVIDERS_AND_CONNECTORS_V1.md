@@ -62,6 +62,17 @@ For the current low-VRAM target, use LFM3 or DeepSeek-R1 1.5B for lightweight ta
 
 The relevant model-weight licenses are distinct: LFM3 uses **LFM Open License v1.0** (not standard Apache 2.0, with a USD 10 million annual company-revenue condition for free commercial use); GPT-OSS uses Apache 2.0 plus its usage policy; Qwen3 uses Apache 2.0; DeepSeek-R1 declares MIT, while the distilled Qwen variants also require preserving the Qwen2.5 base-model licensing notice. The **Ollama runtime** and **llama.cpp runtime** are MIT-licensed. A runtime's MIT license does not replace a model's weight license.
 
+### Full coordinated dispatch across all 11 profiles
+
+The coordinated execution endpoint accepts up to all 10 specialist domains in one request. With all ten selected, NEXUS invokes:
+1. the central coordinator for task decomposition;
+2. nine specialist profiles sequentially;
+3. the QA/security profile once, as the final independent reviewer.
+
+This is exactly 11 model calls across the 11 registered profiles; the QA profile is not called twice. The response includes an `execution_manifest` listing requested/invoked profiles, call count and sequential execution status. The API remains loopback-only and all calls are text-only. It does not create 11 permanent background processes.
+
+The full specialist domain list is: `mining`, `cryptography`, `blockchain`, `wallet`, `edge`, `integrations`, `dashboard`, `earnings`, `ai_platform`, `quality`. A full run can be slower and consume more tokens than a single-specialist dispatch.
+
 ### Worker-specific model selection
 
 The 11 stateless profiles use these domains for model overrides:
@@ -114,6 +125,7 @@ These instructions are injected into each specialist system prompt. They can cha
 - `GET /api/nexus/workers/provider-status` — status of the selected provider.
 - `POST /api/nexus/workers/provider-test` — a real inference round-trip against the selected model.
 - `POST /api/nexus/workers/self-test` — provider probe plus one actual model call through each of the 11 worker profiles.
+- `POST /api/nexus/workers/coordinate` — central decomposition, up to all ten specialist profiles, and a final QA/security review; the full 11-profile run returns an execution manifest.
 
 The model catalogue and runtime discovery do not install weights, run shell commands, start background daemons or download model artifacts. Model downloads and runtime installation remain explicit owner actions.
 
