@@ -6,15 +6,15 @@ registration. It never reports a module as operational merely because files exis
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any, Iterable, Mapping
 
 MODULES: tuple[dict[str, Any], ...] = (
     {"id": "core", "name": "NEXUS Core", "paths": ("core/PROJECT-NEXUS-LOCAL/app/main.py",), "route_prefixes": ("/api/nexus",), "critical": True},
-    {"id": "wallet", "name": "Wallet Engine", "paths": ("modules/wallet_benchmark/nexus_wallet_manager.py",), "route_prefixes": ("/api/wallet",), "critical": True},
-    {"id": "mining_supervisor", "name": "Hybrid Mining Supervisor", "paths": ("mining/hybrid_supervisor.py", "mining/hybrid_orchestrator.py"), "route_prefixes": ("/api/mining",), "critical": True},
-    {"id": "crypto_engine", "name": "Cryptographic Engine", "paths": ("modules/crypto_engine/engine.py",), "route_prefixes": ("/api/crypto",), "critical": True},
-    {"id": "rcsc", "name": "RCSC Research", "paths": ("research/rcsc/nexus_rcsc/nexus_rcsc/collector.py", "modules/rcsc_service.py"), "route_prefixes": ("/api/research/rcsc",), "critical": False},
-    {"id": "integrations", "name": "Provider Integrations", "paths": ("modules/integration_registry.py",), "route_prefixes": ("/api/integrations",), "critical": False},
+    {"id": "wallet", "name": "Wallet Engine", "paths": ("modules/wallet_benchmark/nexus_wallet_manager.py",), "route_prefixes": ("/api/wallet",), "runtime_service": "wallet_engine", "critical": True},
+    {"id": "mining_supervisor", "name": "Hybrid Mining Supervisor", "paths": ("mining/hybrid_supervisor.py", "mining/hybrid_orchestrator.py"), "route_prefixes": ("/api/mining",), "runtime_service": "mining_supervisor", "critical": True},
+    {"id": "crypto_engine", "name": "Cryptographic Engine", "paths": ("modules/crypto_engine/engine.py",), "route_prefixes": ("/api/crypto",), "runtime_service": "crypto_engine", "critical": True},
+    {"id": "rcsc", "name": "RCSC Research", "paths": ("research/rcsc/nexus_rcsc/nexus_rcsc/collector.py", "modules/rcsc_service.py"), "route_prefixes": ("/api/research/rcsc",), "runtime_service": "rcsc_research", "critical": False},
+    {"id": "integrations", "name": "Provider Integrations", "paths": ("modules/integration_registry.py",), "route_prefixes": ("/api/integrations",), "runtime_service": "provider_registry", "critical": False},
     {"id": "market_data", "name": "Public Market Data", "paths": ("modules/market_data.py",), "route_prefixes": ("/api/market-data",), "runtime_service": "market_data", "critical": False},
     {"id": "rainbowminer_telemetry", "name": "RainbowMiner Read-only Telemetry", "paths": ("modules/rainbowminer_telemetry.py",), "route_prefixes": ("/api/mining/rainbowminer",), "runtime_service": "rainbowminer_telemetry", "critical": False},
     {"id": "mining_profit_intelligence", "name": "Mining Profit Intelligence", "paths": ("modules/mining_profit_intelligence.py",), "route_prefixes": ("/api/mining/profit-intelligence",), "critical": False},
@@ -61,10 +61,12 @@ def _route_paths(app: Any | None) -> set[str]:
 
 def build_module_registry(root: str | Path, app: Any | None = None,
                           modules: Iterable[dict[str, Any]] = MODULES,
-                          runtime_services: Iterable[str] | None = None) -> dict[str, Any]:
+                          runtime_services: Iterable[str] | None = None,
+                          runtime_health: Mapping[str, Any] | None = None) -> dict[str, Any]:
     base = Path(root)
     routes = _route_paths(app)
     active_runtime_services = set(runtime_services or ())
+    health_by_service = dict(runtime_health or {})
     module_items = tuple(modules)
 
     # Fail clearly rather than silently collapsing duplicate IDs in consumers
@@ -91,6 +93,55 @@ def build_module_registry(root: str | Path, app: Any | None = None,
         runtime_registered = bool(runtime_service and runtime_service in active_runtime_services)
         route_registered = bool(registered) if route_required else False
         integrated = source_present and (route_registered or runtime_registered)
+        service_health = health_by_service.get(runtime_service, {}) if runtime_service else {}
+        runtime_health_ok = bool(
+            runtime_registered
+            and isinstance(service_health, Mapping)
+            and service_health.get("ok") is True
+        )
+        health_details = service_health.get("details", {}) if isinstance(service_health, Mapping) else {}
+        external_dependencies_verified: bool | None = None
+        operational_requirement_met = runtime_health_ok
+        verification_reason = (
+            "runtime_health_passed" if runtime_health_ok else
+            "runtime_health_missing_or_failed" if runtime_service else
+            "runtime_health_not_mapped"
+        )
+
+        # These two modules have explicit external prerequisites beyond their
+        # local service health: every worker needs a real model self-test, and
+        # all catalogued external connectors need a successful live probe.
+        if item["id"] == "ai_worker_coordinator":
+            worker_test = health_details.get("worker_self_test", {})
+            provider_live = health_details.get("provider_live_verified") is True
+            self_test_live = (
+                isinstance(worker_test, Mapping)
+                and worker_test.get("operational_verified") is True
+                and worker_test.get("workers_tested") == 11
+                and worker_test.get("workers_passed") == 11
+            )
+            external_dependencies_verified = provider_live
+            operational_requirement_met = runtime_health_ok and provider_live and self_test_live
+            if not provider_live:
+                verification_reason = "live_ai_provider_probe_required"
+            elif not self_test_live:
+                verification_reason = "all_eleven_worker_self_test_required"
+            else:
+                verification_reason = "provider_and_all_eleven_workers_live_verified"
+        elif item["id"] == "integrations":
+            provider_count = health_details.get("providers_catalogued", 0)
+            live_count = health_details.get("live_connections_verified", 0)
+            external_dependencies_verified = bool(provider_count and live_count == provider_count)
+            operational_requirement_met = runtime_health_ok and external_dependencies_verified
+            verification_reason = (
+                "all_external_connectors_live_verified" if operational_requirement_met
+                else "all_catalogued_external_connectors_must_be_live_verified"
+            )
+
+        route_requirement_met = (not route_required) or route_registered
+        operational_verified = bool(
+            source_present and route_requirement_met and operational_requirement_met
+        )
         if not source_present:
             state = "missing_source"
         elif route_registered and runtime_registered:
@@ -109,10 +160,25 @@ def build_module_registry(root: str | Path, app: Any | None = None,
             "registered_routes": registered,
             "runtime_service": runtime_service,
             "runtime_registered": runtime_registered,
-            "operational_verified": False,
+            "runtime_health_ok": runtime_health_ok,
+            "operational_verified": operational_verified,
+            "external_dependencies_verified": external_dependencies_verified,
+            "verification_reason": verification_reason,
         })
     counts = {key: sum(row["state"] == key for row in results)
               for key in ("missing_source", "source_present_not_integrated", "route_registered_runtime_unverified", "runtime_registered_health_unverified", "runtime_and_route_registered_health_unverified")}
-    return {"modules": results, "total": len(results), "counts": counts,
-            "system_operational_verified": False,
-            "policy": "Source presence and route registration are evidence of packaging/integration only; runtime operation requires separate health and functional tests."}
+    operational_count = sum(bool(row["operational_verified"]) for row in results)
+    return {
+        "modules": results,
+        "total": len(results),
+        "counts": counts,
+        "operational_verified_modules": operational_count,
+        "operational_pending_modules": len(results) - operational_count,
+        "system_operational_verified": bool(results) and operational_count == len(results),
+        "policy": (
+            "Operational verification requires source presence, required route registration, "
+            "a successful live runtime health probe and any module-specific external acceptance "
+            "gate. AI requires all 11 live worker tests; Integrations requires all registered "
+            "external connectors to pass their live probes."
+        ),
+    }
