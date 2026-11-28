@@ -115,7 +115,7 @@ def assess_bitcoin_peer_privacy(peer_rows: Any) -> dict[str, Any]:
         "observed_peer_count": valid_peer_count, **counts,
         "wallet_state": "not_inspected",
         "wallet_broadcast_setting": "not_inspected",
-        "addresses_or_transactions_read": False,
+        "peer_address_fields_inspected": False,\n        "transaction_data_inspected": False,
         "peer_addresses_returned": False,
         "actions_taken": [],
         "finding": finding,
