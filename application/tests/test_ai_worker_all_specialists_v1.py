@@ -69,3 +69,74 @@ def test_all_ten_specialist_domains_have_unique_route_and_profile():
         assert route["permissions"]["write_repository"] is False
         assert route["permissions"]["start_miner"] is False
         assert route["permissions"]["sign_transaction"] is False
+
+
+def test_live_worker_self_test_exercises_all_eleven_profiles_and_records_verification(monkeypatch):
+    monkeypatch.setattr(
+        coordinator,
+        "ai_provider_status",
+        lambda: {
+            "provider": "mock-provider",
+            "model": "mock-model",
+            "operational_verified": True,
+            "model_invocation_enabled": True,
+        },
+    )
+    monkeypatch.setattr(
+        coordinator,
+        "probe_ai_provider",
+        lambda: {
+            "provider": "mock-provider",
+            "model": "mock-model",
+            "operational_verified": True,
+            "status": "live_verified",
+        },
+    )
+    calls = []
+
+    def fake_execute_worker_task(**kwargs):
+        calls.append(kwargs["domain"])
+        worker = coordinator.WORKER_BY_DOMAIN[kwargs["domain"]]
+        return {
+            "worker": {
+                "id": worker["id"],
+                "model": "mock-model",
+                "output": f"Self-test passed for {worker['domain']}.",
+            },
+            "model_invoked": True,
+            "side_effects_performed": False,
+            "repository_changes": 0,
+            "miners_started": 0,
+            "wallet_operations": 0,
+        }
+
+    monkeypatch.setattr(coordinator, "execute_worker_task", fake_execute_worker_task)
+    result = coordinator.run_worker_self_test()
+    assert result["status"] == "live_verified"
+    assert result["operational_verified"] is True
+    assert result["workers_tested"] == result["workers_passed"] == 11
+    assert len(calls) == 11
+    assert {row["worker_id"] for row in result["worker_results"]} == {
+        row["id"] for row in coordinator.WORKERS
+    }
+    assert result["side_effects_performed"] is False
+
+
+def test_worker_live_self_test_api_is_loopback_only(monkeypatch):
+    from fastapi.testclient import TestClient
+    from nexus_master import app
+
+    from modules import ai_worker_coordinator as coordinator
+    expected = {"status": "live_verified", "operational_verified": True, "workers_tested": 11}
+    monkeypatch.setattr(coordinator, "run_worker_self_test", lambda: expected)
+
+    with TestClient(app, base_url="http://127.0.0.1",
+                    client=("127.0.0.1", 54331)) as client:
+        response = client.post("/api/nexus/workers/self-test")
+    assert response.status_code == 200
+    assert response.json() == expected
+
+    with TestClient(app, base_url="http://127.0.0.1",
+                    client=("192.0.2.31", 54331)) as client:
+        blocked = client.post("/api/nexus/workers/self-test")
+    assert blocked.status_code == 403
