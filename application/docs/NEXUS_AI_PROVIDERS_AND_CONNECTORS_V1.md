@@ -17,11 +17,67 @@ NEXUS distinguishes the following states:
 
 AI provider live verification and connector live verification are held in process memory and expire after 15 minutes. Restarting NEXUS therefore requires a new probe. This is intentional: the system does not persist a stale connectivity claim.
 
+
+## Local open-weight AI runtime — NEXUS MASTER integration
+
+NEXUS MASTER reuses the existing `application/core/PROJECT-NEXUS-LOCAL/app/lfm3_local.py` implementation and connects the same LFM3 model family to the shared AI Worker Coordinator provider contract. This avoids a second independent agent framework.
+
+### Local model runtimes
+
+- **llama.cpp server**: OpenAI-compatible local endpoint, default `http://127.0.0.1:8080/v1`. Select it with `NEXUS_AI_PROVIDER=lfm3-local`.
+- **Ollama**: native local `/api/chat` endpoint, default `http://127.0.0.1:11434/api`. Select it with `NEXUS_AI_PROVIDER=ollama`.
+- Both choices are local-first and require no hosted model API key when bound to loopback.
+- Remote/private-network inference endpoints remain opt-in and must pass HTTPS, exact host allowlisting and API-key checks.
+
+### First local model configuration
+
+For the LFM3 Q4 GGUF through llama.cpp:
+
+```dotenv
+NEXUS_AI_PROVIDER=lfm3-local
+NEXUS_LFM3_BASE_URL=http://127.0.0.1:8080
+NEXUS_LFM3_MODEL=LiquidAI/LFM3-1.7B-GGUF:Q4_K_M
+```
+
+For LFM3 through Ollama:
+
+```dotenv
+NEXUS_AI_PROVIDER=ollama
+NEXUS_AI_BASE_URL=http://127.0.0.1:11434/api
+NEXUS_AI_MODEL=lfm3
+```
+
+The LFM3 Q4 GGUF published by LiquidAI is approximately 1.1 GB. Its advertised 256K context is not automatically enabled by NEXUS; the context and generation budget must be benchmarked against available VRAM/RAM. On a 4 GB GPU, start with a conservative context and CPU/GPU offload rather than assuming the full 256K context will fit.
+
+### Local model roles in the catalogue
+
+- `lfm3-text`: default fast local coordinator/specialist model; 1.7B, tool-capable/agent-oriented and small enough for edge-style use.
+- `gpt-oss-20b`: higher-capacity local reasoning option; 21B total / 3.6B active, Apache 2.0 plus its usage policy. OpenAI documents 16 GB system memory as the edge-device threshold, but real latency and memory fit still require a benchmark on the target host.
+- `lfm3-vision`, `lfm3-audio`, `lfm3-omni`: listed as future specialist pipelines. They are not falsely presented as fully wired to the current text-only worker API. Each needs the correct model artifacts, multimodal adapter and acceptance tests.
+
+LFM3 weights are licensed under **LFM Open License v1.0**, which is based on Apache 2.0 but is not standard Apache 2.0: free commercial use is subject to Liquid AI's USD 10 million annual company-revenue condition. The Ollama runtime code is MIT-licensed; that MIT license does not replace the model-weight license.
+
+### Local AI endpoints
+
+- `GET /api/nexus/workers/local-models` — catalogue, model roles, runtime IDs and license notes. No downloads occur.
+- `GET /api/nexus/workers/local-runtime-status` — checks only loopback Ollama and llama.cpp endpoints, and reports installed model IDs. It does not load a model or start a runtime.
+- `GET /api/nexus/workers/provider-status` — status of the selected provider.
+- `POST /api/nexus/workers/provider-test` — a real inference round-trip against the selected model.
+- `POST /api/nexus/workers/self-test` — provider probe plus one actual model call through each of the 11 worker profiles.
+
+The model catalogue and runtime discovery do not install weights, run shell commands, start background daemons or download model artifacts. Model downloads and runtime installation remain explicit owner actions.
+
+### Owner-controlled model behaviour
+
+Running the weights locally removes a dependency on hosted model APIs and their account/rate-limit layer. It does not guarantee a model has no trained-in refusals or limitations. NEXUS can expose owner instructions and choose models with different instruction-following behaviour, but system-level execution controls remain separate: no implicit shell access, arbitrary repository writes, wallet signing, transaction broadcast, external writes or miner start. These controls protect the local machine and funds; they are not a hosted model content filter.
+
 ## AI model provider configuration
 
 All providers use the existing local NEXUS API:
 
 - `GET /api/nexus/workers` — worker catalogue and safe readiness summary, including the latest 11-profile self-test status.
+- `GET /api/nexus/workers/local-models` — local model catalogue and license details.
+- `GET /api/nexus/workers/local-runtime-status` — loopback-only discovery of Ollama and llama.cpp servers.
 - `GET /api/nexus/workers/provider-status` — provider configuration/live status (loopback-only).
 - `POST /api/nexus/workers/provider-test` — perform a real minimal prompt/response probe (loopback-only).
 - `POST /api/nexus/workers/self-test` — perform one provider probe and invoke all 11 profiles sequentially (loopback-only). This requires a configured, live-verified provider and consumes 12 model requests in total (one provider probe plus 11 worker calls).
