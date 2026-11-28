@@ -65,6 +65,43 @@ def test_configured_health_probe_verifies_only_after_a_real_adapter_response(mon
     assert aioz["last_http_status"] == 200
 
 
+def test_nodle_public_supply_api_uses_documented_numeric_read_contract(monkeypatch):
+    monkeypatch.delenv("NEXUS_NODLE_API_URL", raising=False)
+    monkeypatch.setattr(registry, "_LIVE_VERIFICATION", {})
+    captured = []
+
+    def fake_transport(request, timeout):
+        captured.append((request.full_url, request.get_method()))
+        if request.full_url.endswith("total-issuance"):
+            return FakeResponse(8555296342.716467)
+        return FakeResponse(4200000000.0)
+
+    monkeypatch.setattr(registry, "_transport_open", fake_transport)
+    probe = registry.probe_connector("nodle")
+    assert captured[0] == ("https://api.nodle.com/v1/total-issuance", "GET")
+    assert probe["status"] == "live_verified"
+    assert probe["operational_verified"] is True
+    assert probe["contract_verified"] is True
+
+    supply = registry.read_connector_resource("nodle", "circulating_supply")
+    assert captured[1] == ("https://api.nodle.com/v1/circulating-supply", "GET")
+    assert supply["data"] == 4200000000.0
+    assert supply["status"] == "live_verified"
+    assert supply["read_only"] is True
+    assert supply["operational_verified"] is True
+
+    nodle = next(row for row in registry.connector_status() if row["id"] == "nodle")
+    assert nodle["status"] == "live_verified"
+    assert nodle["operational_verified"] is True
+    assert nodle["writes_enabled"] is False
+
+
+def test_nodle_numeric_supply_contract_rejects_boolean_payloads():
+    nodle = next(item for item in registry.PROVIDERS if item["id"] == "nodle")
+    with pytest.raises(registry.ConnectorError, match="connector_response_contract_mismatch"):
+        registry._validate_provider_payload(nodle, "health", True)
+
+
 def test_resource_read_uses_configured_path_and_never_enables_writes(monkeypatch):
     monkeypatch.setenv("NEXUS_ACURAST_API_URL", "https://api.acurast.example/v2")
     monkeypatch.setenv("NEXUS_ACURAST_API_TOKEN", "unit-test-connector-secret")
