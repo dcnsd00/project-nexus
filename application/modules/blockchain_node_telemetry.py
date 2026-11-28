@@ -52,7 +52,7 @@ def _rpc_configuration() -> dict[str, Any]:
     }
 
 
-def bitcoin_node_snapshot(rpc_factory=None) -> dict[str, Any]:
+def bitcoin_node_snapshot(rpc_factory=None, include_privacy: bool = False) -> dict[str, Any]:
     """Return observed node state; never infer connectivity from installed tools."""
     sampled_at = time.time()
     bitcoind = shutil.which("bitcoind") or shutil.which("bitcoind.exe")
@@ -166,6 +166,21 @@ def bitcoin_node_snapshot(rpc_factory=None) -> dict[str, Any]:
             "data_quality": "measured_from_successful_bitcoin_core_rpc",
             "error": None,
         })
+        if include_privacy:
+            try:
+                from modules.bitcoin_privacy_guard import assess_bitcoin_peer_privacy
+                base["privacy"] = assess_bitcoin_peer_privacy(peer_rows)
+            except Exception:
+                # The optional analyzer must never break existing node telemetry.
+                base["privacy"] = {
+                    "status": "assessment_unavailable",
+                    "severity": "unknown",
+                    "wallet_state": "not_inspected",
+                    "wallet_broadcast_setting": "not_inspected",
+                    "addresses_or_transactions_read": False,
+                    "peer_addresses_returned": False,
+                    "actions_taken": [],
+                }
         return base
     except Exception as exc:
         base["rpc"]["status"] = "connection_failed"
