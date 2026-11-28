@@ -85,7 +85,9 @@ def test_resource_read_uses_configured_path_and_never_enables_writes(monkeypatch
     assert captured["headers"]["x-api-key"] == "Bearer unit-test-connector-secret"
     assert result["data"] == {"total": 18, "unit": "points"}
     assert result["read_only"] is True
-    assert result["operational_verified"] is True
+    assert result["status"] == "read_succeeded_contract_pending"
+    assert result["operational_verified"] is False
+    assert result["contract_verified"] is False
     assert "unit-test-connector-secret" not in repr(result)
 
 
@@ -220,13 +222,18 @@ def test_all_twelve_configured_connector_health_endpoints_can_be_probed(monkeypa
 
     monkeypatch.setattr(registry, "_transport_open", provider_response)
     result = registry.run_connector_self_test()
-    assert result["status"] == "live_verified"
-    assert result["operational_verified"] is True
-    assert result["connectors_tested"] == result["connectors_passed"] == 12
-    assert all(row["status"] == "passed" for row in result["results"])
+    assert result["status"] == "partial"
+    assert result["operational_verified"] is False
+    assert result["connectors_tested"] == 12
+    assert result["connectors_passed"] == 8
+    assert result["connectors_reachable"] == 12
+    assert result["connectors_contract_pending"] == 4
+    assert result["connectors_failed_or_unconfigured"] == 0
+    assert sum(row["status"] == "contract_pending" for row in result["results"]) == 4
+    assert sum(row["status"] == "passed" for row in result["results"]) == 8
     assert result["read_only"] is True
     assert result["writes_enabled"] is False
-    assert sum(row["operational_verified"] for row in registry.connector_status()) == 12
+    assert sum(row["operational_verified"] for row in registry.connector_status()) == 8
 
 
 def test_connector_live_self_test_api_is_loopback_only(monkeypatch):
@@ -238,6 +245,8 @@ def test_connector_live_self_test_api_is_loopback_only(monkeypatch):
         "operational_verified": False,
         "connectors_tested": 12,
         "connectors_passed": 0,
+        "connectors_reachable": 0,
+        "connectors_contract_pending": 0,
         "connectors_failed_or_unconfigured": 12,
         "read_only": True,
         "writes_enabled": False,
