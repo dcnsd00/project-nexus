@@ -592,6 +592,15 @@ def build_runtime(
             ),
             dependencies=("crypto_engine", "data_paths"), critical=False,
         ))
+    if (base / "modules" / "rainbowminer_telemetry.py").is_file():
+        manager.register(ServiceSpec(
+            name="rainbowminer_telemetry",
+            factory=lambda: ModuleAdapter(
+                "modules.rainbowminer_telemetry", _rainbowminer_telemetry_probe,
+                "RainbowMiner Read-only Telemetry"
+            ),
+            dependencies=("data_paths",), critical=False,
+        ))
     if (base / "adapters" / "fieldstation" / "crypto_fieldstation" / "app.py").is_file():
         manager.register(ServiceSpec(
             name="depin_fieldstation",
