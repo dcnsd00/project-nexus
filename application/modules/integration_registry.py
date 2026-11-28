@@ -61,6 +61,7 @@ PROVIDERS: tuple[dict[str, Any], ...] = (
      "default_base_url": "https://eth-rpc-api.thetatoken.org",
      "health_path": "rpc",
      "health_rpc_method": "eth_chainId",
+     "resource_paths": {"public_chain": "rpc"},
      "resource_rpc_methods": {"public_chain": "eth_blockNumber"},
      "contract_source": "https://docs.thetatoken.org/docs/theta-blockchain-tnt20-token-integration-guide",
      "contract_state": "official_json_rpc_documented",
