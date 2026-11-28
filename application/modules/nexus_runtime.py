@@ -307,9 +307,16 @@ def _math_probe(module: Any) -> dict[str, Any]:
 
 
 def _integrations_probe(module: Any) -> dict[str, Any]:
-    rows = module.connector_status(env={})
-    return {"providers_catalogued": len(rows), "live_connections_verified": 0,
-            "writes_enabled": False}
+    rows = module.connector_status()
+    live = sum(bool(row.get("operational_verified")) for row in rows)
+    return {
+        "providers_catalogued": len(rows),
+        "providers_configured": sum(row.get("status") != "not_configured" for row in rows),
+        "live_connections_verified": live,
+        "live_connections_pending": len(rows) - live,
+        "writes_enabled": False,
+        "self_test_endpoint": "/api/integrations/self-test",
+    }
 
 
 def _market_data_probe(module: Any) -> dict[str, Any]:
@@ -450,10 +457,16 @@ def _ai_worker_probe(module: Any) -> dict[str, Any]:
     catalog = module.worker_catalog()
     return {
         "workers_registered": catalog.get("worker_count", 0),
+        "registered_specialists": catalog.get("registered_specialist_count", 0),
+        "dispatch_ready_worker_profiles": catalog.get("dispatch_ready_worker_profiles", 0),
         "configured_model_providers": catalog.get("configured_model_providers", 0),
+        "provider_live_verified": catalog.get("provider_live_verified", False),
+        "worker_self_test": catalog.get("worker_self_test", {"status": "not_run"}),
+        "operational_verified": catalog.get("operational_verified", False),
         "active_ai_agents": catalog.get("active_ai_agents", 0),
         "model_invocation_enabled": catalog.get("model_invocation_enabled", False),
         "task_execution": catalog.get("dispatch_mode"),
+        "self_test_endpoint": "/api/nexus/workers/self-test",
         "network_calls_by_probe": False,
         "repository_writes_by_probe": False,
     }
