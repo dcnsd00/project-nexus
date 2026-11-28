@@ -297,3 +297,22 @@ def test_lfm3_remote_endpoint_remains_opt_in_and_allowlisted():
     assert allowed["model_invocation_enabled"] is True
     assert allowed["remote"] is True
     assert allowed["api_key_configured"] is True
+
+
+def test_ollama_supports_per_specialist_model_selection(monkeypatch):
+    monkeypatch.setenv("NEXUS_AI_PROVIDER", "ollama")
+    monkeypatch.setenv("NEXUS_AI_MODEL", "lfm3")
+    monkeypatch.setenv("NEXUS_AI_MODEL_MINING", "qwen3:4b")
+    monkeypatch.setenv("NEXUS_AI_MODEL_CRYPTOGRAPHY", "deepseek-r1:1.5b")
+    assert provider.model_for_worker("mining", "lfm3") == "qwen3:4b"
+    assert provider.model_for_worker("cryptography", "lfm3") == "deepseek-r1:1.5b"
+    assert provider.model_for_worker("edge", "lfm3") == "lfm3"
+
+
+def test_llamacpp_lfm3_keeps_one_loaded_checkpoint_for_all_workers(monkeypatch):
+    monkeypatch.setenv("NEXUS_AI_PROVIDER", "lfm3-local")
+    monkeypatch.setenv("NEXUS_LFM3_MODEL", "LiquidAI/LFM3-1.7B-GGUF:Q4_K_M")
+    monkeypatch.setenv("NEXUS_AI_MODEL_MINING", "qwen3:4b")
+    assert provider.model_for_worker("mining", "LiquidAI/LFM3-1.7B-GGUF:Q4_K_M") == (
+        "LiquidAI/LFM3-1.7B-GGUF:Q4_K_M"
+    )
