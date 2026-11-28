@@ -516,6 +516,20 @@ def coin_catalog(refresh: bool=False, q: str="", limit: int=100):
 from modules.runtime_telemetry import RuntimeTelemetry  # noqa: E402
 from modules.blockchain_node_telemetry import bitcoin_node_snapshot  # noqa: E402
 from modules.evm_node_telemetry import evm_node_snapshot  # noqa: E402
+from modules.bitcoin_privacy_guard import privacy_guard_enabled  # noqa: E402
+
+# Bitcoin privacy monitoring is optional and OFF by default. It is a read-only
+# route only; registration never starts a service or alters wallet/node config.
+if privacy_guard_enabled():
+    try:
+        from modules.bitcoin_privacy_guard_api import router as bitcoin_privacy_guard_router  # noqa: E402
+        app.include_router(bitcoin_privacy_guard_router)
+    except Exception as exc:
+        _LOGGER.warning(
+            "Optional Bitcoin privacy guard was not registered (%s)",
+            type(exc).__name__,
+        )
+
 _runtime_telemetry = RuntimeTelemetry()
 
 @app.get("/api/nexus/telemetry")
