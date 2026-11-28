@@ -140,3 +140,35 @@ def test_report_body_size_limit_is_enforced():
             b"x" * (telemetry.MAX_REPORT_BYTES + 1),
             "application/x-www-form-urlencoded",
         )
+
+
+def test_report_normalizes_documented_nested_devices_and_pool_totals():
+    normalized = telemetry.normalize_report({
+        "worker": "device-rig",
+        "uncleanalert": "0",
+        "data": [{
+            "Name": "miner-a",
+            "Algorithm": ["KawPow"],
+            "CurrentSpeed": [12.5],
+            "Devices": [{"Id": 0, "Name": "GPU 0", "Watt": 100, "Temp": 65,
+                         "Mem": 8, "Fan": 55, "Core": 1700, "MemC": 7000,
+                         "MaxTemp": 70, "PrivatePath": "must-drop"}],
+        }],
+        "devices": {
+            "GPU#0": {"Name": "GPU 0", "Watt": 100, "Temp": 65,
+                      "Mem": 8, "Fan": 55, "Core": 1700, "MemC": 7000,
+                      "MaxTemp": 70, "SerialNumber": "must-drop"},
+        },
+        "pool_totals": {
+            "pool.example": {"Accepted": 12, "Rejected": 1,
+                             "Profit": 0.0001, "ApiKey": "must-drop"},
+        },
+    })
+    assert normalized["uncleanalert"] is False
+    assert normalized["data"][0]["Devices"][0]["Id"] == 0
+    assert normalized["devices"][0]["Id"] == "GPU#0"
+    assert normalized["pool_totals"][0]["Pool"] == "pool.example"
+    encoded = json.dumps(normalized)
+    assert "must-drop" not in encoded
+    assert "SerialNumber" not in encoded
+    assert "ApiKey" not in encoded
