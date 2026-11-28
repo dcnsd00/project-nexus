@@ -435,8 +435,8 @@ def _worker_prompt(worker: dict[str, Any], route: dict[str, Any], user_prompt: s
     )
     if owner_instructions:
         system += (
-            "\\n\\nOwner instructions (apply to the task and response style whenever compatible "
-            "with NEXUS execution permissions and applicable safety requirements):\\n"
+            "\n\nOwner instructions (apply to the task and response style whenever compatible "
+            "with NEXUS execution permissions and applicable safety requirements):\n"
             + owner_instructions
         )
     return [
