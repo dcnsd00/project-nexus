@@ -83,7 +83,7 @@ def test_resource_read_uses_configured_path_and_never_enables_writes(monkeypatch
     result = registry.read_connector_resource("acurast", "rewards")
     assert captured["url"] == "https://api.acurast.example/v2/account/rewards"
     assert captured["method"] == "GET"
-    assert captured["headers"]["x-api-key"] == "Bearer unit-test-connector-secret"
+    assert captured["headers"]["x-api-key"] == "unit-test-connector-secret"
     assert result["data"] == {"total": 18, "unit": "points"}
     assert result["read_only"] is True
     assert result["status"] == "read_succeeded_contract_pending"
