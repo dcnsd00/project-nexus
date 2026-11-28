@@ -403,11 +403,22 @@ def probe_ai_provider(env: Mapping[str, str] | None = None) -> dict[str, Any]:
 
 def model_for_worker(worker_id: str, default_model: str | None = None,
                      env: Mapping[str, str] | None = None) -> str:
-    """Optional per-domain model override; no secret or endpoint is involved."""
+    """Select a per-domain model where the configured backend supports model routing."""
     source = os.environ if env is None else env
+    provider = str(source.get("NEXUS_AI_PROVIDER", "")).strip().casefold()
+    configured_default = (
+        default_model
+        or str(source.get("NEXUS_AI_MODEL", "")).strip()
+        or str(source.get("NEXUS_LFM3_MODEL", "")).strip()
+        or "LiquidAI/LFM3-1.7B-GGUF:Q4_K_M"
+    )
+    # A single llama.cpp server normally serves its already-loaded checkpoint.
+    # Do not send a per-worker model name that differs from that checkpoint.
+    if provider in {"lfm3", "lfm3-local", "lfm3_local", "llamacpp-lfm3"}:
+        return configured_default
     suffix = "".join(ch if ch.isalnum() else "_" for ch in worker_id.upper())
     override = str(source.get(f"NEXUS_AI_MODEL_{suffix}", "")).strip()
-    return override or default_model or str(source.get("NEXUS_AI_MODEL", "")).strip()
+    return override or configured_default
 
 
 
