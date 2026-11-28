@@ -1,4 +1,4 @@
-# NEXUS MASTER 0.10.27
+# NEXUS MASTER 0.10.28
 
 ## Windows desktop package
 
@@ -21,6 +21,9 @@ Windows 10/11 x64. Python and Visual Studio are not required on the target compu
 - SHA-2 research tools, mathematical utilities and offline benchmarks.
 - Wallet tooling and local encrypted keystore support.
 - NEXUS EDGE components: manager, SQLite persistence, replay guard, runtime, HTTPS gateway and transport adapters.
+- RainbowMiner read-only local telemetry import with authenticated SQLite storage.
+- Mining Profit Intelligence with RON/kWh cost modelling and recommendation-only pool scoring.
+- Central AI coordination across up to three domain specialists with QA/security review; model provider is opt-in and text-only.
 
 ## Validation status
 
@@ -45,4 +48,4 @@ GitHub-hosted benchmark results are not a measurement of the user's laptop. The 
 ## Project
 
 Repository: https://github.com/dcnsd00/project-nexus
-Active branch: `feature/edge-replay-protection-sqlite-v1`
+Release target branch: `main`
