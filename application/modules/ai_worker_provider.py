@@ -9,6 +9,8 @@ allowlist, and an API key. No tools/function calls are sent to the model.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime, timezone
+from hashlib import sha256
 import ipaddress
 import json
 import os
@@ -22,7 +24,10 @@ from urllib.request import HTTPRedirectHandler, ProxyHandler, Request, build_ope
 MAX_MESSAGES = 12
 MAX_TOTAL_MESSAGE_CHARS = 40_000
 MAX_RESPONSE_CHARS = 30_000
+LIVE_VERIFICATION_MAX_AGE_SECONDS = 900
 _REQUEST_SLOT = threading.BoundedSemaphore(1)
+_LIVE_VERIFICATION_LOCK = threading.Lock()
+_LIVE_VERIFICATION: dict[str, Any] = {}
 
 
 class AIProviderError(RuntimeError):
@@ -222,6 +227,12 @@ def _safe_config(env: Mapping[str, str]) -> ProviderConfig | None:
     )
 
 
+def _provider_fingerprint(config: ProviderConfig) -> str:
+    """Hash provider identity and credentials without exposing the credential."""
+    value = "|".join((config.provider, config.model, config.base_url, config.api_key or ""))
+    return sha256(value.encode("utf-8")).hexdigest()
+
+
 def provider_status(env: Mapping[str, str] | None = None) -> dict[str, Any]:
     """Return safe config status; never echo keys or raw credentials."""
     source = os.environ if env is None else env
@@ -256,9 +267,27 @@ def provider_status(env: Mapping[str, str] | None = None) -> dict[str, Any]:
             "configuration_error": None,
         }
 
+    live_verified = False
+    last_verified_at = None
+    if env is None:
+        with _LIVE_VERIFICATION_LOCK:
+            verification = dict(_LIVE_VERIFICATION)
+        if verification.get("fingerprint") == _provider_fingerprint(config):
+            try:
+                verified_at = datetime.fromisoformat(verification.get("observed_at", ""))
+                age = (datetime.now(timezone.utc) - verified_at).total_seconds()
+                live_verified = 0 <= age <= LIVE_VERIFICATION_MAX_AGE_SECONDS
+                if live_verified:
+                    last_verified_at = verification.get("observed_at")
+            except (TypeError, ValueError):
+                live_verified = False
+
     return {
-        "provider_status": "configured_not_live_verified",
+        "provider_status": "live_verified" if live_verified else "configured_not_live_verified",
         "provider": config.provider,
+        "live_connection_verified": live_verified,
+        "operational_verified": live_verified,
+        "last_verified_at": last_verified_at,
         "protocol": config.protocol,
         "supported_providers": ["openai", "anthropic", "gemini", "ollama", "openai_compatible", "groq", "openrouter", "mistral", "together", "deepseek", "fireworks", "cerebras"],
         "model": config.model,
@@ -269,6 +298,56 @@ def provider_status(env: Mapping[str, str] | None = None) -> dict[str, Any]:
         "active_ai_agents": 0,
         "model_invocation_enabled": True,
         "configuration_error": None,
+    }
+
+
+def probe_ai_provider(env: Mapping[str, str] | None = None) -> dict[str, Any]:
+    """Perform a bounded real model round-trip; never expose the probe text."""
+    source = os.environ if env is None else env
+    config = _safe_config(source)
+    if config is None:
+        raise AIProviderError("ai_provider_not_configured")
+    marker = "NEXUS_PROVIDER_HEALTH_OK"
+    result = chat_completion(
+        [
+            {
+                "role": "system",
+                "content": "You are checking a NEXUS text-only provider connection. Reply with the exact token requested and nothing else.",
+            },
+            {
+                "role": "user",
+                "content": f"Return exactly {marker}. Do not add punctuation or other text.",
+            },
+        ],
+        model=config.model,
+        env=source,
+    )
+    if result["content"].strip() != marker:
+        raise AIProviderError("provider_probe_response_mismatch")
+    observed_at = datetime.now(timezone.utc).isoformat()
+    if env is None:
+        with _LIVE_VERIFICATION_LOCK:
+            _LIVE_VERIFICATION.clear()
+            _LIVE_VERIFICATION.update({
+                "fingerprint": _provider_fingerprint(config),
+                "observed_at": observed_at,
+                "provider": config.provider,
+                "model": config.model,
+                "remote": config.remote,
+            })
+    return {
+        "provider": config.provider,
+        "protocol": config.protocol,
+        "model": config.model,
+        "remote": config.remote,
+        "status": "live_verified",
+        "operational_verified": True,
+        "observed_at": observed_at,
+        "tools_available": False,
+        "tool_calls_executed": 0,
+        "side_effects_performed": False,
+        "prompt_tokens": result.get("prompt_tokens"),
+        "completion_tokens": result.get("completion_tokens"),
     }
 
 
