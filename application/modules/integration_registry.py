@@ -279,7 +279,13 @@ def connector_status(env: dict[str, str] | None = None) -> list[dict[str, Any]]:
                 with _VERIFICATION_LOCK:
                     candidate = _LIVE_VERIFICATION.get(item["id"])
                 if candidate and candidate.get("fingerprint") == current_config["fingerprint"]:
-                    live = candidate
+                    try:
+                        verified_at = datetime.fromisoformat(candidate.get("observed_at", ""))
+                        age = (datetime.now(timezone.utc) - verified_at).total_seconds()
+                        if 0 <= age <= 900:
+                            live = candidate
+                    except (TypeError, ValueError):
+                        live = None
             except ConnectorError:
                 live = None
         operational_verified = bool(live and live.get("ok"))
