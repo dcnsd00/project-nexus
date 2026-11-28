@@ -96,10 +96,11 @@ def test_nodle_public_supply_api_uses_documented_numeric_read_contract(monkeypat
     assert nodle["writes_enabled"] is False
 
 
-def test_nodle_numeric_supply_contract_rejects_boolean_payloads():
+def test_nodle_numeric_supply_contract_rejects_invalid_numeric_payloads():
     nodle = next(item for item in registry.PROVIDERS if item["id"] == "nodle")
-    with pytest.raises(registry.ConnectorError, match="connector_response_contract_mismatch"):
-        registry._validate_provider_payload(nodle, "health", True)
+    for payload in (True, -1, float("nan"), float("inf"), "8555296342"):
+        with pytest.raises(registry.ConnectorError, match="connector_response_contract_mismatch"):
+            registry._validate_provider_payload(nodle, "health", payload)
 
 
 def test_resource_read_uses_configured_path_and_never_enables_writes(monkeypatch):
