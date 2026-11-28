@@ -203,3 +203,29 @@ def test_ollama_context_window_is_configurable_but_bounded(monkeypatch):
     monkeypatch.setenv("NEXUS_AI_CONTEXT_TOKENS", "not-a-number")
     with pytest.raises(provider.AIProviderError, match="invalid_context_configuration"):
         provider.chat_completion([{"role": "user", "content": "test"}])
+
+
+def test_ollama_allows_per_worker_model_overrides_for_specialist_routing():
+    selected = provider.model_for_worker(
+        "mining",
+        default_model="lfm3",
+        env={
+            "NEXUS_AI_PROVIDER": "ollama",
+            "NEXUS_AI_MODEL": "lfm3",
+            "NEXUS_AI_MODEL_MINING": "qwen3:4b",
+        },
+    )
+    assert selected == "qwen3:4b"
+
+
+def test_llamacpp_lfm3_pins_worker_to_the_loaded_model():
+    selected = provider.model_for_worker(
+        "mining",
+        default_model="LiquidAI/LFM3-1.7B-GGUF:Q4_K_M",
+        env={
+            "NEXUS_AI_PROVIDER": "lfm3-local",
+            "NEXUS_LFM3_MODEL": "LiquidAI/LFM3-1.7B-GGUF:Q4_K_M",
+            "NEXUS_AI_MODEL_MINING": "gpt-oss:20b",
+        },
+    )
+    assert selected == "LiquidAI/LFM3-1.7B-GGUF:Q4_K_M"
