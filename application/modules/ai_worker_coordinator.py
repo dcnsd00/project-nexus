@@ -643,6 +643,16 @@ def execute_coordinated_task(
         "task_id": str(uuid4()),
         "route": route,
         "dispatch_mode": "central_then_sequential_specialists",
+        "execution_manifest": {
+            "coordinator_profile": central["id"],
+            "specialist_profiles_requested": list(selected_domains),
+            "specialist_profiles_invoked": list(selected_domains),
+            "specialist_profiles_count": len(selected_domains),
+            "model_calls": 1 + len(execution_domains) + (1 if review is not None else 0),
+            "all_ten_specialists_invoked": len(selected_domains) == 10,
+            "all_eleven_profiles_invoked": len(selected_domains) == 10 and review is not None,
+            "execution_is_sequential": True,
+        },
         "central_coordinator": {
             "id": central["id"],
             "model": central_result["model"],
