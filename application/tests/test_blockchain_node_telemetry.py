@@ -83,3 +83,66 @@ def test_bitcoin_node_snapshot_marks_rpc_failure(monkeypatch, tmp_path):
     assert result["rpc"]["status"] == "connection_failed"
     assert result["rpc"]["reachable"] is False
     assert "TimeoutError" in result["error"]
+
+
+def test_bitcoin_node_snapshot_privacy_is_opt_in_and_reuses_existing_rpc_calls(monkeypatch, tmp_path):
+    cookie = tmp_path / ".cookie"
+    cookie.write_text("user:secret")
+    monkeypatch.setenv("NEXUS_BITCOIN_RPC_COOKIE_FILE", str(cookie))
+    monkeypatch.delenv("NEXUS_BITCOIN_RPC_COOKIE", raising=False)
+    monkeypatch.setenv("NEXUS_BITCOIN_RPC_URL", "http://127.0.0.1:18443")
+    monkeypatch.setattr(telemetry.shutil, "which", lambda name: None)
+
+    class PrivacyRPC:
+        def __init__(self):
+            self.calls = []
+
+        def call(self, method, params=None):
+            self.calls.append(method)
+            values = {
+                "getblockchaininfo": {
+                    "chain": "regtest", "blocks": 120, "headers": 120,
+                    "initialblockdownload": False, "verificationprogress": 1.0,
+                    "pruned": False, "chainwork": "00ff",
+                },
+                "getnetworkinfo": {
+                    "version": 280000, "subversion": "/Satoshi:28.0.0/",
+                    "protocolversion": 70016,
+                },
+                "getpeerinfo": [
+                    {"network": "ipv4", "relaytxes": True,
+                     "addr": "203.0.113.10:8333"},
+                    {"network": "onion", "relaytxes": True},
+                ],
+                "getmempoolinfo": {
+                    "size": 3, "bytes": 1200, "usage": 4096, "total_fee": 0.0001,
+                },
+            }
+            return values[method]
+
+    rpc = PrivacyRPC()
+    result = telemetry.bitcoin_node_snapshot(
+        rpc_factory=lambda cfg: rpc, include_privacy=True
+    )
+
+    assert result["privacy"]["status"] == "conditional_clearnet_relay_exposure"
+    assert result["privacy"]["clearnet_tx_relay_peers"] == 1
+    assert result["privacy"]["wallet_state"] == "not_inspected"
+    assert result["privacy"]["peer_addresses_returned"] is False
+    assert "203.0.113.10" not in repr(result["privacy"])
+    assert rpc.calls == [
+        "getblockchaininfo", "getnetworkinfo", "getpeerinfo", "getmempoolinfo"
+    ]
+
+
+def test_bitcoin_node_snapshot_default_response_remains_without_privacy(monkeypatch, tmp_path):
+    cookie = tmp_path / ".cookie"
+    cookie.write_text("user:secret")
+    monkeypatch.setenv("NEXUS_BITCOIN_RPC_COOKIE_FILE", str(cookie))
+    monkeypatch.setenv("NEXUS_BITCOIN_RPC_URL", "http://127.0.0.1:18443")
+    monkeypatch.setattr(telemetry.shutil, "which", lambda name: None)
+
+    result = telemetry.bitcoin_node_snapshot(rpc_factory=lambda cfg: FakeRPC(cfg))
+
+    assert result["rpc"]["status"] == "connected"
+    assert "privacy" not in result
