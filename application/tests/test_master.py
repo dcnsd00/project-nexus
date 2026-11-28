@@ -13,7 +13,7 @@ def test_master_manifest_lists_all_modules():
         r=c.get("/api/nexus/master")
         assert r.status_code == 200
         d=r.json()
-        assert d["version"] == "0.10.27"
+        assert d["version"] == "0.10.28"
         assert all(d["modules"][k]["present"] for k in ("core","wallet_lab","blockchain_regtest","multiminer_x","fieldstation","crypto_engine"))
         assert d["provider_connectors_live"] == 0
         assert d["modules"]["integrations"]["present"] is True
