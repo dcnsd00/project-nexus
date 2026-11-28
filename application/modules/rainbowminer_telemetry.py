@@ -19,11 +19,14 @@ from typing import Any
 from urllib.parse import parse_qs
 
 from fastapi import APIRouter, HTTPException, Request
+from starlette.datastructures import UploadFile as StarletteUploadFile
 
 from modules.data_paths import data_path
 
 
 MAX_REPORT_BYTES = 1_048_576
+MAX_EXTRA_PAYLOAD_BYTES = 5_242_880
+MAX_EXTRA_ROWS = 2048
 MAX_FORM_FIELDS = 128
 MAX_MINER_ROWS = 128
 MAX_DEVICE_ROWS = 128
@@ -48,8 +51,17 @@ DEVICE_FIELDS = {
     "Accepted", "Rejected", "Stale",
 }
 POOL_FIELDS = {
-    "Pool", "Currency", "CoinName", "CoinSymbol", "Accepted", "Rejected",
-    "Stale", "Profit", "PowerDraw", "CurrentSpeed", "BLK",
+    "Pool", "Name", "Algorithm", "Currency", "CoinName", "CoinSymbol",
+    "Accepted", "Rejected", "Stale", "Profit", "PowerDraw", "CurrentSpeed",
+    "BLK",
+}
+MINER_BENCHMARK_FIELDS = {
+    "Name", "Version", "Algorithm", "DeviceName", "DeviceModel", "HashRate",
+    "PowerDraw",
+}
+POOL_BENCHMARK_FIELDS = {
+    "Name", "Algorithm", "CoinSymbol", "Price", "StablePrice",
+    "PenaltyFactor", "ErrorRatio",
 }
 router = APIRouter(prefix="/api/mining/rainbowminer", tags=["RainbowMiner telemetry"])
 
@@ -273,6 +285,108 @@ def normalize_report(raw: dict[str, Any]) -> dict[str, Any]:
     return payload
 
 
+def normalize_extra_payload(kind: str, raw_bytes: bytes, *,
+                            worker: str, version: str | None = None) -> dict[str, Any]:
+    """Normalize RainbowMiner's six-hour benchmark/pool file uploads."""
+    if kind not in {"minerdata", "poolsdata"}:
+        raise RainbowMinerReportError("unsupported_extra_payload_type")
+    if len(raw_bytes) > MAX_EXTRA_PAYLOAD_BYTES:
+        raise RainbowMinerReportError("extra_payload_too_large")
+    try:
+        decoded = json.loads(raw_bytes.decode("utf-8-sig"))
+    except (UnicodeDecodeError, ValueError):
+        raise RainbowMinerReportError("invalid_extra_payload_json") from None
+    if not isinstance(decoded, dict):
+        raise RainbowMinerReportError("extra_payload_must_be_object")
+
+    worker = str(worker).strip()
+    if not worker or len(worker) > 128 or any(ord(char) < 32 for char in worker):
+        raise RainbowMinerReportError("invalid_worker_name")
+    payload: dict[str, Any] = {
+        "worker": worker,
+        "version": _safe_scalar(version, "version") if version else None,
+        "received_at": datetime.now(timezone.utc).isoformat(),
+        "source": "RainbowMiner",
+        "payload_type": kind,
+    }
+    if kind == "minerdata":
+        miners = decoded.get("Miners", [])
+        payload["miners"] = _filtered_rows(
+            miners, MINER_BENCHMARK_FIELDS, "minerdata.Miners", MAX_EXTRA_ROWS
+        )
+        cpu = decoded.get("CPU")
+        payload["cpu_model"] = _safe_scalar(cpu, "minerdata.CPU") if cpu is not None else None
+        # OCprofiles are deliberately excluded: they are configuration data,
+        # not required for pool scoring or benchmark comparison.
+    else:
+        rows = decoded.get("Pools", decoded.get("pools", decoded))
+        payload["pools"] = _filtered_rows(
+            rows, POOL_BENCHMARK_FIELDS, "poolsdata", MAX_EXTRA_ROWS
+        )
+    return payload
+
+
+def _persist_extra_report(payload: dict[str, Any]) -> dict[str, Any]:
+    path = data_path("mining", "rainbowminer_telemetry.sqlite3", create_parent=True)
+    report_id = str(uuid.uuid4())
+    serialized = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    digest = hashlib.sha256(serialized.encode("utf-8")).hexdigest()
+    with sqlite3.connect(str(path), timeout=5.0) as connection:
+        connection.execute("PRAGMA busy_timeout=5000")
+        connection.execute(
+            """CREATE TABLE IF NOT EXISTS rainbowminer_extra_reports (
+                report_id TEXT PRIMARY KEY,
+                received_at TEXT NOT NULL,
+                worker TEXT NOT NULL,
+                payload_type TEXT NOT NULL,
+                payload_json TEXT NOT NULL,
+                payload_sha256 TEXT NOT NULL
+            )"""
+        )
+        connection.execute(
+            """INSERT INTO rainbowminer_extra_reports
+               (report_id, received_at, worker, payload_type, payload_json, payload_sha256)
+               VALUES (?, ?, ?, ?, ?, ?)""",
+            (report_id, payload["received_at"], payload["worker"],
+             payload["payload_type"], serialized, digest),
+        )
+        connection.execute(
+            """DELETE FROM rainbowminer_extra_reports
+               WHERE report_id NOT IN (
+                   SELECT report_id FROM rainbowminer_extra_reports
+                   ORDER BY received_at DESC, report_id DESC LIMIT ?
+               )""",
+            (MAX_RETAINED_REPORTS,),
+        )
+        connection.commit()
+    return {"report_id": report_id, "payload_sha256": digest, "database": str(path)}
+
+
+def _latest_extra_payload(payload_type: str, worker: str | None = None) -> dict[str, Any] | None:
+    path = _database_path()
+    if not path.is_file():
+        return None
+    with sqlite3.connect(f"file:{path.as_posix()}?mode=ro", uri=True, timeout=2.0) as connection:
+        table_exists = connection.execute(
+            "SELECT 1 FROM sqlite_master WHERE type='table' AND name='rainbowminer_extra_reports'"
+        ).fetchone()
+        if not table_exists:
+            return None
+        if worker:
+            row = connection.execute(
+                """SELECT payload_json FROM rainbowminer_extra_reports
+                   WHERE payload_type=? AND worker=? ORDER BY received_at DESC LIMIT 1""",
+                (payload_type, worker),
+            ).fetchone()
+        else:
+            row = connection.execute(
+                """SELECT payload_json FROM rainbowminer_extra_reports
+                   WHERE payload_type=? ORDER BY received_at DESC LIMIT 1""",
+                (payload_type,),
+            ).fetchone()
+    return json.loads(row[0]) if row else None
+
+
 def _persist_report(payload: dict[str, Any]) -> dict[str, Any]:
     path = data_path("mining", "rainbowminer_telemetry.sqlite3", create_parent=True)
     report_id = str(uuid.uuid4())
@@ -313,17 +427,29 @@ def telemetry_status() -> dict[str, Any]:
     exists = path.is_file()
     count = 0
     latest = None
+    extra_counts = {"minerdata": 0, "poolsdata": 0}
     if exists:
         with sqlite3.connect(f"file:{path.as_posix()}?mode=ro", uri=True, timeout=2.0) as connection:
             row = connection.execute(
                 "SELECT COUNT(*), MAX(received_at) FROM rainbowminer_reports"
-            ).fetchone()
+            ).fetchone() if connection.execute(
+                "SELECT 1 FROM sqlite_master WHERE type='table' AND name='rainbowminer_reports'"
+            ).fetchone() else (0, None)
             count, latest = int(row[0] or 0), row[1]
+            has_extra = connection.execute(
+                "SELECT 1 FROM sqlite_master WHERE type='table' AND name='rainbowminer_extra_reports'"
+            ).fetchone()
+            if has_extra:
+                rows = connection.execute(
+                    "SELECT payload_type, COUNT(*) FROM rainbowminer_extra_reports GROUP BY payload_type"
+                ).fetchall()
+                extra_counts.update({str(kind): int(total) for kind, total in rows})
     return {
         "source": "RainbowMiner",
         "enabled": bool(os.environ.get("NEXUS_RAINBOWMINER_REPORT_KEY")),
         "ingest_mode": "loopback_only",
         "reports_stored": count,
+        "extra_reports_stored": extra_counts,
         "latest_report_at": latest,
         "storage_present": exists,
         "commands_executed": 0,
@@ -340,20 +466,63 @@ async def ingest_report(request: Request) -> dict[str, Any]:
     if not expected:
         raise HTTPException(status_code=503, detail="rainbowminer_ingest_not_configured")
 
-    body = await request.body()
+    form = None
     try:
-        raw = _parse_request_body(body, request.headers.get("content-type", ""))
-        supplied = request.headers.get("x-nexus-rainbowminer-key") or _single_value(raw, "user")
-        if not supplied or not hmac.compare_digest(str(supplied), expected):
-            raise HTTPException(status_code=401, detail="invalid_rainbowminer_report_key")
+        content_type = request.headers.get("content-type", "")
+        if content_type.split(";", 1)[0].strip().casefold() == "multipart/form-data":
+            form = await request.form(max_files=2, max_fields=16, max_part_size=MAX_EXTRA_PAYLOAD_BYTES)
+            raw: dict[str, Any] = {}
+            for key, value in form.multi_items():
+                raw.setdefault(key, []).append(value)
+            file_fields = [key for key in ("minerdata", "poolsdata") if key in raw]
+            if len(file_fields) > 1:
+                raise RainbowMinerReportError("multiple_extra_payloads_not_supported")
+            supplied = request.headers.get("x-nexus-rainbowminer-key") or _single_value(raw, "user")
+            if not supplied or not hmac.compare_digest(str(supplied), expected):
+                raise HTTPException(status_code=401, detail="invalid_rainbowminer_report_key")
+            if file_fields:
+                kind = file_fields[0]
+                file_value = raw[kind][0]
+                if not isinstance(file_value, StarletteUploadFile):
+                    raise RainbowMinerReportError("extra_payload_must_be_uploaded_file")
+                file_content = await file_value.read(MAX_EXTRA_PAYLOAD_BYTES + 1)
+                payload = normalize_extra_payload(
+                    kind, file_content,
+                    worker=_single_value(raw, "worker"),
+                    version=_single_value(raw, "version"),
+                )
+                persisted = _persist_extra_report(payload)
+                return {
+                    "Status": "OK",
+                    "accepted": True,
+                    "payload_type": kind,
+                    "report_id": persisted["report_id"],
+                    "payload_sha256": persisted["payload_sha256"],
+                    "worker": payload["worker"],
+                    "records": len(payload.get("miners", payload.get("pools", []))),
+                    "sensitive_fields_persisted": False,
+                    "commands_executed": 0,
+                    "Actions": [],
+                }
+        else:
+            body = await request.body()
+            raw = _parse_request_body(body, content_type)
+            supplied = request.headers.get("x-nexus-rainbowminer-key") or _single_value(raw, "user")
+            if not supplied or not hmac.compare_digest(str(supplied), expected):
+                raise HTTPException(status_code=401, detail="invalid_rainbowminer_report_key")
+
         payload = normalize_report(raw)
         persisted = _persist_report(payload)
     except RainbowMinerReportError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     except sqlite3.Error:
         raise HTTPException(status_code=503, detail="rainbowminer_telemetry_storage_unavailable") from None
+    finally:
+        if form is not None:
+            await form.close()
 
     return {
+        "Status": "OK",
         "accepted": True,
         "report_id": persisted["report_id"],
         "payload_sha256": persisted["payload_sha256"],
@@ -363,7 +532,28 @@ async def ingest_report(request: Request) -> dict[str, Any]:
         "credentials_persisted": False,
         "raw_console_persisted": False,
         "commands_executed": 0,
+        "Actions": [],
     }
+
+
+@router.get("/pools/latest")
+def latest_pools(request: Request, worker: str | None = None) -> dict[str, Any]:
+    _require_loopback(request)
+    try:
+        payload = _latest_extra_payload("poolsdata", worker)
+        return {"available": payload is not None, "payload": payload}
+    except sqlite3.Error:
+        raise HTTPException(status_code=503, detail="rainbowminer_telemetry_storage_unavailable") from None
+
+
+@router.get("/miners/latest")
+def latest_miners(request: Request, worker: str | None = None) -> dict[str, Any]:
+    _require_loopback(request)
+    try:
+        payload = _latest_extra_payload("minerdata", worker)
+        return {"available": payload is not None, "payload": payload}
+    except sqlite3.Error:
+        raise HTTPException(status_code=503, detail="rainbowminer_telemetry_storage_unavailable") from None
 
 
 @router.get("/status")
