@@ -232,3 +232,68 @@ def test_provider_live_test_api_is_loopback_only_and_reports_real_probe(monkeypa
                     client=("192.0.2.25", 54220)) as client:
         blocked = client.post("/api/nexus/workers/provider-test")
     assert blocked.status_code == 403
+
+
+def test_lfm3_local_provider_uses_loopback_llamacpp_server_without_api_key(monkeypatch):
+    monkeypatch.setenv("NEXUS_AI_PROVIDER", "lfm3-local")
+    monkeypatch.delenv("NEXUS_AI_MODEL", raising=False)
+    monkeypatch.delenv("NEXUS_AI_BASE_URL", raising=False)
+    monkeypatch.delenv("NEXUS_LFM3_BASE_URL", raising=False)
+    monkeypatch.delenv("NEXUS_AI_API_KEY", raising=False)
+    monkeypatch.delenv("NEXUS_LFM3_API_KEY", raising=False)
+    config = provider._safe_config(dict(__import__("os").environ))
+    assert config.provider == "lfm3"
+    assert config.protocol == "openai_compatible"
+    assert config.model == "LiquidAI/LFM3-1.7B-GGUF:Q4_K_M"
+    assert config.base_url == "http://127.0.0.1:8080/v1"
+    assert config.endpoint == "chat/completions"
+    assert config.remote is False
+    assert config.api_key is None
+
+
+def test_lfm3_local_provider_sends_openai_compatible_chat_request(monkeypatch):
+    monkeypatch.setenv("NEXUS_AI_PROVIDER", "lfm3-local")
+    monkeypatch.setenv("NEXUS_LFM3_BASE_URL", "http://127.0.0.1:8080")
+    monkeypatch.setenv("NEXUS_LFM3_MODEL", "LiquidAI/LFM3-1.7B-GGUF:Q4_K_M")
+    captured = {}
+
+    def fake_transport(request, timeout):
+        captured["url"] = request.full_url
+        captured["headers"] = {k.lower(): v for k, v in request.header_items()}
+        captured["payload"] = json.loads(request.data.decode("utf-8"))
+        return FakeResponse({
+            "choices": [{"message": {"role": "assistant", "content": "LFM3 local inference OK"}}],
+            "usage": {"prompt_tokens": 12, "completion_tokens": 8},
+        })
+
+    monkeypatch.setattr(provider, "_transport_open", fake_transport)
+    result = provider.chat_completion([{"role": "user", "content": "Check local inference."}])
+    assert captured["url"] == "http://127.0.0.1:8080/v1/chat/completions"
+    assert captured["payload"]["model"] == "LiquidAI/LFM3-1.7B-GGUF:Q4_K_M"
+    assert captured["payload"]["stream"] is False
+    assert "tools" not in captured["payload"]
+    assert "authorization" not in captured["headers"]
+    assert result["content"] == "LFM3 local inference OK"
+    assert result["provider"] == "lfm3"
+    assert result["remote"] is False
+
+
+def test_lfm3_remote_endpoint_remains_opt_in_and_allowlisted():
+    base = {
+        "NEXUS_AI_PROVIDER": "lfm3-local",
+        "NEXUS_LFM3_MODEL": "LiquidAI/LFM3-1.7B",
+        "NEXUS_LFM3_BASE_URL": "https://lfm3.example.net/v1",
+        "NEXUS_LFM3_API_KEY": "unit-test-key",
+    }
+    blocked = provider.provider_status(env=base)
+    assert blocked["model_invocation_enabled"] is False
+
+    enabled = {
+        **base,
+        "NEXUS_LFM3_ALLOW_REMOTE": "1",
+        "NEXUS_LFM3_REMOTE_HOST_ALLOWLIST": "lfm3.example.net",
+    }
+    allowed = provider.provider_status(env=enabled)
+    assert allowed["model_invocation_enabled"] is True
+    assert allowed["remote"] is True
+    assert allowed["api_key_configured"] is True
