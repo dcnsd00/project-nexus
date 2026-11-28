@@ -6,8 +6,10 @@ explicit scoped permissions.
 """
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from fnmatch import fnmatchcase
 import ipaddress
+import threading
 from typing import Any
 from uuid import uuid4
 
@@ -185,8 +187,118 @@ def _branch_worker(branch: str | None) -> dict[str, Any] | None:
     ))
 
 
+WORKER_SELF_TEST_TTL_SECONDS = 900
+_WORKER_SELF_TEST_LOCK = threading.Lock()
+_WORKER_SELF_TEST_STATE: dict[str, Any] = {}
+
+
+def _worker_self_test_status() -> dict[str, Any]:
+    provider = ai_provider_status()
+    state = dict(_WORKER_SELF_TEST_STATE)
+    if not state:
+        return {
+            "status": "not_run",
+            "operational_verified": False,
+            "workers_tested": 0,
+            "workers_passed": 0,
+            "expires_at": None,
+        }
+    if (
+        not provider.get("operational_verified")
+        or state.get("provider") != provider.get("provider")
+        or state.get("model") != provider.get("model")
+    ):
+        return {
+            **state,
+            "status": "provider_changed_or_not_live",
+            "operational_verified": False,
+        }
+    try:
+        verified_at = datetime.fromisoformat(state["verified_at"])
+        age = (datetime.now(timezone.utc) - verified_at).total_seconds()
+        fresh = 0 <= age <= WORKER_SELF_TEST_TTL_SECONDS
+    except (KeyError, TypeError, ValueError):
+        fresh = False
+    return {
+        **state,
+        "status": "live_verified" if fresh and state.get("operational_verified") else (
+            "failed" if state.get("status") == "failed" else "expired"
+        ),
+        "operational_verified": bool(fresh and state.get("operational_verified")),
+    }
+
+
+def run_worker_self_test() -> dict[str, Any]:
+    """Probe the provider then invoke every registered worker once, sequentially."""
+    if not _WORKER_SELF_TEST_LOCK.acquire(blocking=False):
+        raise AIProviderError("worker_self_test_already_running")
+    try:
+        provider_probe = probe_ai_provider()
+        worker_results: list[dict[str, Any]] = []
+        for worker in WORKERS:
+            try:
+                result = execute_worker_task(
+                    task_kind="analysis",
+                    domain=worker["domain"],
+                    prompt=(
+                        "NEXUS worker functional smoke test. Identify your assigned domain "
+                        "and return a concise, bounded statement confirming that you can "
+                        "produce a specialist analysis. Do not claim external actions."
+                    ),
+                )
+                output = result.get("worker", {}).get("output")
+                passed = (
+                    isinstance(output, str)
+                    and bool(output.strip())
+                    and result.get("model_invoked") is True
+                    and result.get("side_effects_performed") is False
+                    and result.get("repository_changes") == 0
+                    and result.get("miners_started") == 0
+                    and result.get("wallet_operations") == 0
+                )
+                worker_results.append({
+                    "worker_id": worker["id"],
+                    "domain": worker["domain"],
+                    "status": "passed" if passed else "failed",
+                    "model": result.get("worker", {}).get("model"),
+                    "response_chars": len(output) if isinstance(output, str) else 0,
+                })
+            except Exception as exc:
+                worker_results.append({
+                    "worker_id": worker["id"],
+                    "domain": worker["domain"],
+                    "status": "failed",
+                    "failure_type": type(exc).__name__,
+                })
+
+        passed_count = sum(row["status"] == "passed" for row in worker_results)
+        all_passed = passed_count == len(WORKERS)
+        now = datetime.now(timezone.utc)
+        state = {
+            "status": "live_verified" if all_passed else "failed",
+            "operational_verified": all_passed,
+            "provider": provider_probe["provider"],
+            "model": provider_probe["model"],
+            "verified_at": now.isoformat(),
+            "expires_at": (now.replace(microsecond=0).timestamp() +
+                           WORKER_SELF_TEST_TTL_SECONDS),
+            "workers_tested": len(worker_results),
+            "workers_passed": passed_count,
+            "worker_results": worker_results,
+            "tools_available": False,
+            "tool_calls_executed": 0,
+            "side_effects_performed": False,
+        }
+        _WORKER_SELF_TEST_STATE.clear()
+        _WORKER_SELF_TEST_STATE.update(state)
+        return _worker_self_test_status()
+    finally:
+        _WORKER_SELF_TEST_LOCK.release()
+
+
 def worker_catalog() -> dict[str, Any]:
     provider = ai_provider_status()
+    self_test = _worker_self_test_status()
     enabled = bool(provider.get("model_invocation_enabled"))
     rows = [{
         **row,
@@ -208,6 +320,8 @@ def worker_catalog() -> dict[str, Any]:
         "registered_specialist_count": len(rows) - 1,
         "dispatch_ready_worker_profiles": len(rows) if enabled else 0,
         "provider_live_verified": bool(provider.get("operational_verified")),
+        "worker_self_test": self_test,
+        "operational_verified": bool(self_test.get("operational_verified")),
         "provider": provider,
         "configured_model_providers": provider.get("configured_model_providers", 0),
         "active_ai_agents": 0,
@@ -550,6 +664,16 @@ def worker_provider_test(request: Request) -> dict[str, Any]:
     _require_loopback_client(request)
     try:
         return probe_ai_provider()
+    except AIProviderError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+
+@router.post("/self-test")
+def worker_self_test(request: Request) -> dict[str, Any]:
+    """Run one explicit live provider probe and all eleven specialist smoke tests."""
+    _require_loopback_client(request)
+    try:
+        return run_worker_self_test()
     except AIProviderError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
 
