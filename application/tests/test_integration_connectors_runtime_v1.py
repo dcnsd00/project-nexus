@@ -42,14 +42,21 @@ def test_configured_health_probe_verifies_only_after_a_real_adapter_response(mon
     monkeypatch.setattr(
         registry,
         "_transport_open",
-        lambda request, timeout: FakeResponse({"status": "ok", "service": "aioz-test"}),
+        lambda request, timeout: FakeResponse({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "result": {
+                "node_info": {"network": "aioz-mainnet"},
+                "sync_info": {"latest_block_height": "1"},
+            },
+        }),
     )
 
     result = registry.probe_connector("aioz")
     assert result["status"] == "reachable"
     assert result["operational_verified"] is True
     assert result["http_status"] == 200
-    assert result["response_summary"]["keys"] == ["service", "status"]
+    assert result["response_summary"]["keys"] == ["id", "jsonrpc", "result"]
 
     aioz = next(row for row in registry.connector_status() if row["id"] == "aioz")
     assert aioz["status"] == "live_verified"
@@ -156,7 +163,11 @@ def test_integration_status_counts_live_connector_only_after_success(monkeypatch
     monkeypatch.setattr(
         registry,
         "_transport_open",
-        lambda request, timeout: FakeResponse({"ok": True}),
+        lambda request, timeout: FakeResponse({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "result": {"node_info": {"network": "aioz-mainnet"}, "sync_info": {"latest_block_height": "1"}},
+        }),
     )
     registry.probe_connector("aioz")
     status = registry.integrations_status()
@@ -175,17 +186,39 @@ def test_all_twelve_configured_connector_health_endpoints_can_be_probed(monkeypa
     for item in registry.PROVIDERS:
         suffix = item["id"].upper()
         hostname = f"api-{item['id'].replace('_', '-')}.example"
-        monkeypatch.setenv(item["env"][0], f"https://{hostname}/v1")
+        if item.get("env"):
+            monkeypatch.setenv(item["env"][0], f"https://{hostname}/v1")
         monkeypatch.setenv(f"NEXUS_CONNECTOR_ALLOWED_HOSTS_{suffix}", hostname)
         monkeypatch.setenv(f"NEXUS_{suffix}_HEALTH_PATH", "health")
-        if len(item["env"]) > 1:
-            monkeypatch.setenv(item["env"][1], f"test-token-{item['id']}")
+        for key in item.get("env", ())[1:]:
+            monkeypatch.setenv(key, f"test-credential-{item['id']}")
 
-    monkeypatch.setattr(
-        registry,
-        "_transport_open",
-        lambda request, timeout: FakeResponse({"status": "ok"}),
-    )
+    def provider_response(request, timeout):
+        url = request.full_url
+        if "aioz" in url:
+            payload = {"jsonrpc": "2.0", "id": 1, "result": {
+                "node_info": {"network": "aioz-mainnet"},
+                "sync_info": {"latest_block_height": "1"},
+            }}
+        elif "theta" in url:
+            payload = {"jsonrpc": "2.0", "id": 1, "result": "0x169"}
+        elif "helium" in url:
+            payload = {"items": [], "cursor": None}
+        elif "geodnet" in url:
+            payload = {"code": 1000, "msg": "OK", "data": []}
+        elif "anyone" in url:
+            payload = {"all": 1, "offline": 0, "online": 1}
+        elif "weatherxm" in url:
+            payload = {"total": 1, "online": 1}
+        elif "akash" in url:
+            payload = []
+        elif "nosana" in url:
+            payload = {"total": 0, "byState": {}}
+        else:
+            payload = {"status": "ok"}
+        return FakeResponse(payload)
+
+    monkeypatch.setattr(registry, "_transport_open", provider_response)
     result = registry.run_connector_self_test()
     assert result["status"] == "live_verified"
     assert result["operational_verified"] is True
@@ -221,3 +254,88 @@ def test_connector_live_self_test_api_is_loopback_only(monkeypatch):
                     client=("192.0.2.32", 54332)) as client:
         blocked = client.post("/api/integrations/self-test")
     assert blocked.status_code == 403
+
+
+def test_official_public_connector_defaults_and_contract_metadata_are_registered():
+    rows = {row["id"]: row for row in registry.connector_status(env={})}
+    expected = {
+        "aioz": ("https://rpc-dataseed.aioz.network", "official_rpc_documented"),
+        "theta": ("https://eth-rpc-api.thetatoken.org", "official_json_rpc_documented"),
+        "helium_iot": ("https://entities.nft.helium.io", "official_entity_api_documented"),
+        "geodnet": ("https://rawdata.geodnet.com", "official_basic_auth_station_api_documented"),
+        "anyone": ("https://api.ec.anyone.tech", "official_public_rest_documented"),
+        "weatherxm": ("https://api.weatherxm.com", "official_openapi_documented"),
+        "akash": ("https://console-api.akash.network", "official_public_read_only_network_data_api_documented"),
+        "nosana": ("https://api.nosana.com", "official_api_documented"),
+    }
+    for provider_id, (base_url, contract_state) in expected.items():
+        row = rows[provider_id]
+        assert row["default_url_used"] is True
+        assert row["contract_state"] == contract_state
+        assert registry._PROVIDER_BY_ID[provider_id]["default_base_url"] == base_url
+        assert row["operational_verified"] is False
+
+
+def test_theta_uses_only_read_only_json_rpc_post_methods(monkeypatch):
+    captured = {}
+
+    def fake_transport(request, timeout):
+        captured["url"] = request.full_url
+        captured["method"] = request.get_method()
+        captured["payload"] = json.loads(request.data.decode("utf-8"))
+        return FakeResponse({"jsonrpc": "2.0", "id": 1, "result": "0x169"})
+
+    monkeypatch.setattr(registry, "_transport_open", fake_transport)
+    result = registry.probe_connector("theta")
+    assert captured["url"] == "https://eth-rpc-api.thetatoken.org/rpc"
+    assert captured["method"] == "POST"
+    assert captured["payload"] == {
+        "jsonrpc": "2.0", "method": "eth_chainId", "params": [], "id": 1
+    }
+    assert result["operational_verified"] is True
+
+    resource = registry.read_connector_resource("theta", "public_chain")
+    assert resource["data"]["result"] == "0x169"
+    assert captured["payload"]["method"] == "eth_blockNumber"
+
+
+def test_geodnet_uses_documented_basic_auth_without_exposing_credentials(monkeypatch):
+    monkeypatch.setenv("NEXUS_GEODNET_USERNAME", "geo-user")
+    monkeypatch.setenv("NEXUS_GEODNET_PASSWORD", "geo-password")
+    captured = {}
+
+    def fake_transport(request, timeout):
+        captured["url"] = request.full_url
+        captured["authorization"] = request.get_header("Authorization")
+        return FakeResponse({"code": 1000, "msg": "OK", "data": []})
+
+    monkeypatch.setattr(registry, "_transport_open", fake_transport)
+    result = registry.probe_connector("geodnet")
+    assert captured["url"] == "https://rawdata.geodnet.com/api/rawdata/v1/stations"
+    assert captured["authorization"].startswith("Basic ")
+    assert "geo-user" not in captured["authorization"]
+    assert "geo-password" not in repr(result)
+    assert result["operational_verified"] is True
+
+
+def test_documented_default_public_apis_are_allowlisted_without_user_supplied_host_override(monkeypatch):
+    responses = {
+        "aioz": {"jsonrpc": "2.0", "id": 1, "result": {
+            "node_info": {"network": "aioz-mainnet"}, "sync_info": {"latest_block_height": "1"}
+        }},
+        "helium_iot": {"items": [], "cursor": None},
+        "anyone": {"all": 1, "offline": 0, "online": 1},
+        "weatherxm": {"total": 1, "online": 1},
+        "akash": [],
+        "nosana": {"total": 0, "byState": {}},
+    }
+    def fake_transport(request, timeout):
+        provider_id = next(key for key, item in registry._PROVIDER_BY_ID.items()
+                           if item.get("default_base_url") and item["default_base_url"] in request.full_url)
+        return FakeResponse(responses[provider_id])
+
+    monkeypatch.setenv("NEXUS_NOSANA_API_TOKEN", "nos-test-token")
+    monkeypatch.setattr(registry, "_transport_open", fake_transport)
+    for provider_id in responses:
+        result = registry.probe_connector(provider_id)
+        assert result["operational_verified"] is True
