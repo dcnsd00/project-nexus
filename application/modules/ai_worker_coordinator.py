@@ -23,6 +23,10 @@ from modules.ai_worker_provider import (
     model_for_worker,
     provider_status as ai_provider_status,
 )
+from modules.local_ai_models import (
+    local_runtime_status,
+    model_catalog as local_model_catalog,
+)
 
 
 WORKERS: tuple[dict[str, Any], ...] = (
@@ -323,6 +327,8 @@ def worker_catalog() -> dict[str, Any]:
         "worker_self_test": self_test,
         "operational_verified": bool(self_test.get("operational_verified")),
         "provider": provider,
+        "local_model_catalog_count": local_model_catalog()["count"],
+        "local_open_weight_models_available": True,
         "configured_model_providers": provider.get("configured_model_providers", 0),
         "active_ai_agents": 0,
         "dispatch_mode": "text_only_model_calls" if enabled else "route_preview_only",
@@ -656,6 +662,20 @@ def _require_loopback_client(request: Request) -> None:
 def worker_provider_status(request: Request) -> dict[str, Any]:
     _require_loopback_client(request)
     return ai_provider_status()
+
+
+@router.get("/local-models")
+def worker_local_model_catalog(request: Request) -> dict[str, Any]:
+    """List curated local open-weight model profiles; does not download weights."""
+    _require_loopback_client(request)
+    return local_model_catalog()
+
+
+@router.get("/local-runtime-status")
+def worker_local_runtime_status(request: Request) -> dict[str, Any]:
+    """Probe loopback Ollama and llama.cpp servers without starting either one."""
+    _require_loopback_client(request)
+    return local_runtime_status()
 
 
 @router.post("/provider-test")
