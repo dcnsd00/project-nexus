@@ -26,7 +26,7 @@ A mock, synthetic provider, import test, CI package build or route registration 
 - `application/nexus_master.py` contains **125 direct route decorators**.
 - The **11 mounted routers** in the runtime declare **76 additional route decorators** across the files enumerated below.
 - Source-declared route total: **201**. This is a source inventory; it must still be cross-checked against FastAPI's runtime OpenAPI route table before claiming that every route is actually registered.
-- Branch comparison at audit time: 76 commits ahead of `main`, zero behind. This includes existing work on the branch and is not equivalent to 76 newly completed functions.
+- Latest branch comparison at this revision: 89 commits ahead of `main`, zero behind. This includes the cumulative branch history and is not equivalent to 89 newly completed functions.
 
 ## 3. Module acceptance matrix
 
@@ -331,13 +331,13 @@ Every route below requires an individual contract row in the final acceptance le
 | External integrations | Official endpoint, documented schema, allowlist, TLS, bounded response, auth, rate-limit/failure tests, live probe, data freshness | 12 registered; 8 documented contracts; 4 contract-pending; no owner credentials used |
 | EDGE | Persistent replay guard, restart recovery, transport connection, gateway, key rotation, broker auth, device HIL | CI test coverage exists; physical broker/device HIL pending |
 | DePIN Fieldstation | Device boot, sensor/telemetry path, connectivity loss/recovery, key handling, field deployment | Import/unit tests exist; physical field test pending |
-| Security | CodeQL, Gitleaks, dependency scan, threat model, secret redaction, local-only boundaries, SSRF/redirect tests | Prior scan passed baseline; current PR security workflow re-run required after HMAC/exception-redaction fixes |
-| Regression | Full Linux + Windows shards, RandomX references, Gate/Paper Trading, desktop package on exact candidate SHA | Latest corrected candidate CI is pending; do not rely on earlier cancelled runs |
+| Security | CodeQL, Gitleaks, dependency scan, threat model, secret redaction, local-only boundaries, SSRF/redirect tests | Security Baseline passed on `d13ebb9`; subsequent AI-provider HMAC fingerprint and diagnostic-script changes require a fresh exact-head scan |
+| Regression | Full Linux + Windows shards, RandomX references, Gate/Paper Trading, desktop package on exact candidate SHA | `d13ebb9` passed all 15 CI jobs, Python 922 passed/1 skipped/1 warning/10 subtests, Windows package, RandomX and Gate/Paper Trading; later commits require exact-head rerun |
 
 ## 6. Immediate blockers and next implementation order
 
 1. **Close the failing connector test and security findings.** The AIOZ test was stale against the newer provider-specific response-contract state. The code now uses a keyed HMAC configuration fingerprint and static API error responses to avoid exposing exception detail. These changes require a fresh exact-head CI and CodeQL result.
-2. **Finish AI provider validation.** Add a Windows acceptance script that checks only loopback Ollama/llama.cpp status, model presence, provider probe, one bounded invocation per profile, output validity and resource telemetry. It must not install runtimes, download models or start services without owner action.
+2. **Finish AI provider validation.** Added `DIAGNOSTIC_AI_ACCEPTANCE.ps1`: read-only loopback status checks by default; the real provider probe plus all-11 worker inference is an explicit `-RunLiveAiSelfTest` opt-in. It does not install runtimes, download models or start services. The script still needs Windows PowerShell execution against a configured local provider.
 3. **Finish the connector contract ledger.** For each of the 12 providers, record official endpoint, protocol, auth, resource schema, pagination/rate limits and live probe evidence. Acurast, Grass, Nodle and Wingbits remain blocked until official HTTP/API contracts are established; do not fabricate REST adapters.
 4. **Validate the 19 modules in the real runtime.** The registry's `operational_verified` flag must remain false until the module-specific health evidence and required routes/dependencies pass.
 5. **Run Windows and physical HIL acceptance.** EDGE, mining, DePIN Fieldstation and wallet recovery cannot be declared 100% from GitHub-hosted mocks alone.
@@ -346,8 +346,9 @@ Every route below requires an individual contract row in the final acceptance le
 ## 7. Current validation record
 
 - Last observed Python CI failure before the latest fixes: `256 passed, 1 failed, 1 warning`; the failure was an AIOZ test expecting `reachable` while the implementation returned a provider-contract verification state. The test was updated to expect `live_verified` and `contract_verified=true`.
-- Latest security changes: connector configuration fingerprint changed to process-keyed HMAC; AI worker HTTP handlers now return fixed error codes rather than raw exception strings.
-- These fixes are committed to this feature branch, but **their latest exact-head CI/CodeQL results are not yet confirmed**.
+- Latest security changes: connector and AI-provider configuration fingerprints now use process-keyed HMAC-SHA256; AI worker HTTP handlers return fixed error codes rather than raw exception strings.
+- The corrected baseline commit `d13ebb94466da15132e17f22191f4428be45d61c` passed all 15 NEXUS CI jobs, 922 Python tests (1 skipped, 1 warning, 10 subtests), all eight Windows shards, Windows desktop package, Security Baseline, RandomX references and Gate/Paper Trading.
+- After that successful baseline, the AI-provider fingerprint was also changed to HMAC, a loopback-only Windows diagnostic script was added, and a static safety test was added. These later commits mean **the current exact head still requires a fresh full CI and CodeQL result**.
 - No merge to `main`, no installer delivery and no 100% claim is authorised by this matrix.
 
 ## 8. Audit metadata
@@ -356,8 +357,11 @@ Every route below requires an individual contract row in the final acceptance le
 - `application/modules/wallet_benchmark/nexus_wallet_manager.py`: blob `5e4954ea1f9c5a17180ace97536b8c408a780269`; 9 declared route decorators.
 - `application/modules/wallet_benchmark/nexus_wallet_recovery_api.py`: blob `5c0d4a1e3c14984805c31f500e98fc980b688320`; 10 declared route decorators.
 - `application/modules/earnings_intelligence.py`: blob `35e0895e7c153069220c7d965db4741840aec561`; 19 declared route decorators.
-- `application/modules/integration_registry.py`: blob `89299340804be748116c12c4a697d04ecddaa327`; 5 declared route decorators.
+- `application/modules/integration_registry.py`: blob `8decd8657072d3e465efbbb3b6547a3f63266b3c`; 5 declared route decorators.
 - `application/modules/ai_worker_coordinator.py`: blob `519a2121f3ecb8ef77fadfa58895a98f644aa77b`; 10 declared route decorators.
+- `application/modules/ai_worker_provider.py`: blob `dd2d9504c5c13d9bab1b069580803de69a5d7967`; provider configuration fingerprints use process-keyed HMAC-SHA256.
+- `application/DIAGNOSTIC_AI_ACCEPTANCE.ps1`: blob `66413d140973e05bab7ac489d6355bdc678fcaf8`; read-only local AI/connectors diagnostic with explicit live all-worker self-test opt-in.
+- `application/tests/test_local_ai_models.py`: blob `71b25816ef34f752746af3dc6b6efcf51ac742c4`; verifies the Windows diagnostic remains loopback-only and non-installing.
 - `application/modules/gate_paper_trading.py`: blob `444a5b093d2819beb209187e911c46e397ed0f9f`; 7 declared route decorators.
 - `application/modules/market_data.py`: blob `42112e1f2d2fd8dc93596725f18b15e9dff5f08c`; 6 declared route decorators.
 - `application/modules/rainbowminer_telemetry.py`: blob `066fa592001ef842a0961da88805e66fc21ce0a2`; 4 declared route decorators.
