@@ -1,7 +1,20 @@
 $ErrorActionPreference = 'Stop'
 $Root = Split-Path -Parent $MyInvocation.MyCommand.Path
 Set-Location $Root
-$Version = '0.10.25'
+$VersionManifest = Join-Path $Root 'VERSION.json'
+if (-not (Test-Path $VersionManifest -PathType Leaf)) {
+  throw "NEXUS version manifest is missing: $VersionManifest"
+}
+try {
+  $VersionData = Get-Content -Path $VersionManifest -Raw | ConvertFrom-Json
+  $Version = [string]$VersionData.version
+} catch {
+  throw "NEXUS version manifest is invalid: $($_.Exception.Message)"
+}
+$ParsedVersion = [version]::MinValue
+if ([string]::IsNullOrWhiteSpace($Version) -or -not [version]::TryParse($Version, [ref]$ParsedVersion)) {
+  throw "NEXUS version manifest contains an invalid version: '$Version'."
+}
 $Target = Join-Path $env:LOCALAPPDATA 'Programs\NEXUS'
 $Desktop = [Environment]::GetFolderPath('Desktop')
 $StartMenu = Join-Path $env:APPDATA 'Microsoft\Windows\Start Menu\Programs\NEXUS'

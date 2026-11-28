@@ -35,6 +35,14 @@ def test_dashboard_version_matches_package_manifest():
     assert f">{version}<" in html
 
 
+
+def test_legacy_windows_installer_reads_authoritative_package_version():
+    installer = (ROOT / "INSTALL_NEXUS_WINDOWS.ps1").read_text(encoding="utf-8")
+    assert "VERSION.json" in installer
+    assert "ConvertFrom-Json" in installer
+    assert "$Version = [string]$VersionData.version" in installer
+    assert "$Version = '0.10.25'" not in installer
+
 def _load_desktop_launcher(monkeypatch, *, webview_error=None, browser_result=True):
     uvicorn = types.ModuleType("uvicorn")
     uvicorn.Config = lambda *args, **kwargs: object()
