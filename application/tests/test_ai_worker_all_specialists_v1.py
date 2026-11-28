@@ -140,3 +140,40 @@ def test_worker_live_self_test_api_is_loopback_only(monkeypatch):
                     client=("192.0.2.31", 54331)) as client:
         blocked = client.post("/api/nexus/workers/self-test")
     assert blocked.status_code == 403
+
+
+def test_owner_instructions_are_injected_for_all_specialist_prompts_without_granting_tools(monkeypatch):
+    monkeypatch.setenv(
+        "NEXUS_AI_OWNER_INSTRUCTIONS",
+        "Answer in Romanian. Prioritize NEXUS MASTER implementation over generic discussion.",
+    )
+    worker = coordinator.WORKER_BY_DOMAIN["mining"]
+    route = coordinator.route_task(task_kind="implementation", domain="mining")
+    messages = coordinator._worker_prompt(
+        worker, route, "Prepare a concrete benchmark implementation."
+    )
+    system = messages[0]["content"]
+    assert "Answer in Romanian." in system
+    assert "Prioritize NEXUS MASTER implementation" in system
+    assert "cannot call tools" in system
+    assert "cannot call tools" in system
+    assert set(messages[0]) == {"role", "content"}
+    assert all(set(message) == {"role", "content"} for message in messages)
+
+
+def test_owner_instructions_have_a_bounded_configuration_size(monkeypatch):
+    monkeypatch.setenv("NEXUS_AI_OWNER_INSTRUCTIONS", "x" * 4001)
+    worker = coordinator.WORKER_BY_DOMAIN["mining"]
+    route = coordinator.route_task(task_kind="analysis", domain="mining")
+    import pytest
+    with pytest.raises(ValueError, match="NEXUS_AI_OWNER_INSTRUCTIONS exceeds 4000 characters"):
+        coordinator._worker_prompt(worker, route, "test")
+
+
+def test_worker_catalog_includes_local_open_weight_models_without_claiming_runtime_health(monkeypatch):
+    monkeypatch.setenv("NEXUS_AI_PROVIDER", "disabled")
+    catalog = coordinator.worker_catalog()
+    assert catalog["local_open_weight_models_available"] is True
+    assert catalog["local_model_catalog_count"] >= 5
+    assert catalog["provider_live_verified"] is False
+    assert catalog["operational_verified"] is False
