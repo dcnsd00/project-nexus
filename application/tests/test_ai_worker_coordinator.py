@@ -141,7 +141,7 @@ def test_worker_execution_api_fails_closed_when_provider_is_disabled(monkeypatch
             "prompt": "Compare RandomX benchmark methods.",
         })
     assert response.status_code == 503
-    assert response.json()["detail"] == "ai_provider_not_configured"
+    assert response.json()["detail"] == "ai_provider_unavailable"
 
 
 def test_provider_status_api_never_exposes_environment_api_key(monkeypatch):
@@ -251,10 +251,10 @@ def test_coordinated_worker_rejects_invalid_or_excessive_domains(monkeypatch):
         "ai_provider_status",
         lambda: {"model_invocation_enabled": True, "model": "mock-model"},
     )
-    with pytest.raises(ValueError, match="maximum_three_specialist_domains"):
+    with pytest.raises(ValueError, match="maximum_ten_specialist_domains"):
         coordinator.execute_coordinated_task(
             task_kind="research", prompt="test",
-            domains=["mining", "edge", "wallet", "quality"],
+            domains=["mining"] * 11,
         )
     with pytest.raises(ValueError, match="unknown_or_reserved_specialist_domain"):
         coordinator.execute_coordinated_task(
@@ -283,11 +283,15 @@ def test_coordinated_worker_api_is_loopback_and_invokes_central_specialists(monk
             "side_effects_performed": False,
         },
     )
+    all_specialists = [
+        "mining", "cryptography", "blockchain", "wallet", "edge",
+        "integrations", "dashboard", "earnings", "ai_platform", "quality",
+    ]
     payload = {
         "task_kind": "research",
         "branch": "integration/rainbowminer-mining-intelligence-v1",
-        "domains": ["mining", "integrations"],
-        "prompt": "Review RainbowMiner telemetry and profitability integration.",
+        "domains": all_specialists,
+        "prompt": "Review NEXUS MASTER across all specialist domains.",
     }
     with TestClient(app, base_url="http://127.0.0.1",
                     client=("127.0.0.1", 54322)) as client:
@@ -295,8 +299,11 @@ def test_coordinated_worker_api_is_loopback_and_invokes_central_specialists(monk
     assert response.status_code == 200, response.text
     body = response.json()
     assert body["central_coordinator"]["id"] == "central_coordinator"
-    assert [item["domain"] for item in body["specialists"]] == ["mining", "integrations"]
+    assert len(body["specialists"]) == 9
+    assert {item["domain"] for item in body["specialists"]} == set(all_specialists) - {"quality"}
     assert body["quality_review"]["worker_id"] == "quality_security"
+    assert body["execution_manifest"]["all_eleven_profiles_invoked"] is True
+    assert body["execution_manifest"]["model_calls"] == 11
     assert body["side_effects_performed"] is False
     assert body["repository_changes"] == 0
 
@@ -359,3 +366,83 @@ def test_all_repository_branch_families_route_to_specialists_or_central():
     }
     for branch, domain in expected.items():
         assert route_task(task_kind="research", branch=branch)["domain"] == domain
+
+
+def test_coordinator_can_dispatch_all_ten_specialists_without_duplicate_quality_call(monkeypatch):
+    from modules import ai_worker_coordinator as coordinator
+
+    monkeypatch.setattr(
+        coordinator,
+        "ai_provider_status",
+        lambda: {"model_invocation_enabled": True, "model": "lfm3"},
+    )
+    calls = []
+
+    def fake_chat(messages, model=None):
+        system = messages[0]["content"]
+        if "NEXUS Central Coordinator" in system:
+            role = "central"
+        elif "QA, Security" in system or "Quality, Security" in system:
+            role = "quality"
+        else:
+            role = "specialist"
+        calls.append({"role": role, "model": model})
+        return {
+            "content": f"{role} result",
+            "model": model or "lfm3",
+            "provider": "ollama",
+            "remote": False,
+            "prompt_tokens": 12,
+            "completion_tokens": 18,
+            "tools_available": False,
+            "tool_calls_executed": 0,
+            "side_effects_performed": False,
+        }
+
+    monkeypatch.setattr(coordinator, "chat_completion", fake_chat)
+    all_specialists = [
+        "mining", "cryptography", "blockchain", "wallet", "edge",
+        "integrations", "dashboard", "earnings", "ai_platform", "quality",
+    ]
+    result = coordinator.execute_coordinated_task(
+        task_kind="research",
+        prompt="Audit NEXUS end-to-end and report work packages.",
+        domains=all_specialists,
+    )
+    assert result["central_coordinator"]["id"] == "central_coordinator"
+    assert len(result["specialists"]) == 9
+    assert {row["domain"] for row in result["specialists"]} == set(all_specialists) - {"quality"}
+    assert result["quality_review"]["worker_id"] == "quality_security"
+    assert result["quality_review"]["output"] == "quality result"
+    assert result["execution_manifest"] == {
+        "coordinator_profile": "central_coordinator",
+        "specialist_profiles_requested": all_specialists,
+        "specialist_profiles_invoked": all_specialists,
+        "specialist_profiles_count": 10,
+        "model_calls": 11,
+        "all_ten_specialists_invoked": True,
+        "all_eleven_profiles_invoked": True,
+        "execution_is_sequential": True,
+    }
+    assert len(calls) == 11
+    assert sum(row["role"] == "central" for row in calls) == 1
+    assert sum(row["role"] == "quality" for row in calls) == 1
+    assert sum(row["role"] == "specialist" for row in calls) == 9
+    assert result["side_effects_performed"] is False
+    assert result["repository_changes"] == 0
+    assert result["miners_started"] == 0
+    assert result["wallet_operations"] == 0
+
+
+def test_coordinated_request_schema_accepts_ten_specialist_profiles():
+    from modules.ai_worker_coordinator import WorkerCoordinatedExecuteRequest
+
+    payload = WorkerCoordinatedExecuteRequest(
+        task_kind="research",
+        prompt="Run the full NEXUS specialist review.",
+        domains=[
+            "mining", "cryptography", "blockchain", "wallet", "edge",
+            "integrations", "dashboard", "earnings", "ai_platform", "quality",
+        ],
+    )
+    assert len(payload.domains) == 10

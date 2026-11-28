@@ -1817,14 +1817,24 @@ def rcsc_run_detail(run_id: str):
 from modules.module_registry import build_module_registry  # noqa: E402
 from modules.nexus_runtime import build_runtime  # noqa: E402
 
-def _active_runtime_services():
+def _runtime_evidence():
     manager = getattr(app.state, "nexus_runtime", None)
     if manager is None:
-        return set()
-    return {
-        row["name"] for row in manager.snapshot()["services"]
-        if row["state"] == "running"
-    }
+        return set(), {}
+    # Health probes are local/read-only adapters. They may report provider
+    # status but do not contact upstream APIs or start miners.
+    snapshot = manager.health_check_all()
+    active_services = set()
+    health_by_service = {}
+    for row in snapshot.get("services", []):
+        if row.get("state") == "running":
+            active_services.add(row["name"])
+            health_by_service[row["name"]] = row.get("health") or {}
+    return active_services, health_by_service
+
+
+def _active_runtime_services():
+    return _runtime_evidence()[0]
 
 @app.get("/api/nexus/runtime")
 def nexus_runtime_status():
@@ -1836,21 +1846,35 @@ def nexus_runtime_status():
 
 @app.get("/api/nexus/module-registry")
 def nexus_module_registry():
-    return build_module_registry(ROOT, app, runtime_services=_active_runtime_services())
+    runtime_services, runtime_health = _runtime_evidence()
+    return build_module_registry(
+        ROOT, app, runtime_services=runtime_services, runtime_health=runtime_health
+    )
 
 @app.get("/api/nexus/module-registry/health")
 def nexus_module_registry_health():
-    runtime_services = _active_runtime_services()
-    registry = build_module_registry(ROOT, app, runtime_services=runtime_services)
+    runtime_services, runtime_health = _runtime_evidence()
+    registry = build_module_registry(
+        ROOT, app, runtime_services=runtime_services, runtime_health=runtime_health
+    )
     critical = [m for m in registry["modules"] if m["critical"]]
+    integrations = next((m for m in registry["modules"] if m["id"] == "integrations"), {})
+    ai_workers = next((m for m in registry["modules"] if m["id"] == "ai_worker_coordinator"), {})
     return {
         "critical_modules": len(critical),
         "critical_source_missing": [m["id"] for m in critical if not m["source_present"]],
         "critical_routes_unregistered": [m["id"] for m in critical
                                          if m["source_present"] and m["route_registration_required"]
                                          and not m["registered_routes"]],
-        "operational_verified": False,
-        "note": "This is a structural integration check, not a live functional health test.",
+        "critical_operational_pending": [m["id"] for m in critical
+                                         if not m["operational_verified"]],
+        "modules_total": registry["total"],
+        "modules_operational_verified": registry["operational_verified_modules"],
+        "modules_operational_pending": registry["operational_pending_modules"],
+        "integration_dependencies_verified": integrations.get("external_dependencies_verified"),
+        "ai_workers_operational_verified": ai_workers.get("operational_verified", False),
+        "operational_verified": registry["system_operational_verified"],
+        "policy": registry["policy"],
     }
 
 

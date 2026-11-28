@@ -10,10 +10,14 @@ def test_provider_catalog_has_unique_stable_ids():
     assert set(ids) == {provider["id"] for provider in PROVIDERS}
 
 
-def test_empty_environment_reports_every_provider_unconfigured():
+def test_empty_environment_reports_defaults_as_pending_not_live():
     rows = connector_status(env={})
-    assert all(row["status"] == "not_configured" for row in rows)
+    assert all(
+        row["status"] in {"not_configured", "configured_pending_adapter_validation"}
+        for row in rows
+    )
     assert all(row["live_connection_verified"] is False for row in rows)
+    assert all(row["operational_verified"] is False for row in rows)
     assert all(row["writes_enabled"] is False for row in rows)
 
 

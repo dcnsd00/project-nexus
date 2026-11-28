@@ -88,6 +88,7 @@ def test_ollama_uses_native_api_shape_without_tools(monkeypatch):
     result = provider.chat_completion([{"role": "user", "content": "Test"}])
     assert captured["url"] == "http://127.0.0.1:11434/api/chat"
     assert captured["payload"]["stream"] is False
+    assert captured["payload"]["options"]["num_ctx"] == 8192
     assert "tools" not in captured["payload"]
     assert result["content"] == "Local model response"
     assert result["prompt_tokens"] == 4
@@ -179,3 +180,52 @@ def test_redirect_handler_refuses_302_and_307():
     handler = provider._NoRedirectHandler()
     assert handler.redirect_request(None, None, 302, "Found", {}, "https://evil.invalid/") is None
     assert handler.redirect_request(None, None, 307, "Temporary Redirect", {}, "https://evil.invalid/") is None
+
+
+def test_ollama_context_window_is_configurable_but_bounded(monkeypatch):
+    monkeypatch.setenv("NEXUS_AI_PROVIDER", "ollama")
+    monkeypatch.setenv("NEXUS_AI_MODEL", "qwen3:4b")
+    monkeypatch.setenv("NEXUS_AI_CONTEXT_TOKENS", "4096")
+    captured = {}
+
+    def fake_urlopen(request, timeout):
+        captured["payload"] = json.loads(request.data.decode("utf-8"))
+        return FakeResponse({"message": {"content": "ok"}})
+
+    monkeypatch.setattr(provider, "_transport_open", fake_urlopen)
+    provider.chat_completion([{"role": "user", "content": "test"}])
+    assert captured["payload"]["options"]["num_ctx"] == 4096
+
+    monkeypatch.setenv("NEXUS_AI_CONTEXT_TOKENS", "512")
+    with pytest.raises(provider.AIProviderError, match="context_tokens_out_of_range"):
+        provider.chat_completion([{"role": "user", "content": "test"}])
+
+    monkeypatch.setenv("NEXUS_AI_CONTEXT_TOKENS", "not-a-number")
+    with pytest.raises(provider.AIProviderError, match="invalid_context_configuration"):
+        provider.chat_completion([{"role": "user", "content": "test"}])
+
+
+def test_ollama_allows_per_worker_model_overrides_for_specialist_routing():
+    selected = provider.model_for_worker(
+        "mining",
+        default_model="lfm3",
+        env={
+            "NEXUS_AI_PROVIDER": "ollama",
+            "NEXUS_AI_MODEL": "lfm3",
+            "NEXUS_AI_MODEL_MINING": "qwen3:4b",
+        },
+    )
+    assert selected == "qwen3:4b"
+
+
+def test_llamacpp_lfm3_pins_worker_to_the_loaded_model():
+    selected = provider.model_for_worker(
+        "mining",
+        default_model="LiquidAI/LFM3-1.7B-GGUF:Q4_K_M",
+        env={
+            "NEXUS_AI_PROVIDER": "lfm3-local",
+            "NEXUS_LFM3_MODEL": "LiquidAI/LFM3-1.7B-GGUF:Q4_K_M",
+            "NEXUS_AI_MODEL_MINING": "gpt-oss:20b",
+        },
+    )
+    assert selected == "LiquidAI/LFM3-1.7B-GGUF:Q4_K_M"
