@@ -18,7 +18,7 @@ MODULES: tuple[dict[str, Any], ...] = (
     {"id": "market_data", "name": "Public Market Data", "paths": ("modules/market_data.py",), "route_prefixes": ("/api/market-data",), "runtime_service": "market_data", "critical": False},
     {"id": "rainbowminer_telemetry", "name": "RainbowMiner Read-only Telemetry", "paths": ("modules/rainbowminer_telemetry.py",), "route_prefixes": ("/api/mining/rainbowminer",), "runtime_service": "rainbowminer_telemetry", "critical": False},
     {"id": "mining_profit_intelligence", "name": "Mining Profit Intelligence", "paths": ("modules/mining_profit_intelligence.py",), "route_prefixes": ("/api/mining/profit-intelligence",), "critical": False},
-    {"id": "ai_worker_coordinator", "name": "NEXUS AI Worker Coordinator", "paths": ("modules/ai_worker_coordinator.py",), "route_prefixes": ("/api/nexus/workers",), "runtime_service": "ai_worker_coordinator", "critical": False},
+    {"id": "ai_worker_coordinator", "name": "NEXUS AI Worker Coordinator", "paths": ("modules/ai_worker_coordinator.py", "modules/ai_worker_provider.py", "modules/local_ai_models.py"), "route_prefixes": ("/api/nexus/workers",), "runtime_service": "ai_worker_coordinator", "critical": False},
     {"id": "gate_info", "name": "Gate Info Research & Paper Trading", "paths": ("modules/gate_paper_trading.py",), "route_prefixes": ("/api/gate", "/gate-paper"), "critical": False},
     {"id": "math_intelligence", "name": "Math Intelligence", "paths": ("modules/math_intelligence.py",), "route_prefixes": ("/api/math",), "critical": False},
     {"id": "puzzle_solver", "name": "Multi-Method Puzzle Solver", "paths": ("modules/puzzle_solver.py",), "route_prefixes": ("/api/puzzles",), "runtime_service": "puzzle_solver", "critical": False},
