@@ -322,6 +322,13 @@ def _market_data_probe(module: Any) -> dict[str, Any]:
     }
 
 
+def _rainbowminer_telemetry_probe(module: Any) -> dict[str, Any]:
+    status = module.telemetry_status()
+    return {"source": status["source"], "ingest_mode": status["ingest_mode"],
+            "reports_stored": status["reports_stored"],
+            "network_calls_by_probe": False, "commands_executed": 0}
+
+
 def _fieldstation_probe(module: Any) -> dict[str, Any]:
     return {"host": module.HOST, "port": module.PORT,
             "data_directory": str(module.DATA_DIR),
