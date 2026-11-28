@@ -362,6 +362,41 @@ def read_connector_resource(
     }
 
 
+def run_connector_self_test() -> dict[str, Any]:
+    """Probe every registered connector that has a real local configuration."""
+    results: list[dict[str, Any]] = []
+    for item in PROVIDERS:
+        try:
+            probe = probe_connector(item["id"])
+            results.append({
+                "provider_id": item["id"],
+                "status": "passed",
+                "operational_verified": True,
+                "http_status": probe["http_status"],
+                "resource_path": probe["resource_path"],
+            })
+        except ConnectorError as exc:
+            reason = str(exc)
+            results.append({
+                "provider_id": item["id"],
+                "status": "not_configured" if reason == "connector_not_configured" else "failed",
+                "operational_verified": False,
+                "reason": reason,
+            })
+
+    passed = sum(row["status"] == "passed" for row in results)
+    return {
+        "status": "live_verified" if passed == len(PROVIDERS) else "partial",
+        "operational_verified": passed == len(PROVIDERS),
+        "connectors_tested": len(results),
+        "connectors_passed": passed,
+        "connectors_failed_or_unconfigured": len(results) - passed,
+        "read_only": True,
+        "writes_enabled": False,
+        "results": results,
+    }
+
+
 def _require_loopback_client(request: FastAPIRequest) -> None:
     client = request.client
     host = client.host if client else ""
@@ -401,6 +436,13 @@ def integrations_status():
         "operational_verified": sum(x["operational_verified"] for x in rows),
         "providers": rows,
     }
+
+
+@router.post("/self-test")
+def integrations_self_test(request: FastAPIRequest):
+    """Explicitly test each configured connector's health endpoint."""
+    _require_loopback_client(request)
+    return run_connector_self_test()
 
 
 @router.post("/{provider_id}/probe")
