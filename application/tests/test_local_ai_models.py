@@ -160,9 +160,9 @@ def test_explicit_ollama_model_pull_uses_only_allowlisted_model_and_tracks_progr
     class FakePullResponse:
         def __init__(self):
             self.lines = [
-                b'{"status":"pulling manifest"}\\n',
-                b'{"status":"downloading","total":100,"completed":100}\\n',
-                b'{"status":"success"}\\n',
+                b'{"status":"pulling manifest"}\n',
+                b'{"status":"downloading","total":100,"completed":100}\n',
+                b'{"status":"success"}\n',
             ]
 
         def __enter__(self):
