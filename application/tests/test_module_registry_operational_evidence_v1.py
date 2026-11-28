@@ -161,3 +161,55 @@ def test_integrations_module_requires_all_registered_external_connectors(tmp_pat
     )
     assert complete["modules"][0]["operational_verified"] is True
     assert complete["system_operational_verified"] is True
+
+
+def test_edge_manager_requires_transport_and_hardware_in_loop_evidence(tmp_path):
+    (tmp_path / "nexus_edge").mkdir()
+    (tmp_path / "nexus_edge" / "service.py").write_text("VALUE = 1", encoding="utf-8")
+    item = {
+        "id": "edge_manager",
+        "name": "NEXUS EDGE Manager",
+        "paths": ("nexus_edge/service.py",),
+        "route_prefixes": (),
+        "runtime_service": "edge_manager",
+        "critical": False,
+    }
+    local_only = build_module_registry(
+        tmp_path,
+        modules=(item,),
+        runtime_services=("edge_manager",),
+        runtime_health={"edge_manager": {
+            "ok": True,
+            "details": {
+                "mode": "in_memory_pilot",
+                "network_io_enabled": False,
+            },
+        }},
+    )
+    assert local_only["modules"][0]["runtime_health_ok"] is True
+    assert local_only["modules"][0]["operational_verified"] is False
+    assert local_only["modules"][0]["verification_reason"] == "edge_transport_integration_required"
+
+    transport_only = build_module_registry(
+        tmp_path,
+        modules=(item,),
+        runtime_services=("edge_manager",),
+        runtime_health={"edge_manager": {
+            "ok": True,
+            "details": {"transport_connected": True, "hardware_in_loop_passed": False},
+        }},
+    )
+    assert transport_only["modules"][0]["operational_verified"] is False
+    assert transport_only["modules"][0]["verification_reason"] == "edge_hardware_in_loop_acceptance_required"
+
+    complete = build_module_registry(
+        tmp_path,
+        modules=(item,),
+        runtime_services=("edge_manager",),
+        runtime_health={"edge_manager": {
+            "ok": True,
+            "details": {"transport_connected": True, "hardware_in_loop_passed": True},
+        }},
+    )
+    assert complete["modules"][0]["operational_verified"] is True
+    assert complete["modules"][0]["external_dependencies_verified"] is True
