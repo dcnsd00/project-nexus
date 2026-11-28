@@ -16,6 +16,11 @@ def test_catalog_registers_lfm3_and_apache_licensed_gpt_oss_without_installing()
     assert profiles["lfm3-text"]["license_family"] == "Apache-2.0-based-with-commercial-revenue-condition"
     assert profiles["gpt-oss-20b"]["license"] == "Apache License 2.0"
     assert profiles["gpt-oss-20b"]["minimum_system_memory_gb"] == 16
+    assert profiles["qwen3-4b"]["ollama_model"] == "qwen3:4b"
+    assert profiles["qwen3-4b"]["license"] == "Apache License 2.0"
+    assert profiles["deepseek-r1-1-5b"]["ollama_model"] == "deepseek-r1:1.5b"
+    assert profiles["deepseek-r1-1-5b"]["license"] == "MIT License"
+    assert profiles["deepseek-r1-7b"]["approx_quantized_weights_gb"] == 4.7
     assert all(row["download_required"] is True for row in profiles.values())
     assert catalog["policy"].startswith("Catalogue only")
 
