@@ -322,6 +322,13 @@ def _market_data_probe(module: Any) -> dict[str, Any]:
     }
 
 
+def _rainbowminer_telemetry_probe(module: Any) -> dict[str, Any]:
+    status = module.telemetry_status()
+    return {"source": status["source"], "ingest_mode": status["ingest_mode"],
+            "reports_stored": status["reports_stored"],
+            "network_calls_by_probe": False, "commands_executed": 0}
+
+
 def _fieldstation_probe(module: Any) -> dict[str, Any]:
     return {"host": module.HOST, "port": module.PORT,
             "data_directory": str(module.DATA_DIR),
@@ -584,6 +591,15 @@ def build_runtime(
                 "modules.ai_worker_coordinator", _ai_worker_probe, "AI Worker Coordinator"
             ),
             dependencies=("crypto_engine", "data_paths"), critical=False,
+        ))
+    if (base / "modules" / "rainbowminer_telemetry.py").is_file():
+        manager.register(ServiceSpec(
+            name="rainbowminer_telemetry",
+            factory=lambda: ModuleAdapter(
+                "modules.rainbowminer_telemetry", _rainbowminer_telemetry_probe,
+                "RainbowMiner Read-only Telemetry"
+            ),
+            dependencies=("data_paths",), critical=False,
         ))
     if (base / "adapters" / "fieldstation" / "crypto_fieldstation" / "app.py").is_file():
         manager.register(ServiceSpec(

@@ -1,7 +1,7 @@
 {
   "product": "NEXUS MASTER",
-  "version": "0.10.27",
-  "build": "windows-frozen-desktop-one-click-package + ai-worker-routing + shared-mining-supervisor + thermal-guard",
+  "version": "0.10.28",
+  "build": "windows-frozen-desktop-one-click-package + multi-domain-ai-coordination + rainbowminer-read-only-telemetry + mining-profit-intelligence + shared-mining-supervisor + thermal-guard",
   "created_utc": "2026-11-19",
   "base": "0.10.20 + corrected native C scanner and optional Stratum backend",
   "mining_catalog": {
@@ -161,7 +161,7 @@
     "decrypts": false,
     "modifies": false
   },
-  "updated": "2026-11-26",
+  "updated": "2026-11-28",
   "wallet_recovery": {
     "search_api": "/api/wallet/recovery/search",
     "bitcoin_core_inspect_api": "/api/wallet/recovery/bitcoin-core/inspect",
@@ -329,7 +329,14 @@
     "specialist_domains": 11,
     "configured_model_providers": 0,
     "active_ai_agents": 0,
-    "model_invocation_enabled": false
+    "model_invocation_enabled": false,
+    "coordinated_execution_api": "/api/nexus/workers/coordinate",
+    "dispatch_mode": "central_then_sequential_specialists",
+    "max_specialist_domains_per_task": 3,
+    "qa_review_for_multi_domain": true,
+    "tool_access": false,
+    "shell_access": false,
+    "repository_write_access": false
   },
   "mining_safety": {
     "status_api": "/api/mining/safety/status",
@@ -343,5 +350,51 @@
     "automatic_fan_curve_changes": false,
     "hardware_validation": "pending_on_target_laptop"
   },
-  "reference_benchmarks": "/api/mining/reference-benchmarks"
+  "reference_benchmarks": "/api/mining/reference-benchmarks",
+  "rainbowminer_integration": {
+    "source_repository": "RainbowMiner/RainbowMiner",
+    "source_license": "GPL-3.0",
+    "integration_method": "independent documented-format implementation; no RainbowMiner source transplanted",
+    "report_endpoint": "/api/mining/rainbowminer/report",
+    "status_endpoint": "/api/mining/rainbowminer/status",
+    "authentication_env": "NEXUS_RAINBOWMINER_REPORT_KEY",
+    "transport": "application/x-www-form-urlencoded or application/json",
+    "access_policy": "loopback_only",
+    "storage": "central NEXUS data directory SQLite; maximum 500 reports",
+    "sensitive_fields_persisted": false,
+    "commands_executed": false,
+    "miners_started": false,
+    "pool_configuration_changed": false,
+    "live_reports_received": 0,
+    "target_hardware_validated": false,
+    "extra_payloads": [
+      "minerdata",
+      "poolsdata"
+    ],
+    "extra_payload_transport": "authenticated multipart/form-data file upload",
+    "extra_payload_max_bytes": 5242880,
+    "read_only_snapshot_endpoints": [
+      "/api/mining/rainbowminer/miners/latest",
+      "/api/mining/rainbowminer/pools/latest"
+    ],
+    "oc_profiles_persisted": false
+  },
+  "mining_profit_intelligence": {
+    "status_endpoint": "/api/mining/profit-intelligence/status",
+    "ranking_endpoint": "/api/mining/profit-intelligence/rank",
+    "currency": "RON",
+    "period": "day",
+    "price_model": "explicit stable/live blend",
+    "default_live_price_weight": 0.5,
+    "default_switch_hysteresis_percent": 3,
+    "maximum_source_age_seconds": 900,
+    "requires_independently_verified_inputs": true,
+    "external_price_fetch": false,
+    "automatic_switching": false,
+    "miner_control": false,
+    "live_profitability_validated": false
+  },
+  "dependencies": [
+    "python-multipart>=0.0.31,<1"
+  ]
 }

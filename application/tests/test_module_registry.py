@@ -110,3 +110,14 @@ def test_public_market_data_module_is_registered_as_route_and_runtime_service():
     assert market_data["route_prefixes"] == ("/api/market-data",)
     assert market_data["runtime_service"] == "market_data"
     assert market_data["critical"] is False
+
+
+def test_rainbowminer_modules_are_registered_without_claiming_live_operation():
+    telemetry = next(item for item in MODULES if item["id"] == "rainbowminer_telemetry")
+    profit = next(item for item in MODULES if item["id"] == "mining_profit_intelligence")
+    assert telemetry["paths"] == ("modules/rainbowminer_telemetry.py",)
+    assert telemetry["route_prefixes"] == ("/api/mining/rainbowminer",)
+    assert telemetry["runtime_service"] == "rainbowminer_telemetry"
+    assert profit["paths"] == ("modules/mining_profit_intelligence.py",)
+    assert profit["route_prefixes"] == ("/api/mining/profit-intelligence",)
+    assert "runtime_service" not in profit

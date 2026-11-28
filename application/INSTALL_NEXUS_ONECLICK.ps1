@@ -46,7 +46,7 @@ function Ensure-WebView2Runtime {
 
 try {
     Write-Host ''
-    Write-Host 'NEXUS MASTER 0.10.27 — one-click desktop installation' -ForegroundColor Cyan
+    Write-Host 'NEXUS MASTER 0.10.28 — one-click desktop installation' -ForegroundColor Cyan
     $source = Join-Path $PackageRoot 'dist\NEXUS'
     $sourceExe = Join-Path $source 'NEXUS.exe'
     $sourceInternal = Join-Path $source '_internal'
@@ -57,7 +57,7 @@ try {
     if (-not (Test-Path $manifestPath)) { throw 'Package integrity manifest is missing.' }
 
     $manifest = Get-Content $manifestPath -Raw | ConvertFrom-Json
-    if ($manifest.version -ne '0.10.27') { throw "Package version mismatch: $($manifest.version)." }
+    if ($manifest.version -ne '0.10.28') { throw "Package version mismatch: $($manifest.version)." }
     foreach ($entry in $manifest.files) {
         $filePath = Join-Path $source $entry.path
         if (-not (Test-Path $filePath -PathType Leaf)) { throw "Package file missing: $($entry.path)" }

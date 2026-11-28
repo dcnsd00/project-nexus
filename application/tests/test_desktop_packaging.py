@@ -17,6 +17,7 @@ def test_one_click_installer_and_frozen_desktop_entrypoint_exist():
     assert "--self-test" in launcher
     assert "TestClient(nexus_app)" in launcher
     assert "127.0.0.1" in launcher
+    assert "opening NEXUS in the default browser" in launcher
 
 
 def test_frozen_spec_bundles_runtime_resources():
@@ -29,22 +30,41 @@ def test_frozen_spec_bundles_runtime_resources():
 def test_dashboard_version_matches_package_manifest():
     version = json.loads((ROOT / "VERSION.json").read_text(encoding="utf-8"))["version"]
     html = (ROOT / "dashboard.html").read_text(encoding="utf-8")
-    assert version == "0.10.27"
+    assert version == "0.10.28"
     assert f"CONTROL CENTER · {version}" in html
     assert f">{version}<" in html
 
 
-def _load_desktop_launcher(monkeypatch):
+def _load_desktop_launcher(monkeypatch, *, webview_error=None, browser_result=True):
     uvicorn = types.ModuleType("uvicorn")
     uvicorn.Config = lambda *args, **kwargs: object()
     uvicorn.Server = type("Server", (), {})
+    class Event:
+        def __init__(self):
+            self.callback = None
+
+        def __iadd__(self, callback):
+            self.callback = callback
+            return self
+
+    event = Event()
     webview = types.ModuleType("webview")
-    webview.create_window = lambda *args, **kwargs: None
-    webview.start = lambda *args, **kwargs: None
+    webview.create_window = lambda *args, **kwargs: types.SimpleNamespace(
+        events=types.SimpleNamespace(closed=event)
+    )
+    if webview_error:
+        def fail_start(*args, **kwargs):
+            raise webview_error
+        webview.start = fail_start
+    else:
+        webview.start = lambda *args, **kwargs: None
+    browser = types.ModuleType("webbrowser")
+    browser.open = lambda *args, **kwargs: browser_result
     nexus_master = types.ModuleType("nexus_master")
     nexus_master.app = object()
     monkeypatch.setitem(sys.modules, "uvicorn", uvicorn)
     monkeypatch.setitem(sys.modules, "webview", webview)
+    monkeypatch.setitem(sys.modules, "webbrowser", browser)
     monkeypatch.setitem(sys.modules, "nexus_master", nexus_master)
     return runpy.run_path(str(ROOT / "START_NEXUS_DESKTOP.pyw"))
 
@@ -90,10 +110,49 @@ def test_desktop_launcher_readiness_uses_its_own_server_state(monkeypatch):
     assert launcher["wait_ready"](StoppedServer(), StoppedThread(), timeout=1.0) is False
 
 
+def test_embedded_webview_success_keeps_native_window_path(monkeypatch):
+    launcher = _load_desktop_launcher(monkeypatch)
+
+    class Server:
+        should_exit = False
+
+    server = Server()
+    assert launcher["launch_desktop_ui"](server, "http://127.0.0.1:8765/api/nexus/dashboard") == "embedded"
+
+
+def test_pythonnet_or_webview_failure_falls_back_to_default_browser(monkeypatch, tmp_path):
+    launcher = _load_desktop_launcher(
+        monkeypatch, webview_error=RuntimeError("Python.Runtime.Loader.Initialize failed")
+    )
+    launcher["write_launcher_log"].__globals__["ROOT"] = tmp_path
+
+    class Server:
+        should_exit = False
+
+    assert launcher["launch_desktop_ui"](Server(), "http://127.0.0.1:8765/api/nexus/dashboard") == "browser"
+    log = (tmp_path / "logs" / "desktop-launcher.log").read_text(encoding="utf-8")
+    assert "Python.Runtime.Loader.Initialize failed" in log
+    assert "default browser" in log
+
+
+def test_browser_fallback_failure_is_reported(monkeypatch, tmp_path):
+    launcher = _load_desktop_launcher(
+        monkeypatch, webview_error=RuntimeError("pythonnet failure"), browser_result=False
+    )
+    launcher["ROOT"] = tmp_path
+
+    class Server:
+        should_exit = False
+
+    with pytest.raises(RuntimeError, match="browserul implicit"):
+        launcher["launch_desktop_ui"](Server(), "http://127.0.0.1:8765/api/nexus/dashboard")
+
+
 def test_windows_desktop_package_runs_on_main_and_preserves_existing_triggers():
     workflow_path = ROOT.parent / ".github" / "workflows" / "nexus-desktop-package.yml"
     if not workflow_path.is_file():
         pytest.skip("GitHub workflow definitions are not included in the Windows runtime artifact")
     workflow = workflow_path.read_text(encoding="utf-8")
     assert 'branches: ["main", "feature/edge-replay-protection-sqlite-v1", "feature/nexus-ai-worker-mining-safety-v1"]' in workflow
+    assert "pull_request:" in workflow
     assert "workflow_dispatch:" in workflow

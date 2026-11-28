@@ -71,3 +71,13 @@ Provider health is **configured, not live verified** until an explicit execute r
 ## Validation
 
 Tests use a fake HTTP transport and synthetic provider responses. They cover disabled-by-default behavior, local and explicitly allowlisted remote configuration, redirect refusal, proxy bypass, loopback API access, text-only dispatch and QA review. They do not contact a local Ollama server or remote provider and do not prove a model is installed.
+
+
+## Central multi-specialist coordination — 0.10.28 candidate
+
+- `POST /api/nexus/workers/coordinate` performs one bounded on-demand workflow: NEXUS Central Coordinator → up to three selected domain specialists → QA/security review when the task is mutating or spans multiple domains.
+- Branch patterns now include the main NEXUS integration families (AI workers, mining/RainbowMiner, crypto/math/PHY, EDGE/Fieldstation, market-data/provider, desktop and security).
+- Calls are sequential to respect the single provider request slot and reduce local VRAM contention.
+- Each specialist can use a per-domain model override such as `NEXUS_AI_MODEL_MINING`; all share the configured provider endpoint in this increment.
+- The provider remains disabled until a model and endpoint are configured. No provider or model is live-verified by the source change itself.
+- The workflow is text-only and recommendation-only. It does not read GitHub or local files, execute tools, run shell commands, edit branches, commit, merge, start miners or access wallets. Source evidence must be supplied in the request; repository-aware tool access is a later, separately permissioned increment.
