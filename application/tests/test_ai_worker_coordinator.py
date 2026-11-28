@@ -407,6 +407,16 @@ def test_coordinator_can_dispatch_all_ten_specialists_without_duplicate_quality_
     assert {row["domain"] for row in result["specialists"]} == set(all_specialists) - {"quality"}
     assert result["quality_review"]["worker_id"] == "quality_security"
     assert result["quality_review"]["output"] == "quality result"
+    assert result["execution_manifest"] == {
+        "coordinator_profile": "central_coordinator",
+        "specialist_profiles_requested": all_specialists,
+        "specialist_profiles_invoked": all_specialists,
+        "specialist_profiles_count": 10,
+        "model_calls": 11,
+        "all_ten_specialists_invoked": True,
+        "all_eleven_profiles_invoked": True,
+        "execution_is_sequential": True,
+    }
     assert len(calls) == 11
     assert sum(row["role"] == "central" for row in calls) == 1
     assert sum(row["role"] == "quality" for row in calls) == 1
