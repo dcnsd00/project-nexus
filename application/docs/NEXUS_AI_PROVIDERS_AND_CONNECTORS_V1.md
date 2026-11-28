@@ -119,6 +119,15 @@ The model catalogue and runtime discovery do not install weights, run shell comm
 
 Model pulls are explicit, local-only owner actions. NEXUS first verifies that the configured Ollama API is already reachable on loopback, then sends the fixed catalog model name to Ollama's `/api/pull` stream. Only one model pull may run at a time. The pull endpoint accepts a profile ID, not an arbitrary model name or URL. It does not use a shell, install the Ollama runtime, or start a service. Pull progress is held in memory and is available while this NEXUS process is running; a NEXUS restart does not preserve the in-memory progress handle. A completed download is not an inference test and does not set `operational_verified`.
 
+Example: after Ollama is already installed and running on the same computer, request one catalogued model download and poll its progress:
+
+```powershell
+Invoke-RestMethod -Method Post -Uri "http://127.0.0.1:8000/api/nexus/workers/local-models/qwen3-4b/pull"
+Invoke-RestMethod -Method Get -Uri "http://127.0.0.1:8000/api/nexus/workers/local-models/pulls/qwen3-4b"
+```
+
+Replace `qwen3-4b` with another profile ID from the catalog. This is an owner-initiated download request, not a command that NEXUS runs automatically. The API returns only the model pull state; run the provider test and all-worker self-test after the pull has completed.
+
 
 ### Owner-controlled model behaviour
 
