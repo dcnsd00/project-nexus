@@ -43,7 +43,7 @@ def assess_bitcoin_peer_privacy(peer_rows: Any) -> dict[str, Any]:
             "clearnet_unknown_relay_peers": 0, "onion_peers": 0, "i2p_peers": 0,
             "other_network_peers": 0, "unknown_network_peers": 0,
             "wallet_state": "not_inspected", "wallet_broadcast_setting": "not_inspected",
-            "addresses_or_transactions_read": False, "peer_addresses_returned": False,
+            "peer_address_fields_inspected": False,\n            "transaction_data_inspected": False, "peer_addresses_returned": False,
             "actions_taken": [],
             "finding": "Bitcoin Core peer metadata was unavailable or malformed.",
         }
