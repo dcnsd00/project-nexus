@@ -126,7 +126,7 @@ def test_local_runtime_status_api_is_loopback_only_and_reports_no_autostart(monk
         },
         "any_runtime_reachable": False,
         "local_model_operational_verified": False,
-        "policy": "Loopback discovery only.",
+        "policy": "Loopback discovery only. A reachable API is not proof that a model can infer correctly.",
     }
     monkeypatch.setattr(coordinator, "local_runtime_status", lambda: expected)
     with TestClient(
