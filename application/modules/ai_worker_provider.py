@@ -71,6 +71,17 @@ def _bounded_timeout(env: Mapping[str, str]) -> float:
     return value
 
 
+def _bounded_context_tokens(env: Mapping[str, str]) -> int:
+    raw = env.get("NEXUS_AI_CONTEXT_TOKENS", "8192")
+    try:
+        value = int(raw)
+    except (TypeError, ValueError):
+        raise AIProviderError("invalid_context_configuration") from None
+    if not 1024 <= value <= 262144:
+        raise AIProviderError("context_tokens_out_of_range")
+    return value
+
+
 def _safe_config(env: Mapping[str, str]) -> ProviderConfig | None:
     raw_provider = str(env.get("NEXUS_AI_PROVIDER", "disabled")).strip().casefold()
     if raw_provider in {"", "disabled", "none", "off"}:
@@ -450,7 +461,10 @@ def chat_completion(
             "model": effective_model,
             "messages": normalized,
             "stream": False,
-            "options": {"temperature": 0.2},
+            "options": {
+                "temperature": 0.2,
+                "num_ctx": _bounded_context_tokens(source),
+            },
         }
     elif config.protocol == "anthropic":
         system_text = "\n\n".join(m["content"] for m in normalized if m["role"] == "system")
