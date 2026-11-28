@@ -1,13 +1,14 @@
 # NEXUS LFM3 + CORE SECURITY — Experimental Audit
 
-**Status:** experimental branch; integration is isolated from `main`  
-**Branch:** `experiment/lfm3-core-security-lab-v1`  
-**Parent baseline:** `feature/edge-replay-protection-sqlite-v1` at `d5e8901a72c8a55e9dc92e69b5cdaa026f25e6c6`  
+**Status:** optional LFM3 adapter and security scaffolding are present on `main`; local inference and the VPN pilot are not operationally validated  
+**Original experiment branch:** `experiment/lfm3-core-security-lab-v1` (preserved; 0 commits ahead / 19 behind current `main`)  
+**Original parent baseline:** `feature/edge-replay-protection-sqlite-v1` at `d5e8901a72c8a55e9dc92e69b5cdaa026f25e6c6`  
+**Current canonical baseline:** `main` at `516bb3ca7859159c962b455e55cded01e51d9224`  
 **Scope:** local LFM3 provider adapter, source-code reuse assessment, and security architecture proposal.
 
 ## 1. Guardrails
 
-- No changes are made to `main`.
+- The original experiment was developed in isolation; selected adapter and security components were subsequently integrated into `main` through reviewed PRs. The experiment branch is preserved as history, not treated as the active integration branch.
 - LFM3 is an optional provider. Existing OpenAI Responses API behavior remains the default.
 - Selecting LFM3 is explicit through `NEXUS_AI_PROVIDER=lfm3-local`; provider failures do not silently fall back to a cloud provider.
 - The model cannot execute tools, shell commands, mining actions, wallet actions, or network changes.
@@ -51,11 +52,11 @@ An optional `NEXUS_LFM3_API_KEY` is sent as a bearer token when the local infere
 
 ## 3. NEXUS EDGE baseline: verified source-level capabilities
 
-The audited branch already contains these implementation elements:
+Current `main` contains these source-level implementation elements:
 
 - HMAC-SHA256 signed node requests and signed task results;
 - monotonic sequence numbers and persistent SQLite anti-replay protection;
-- SQLite persistence for nodes, tasks, leases, and telemetry;
+- SQLite schema-v4 persistence for nodes, tasks, leases, and telemetry;
 - Fernet encryption of stored node credentials, with the encryption key supplied out-of-band;
 - operator bearer-token authentication for provisioning and management endpoints;
 - node provisioning, credential rotation, revocation, capability checks, and task leases;
@@ -209,3 +210,14 @@ No single CAPTCHA, WAF, VPN, or model can reliably identify every automated clie
 ## 8. Latest verification and scan triage
 
 See [SECURITY_TRIAGE_2026-11-25.md](SECURITY_TRIAGE_2026-11-25.md) for the latest AIScan counts, manual triage of returned findings, and the current CI evidence. The scan's unreturned findings remain open for review.
+
+
+## 7. Current integration state — 2026-11-25
+
+- The LFM3 adapter and its tests are present on current main. The original experiment branch is 0 commits ahead and 19 behind main; keep it as historical context and do not use it as the integration target.
+- OpenAI Responses API remains the default. LFM3 selection is explicit; the adapter sends bounded requests to an independently managed OpenAI-compatible server and never executes model-proposed tools or commands.
+- The adapter and tests do not include model weights or an inference server. No local LFM3 model has been downloaded, launched or benchmarked on the owner's laptop.
+- Current main includes the CORE loopback guard, EDGE HMAC/replay/lease/SQLite/Fernet controls, the deny-all Headscale policy scaffold and tests, and the Coraza/Caddy detection-only pilot scaffold. CI validates the Coraza build/configuration; it does not install or run WAF on the user's machine.
+- Headscale policy remains explicitly deny-all (`grants: []`). Its tests validate JSON structure, deny-all behavior and absence of private key material. No Headscale control plane, Tailscale peer, route, ACL allow rule or VPN pilot is deployed.
+- CrowdSec has only an acquisition example; no engine or bouncer is installed. No EDR/endpoint agent is active.
+- Acceptance still requires a controlled VPN pilot with explicit deny-by-default ACLs, Windows/Linux reachability checks, node-revocation tests, and actual host startup/shutdown/log review. Do not mark the security lab operational before these gates pass.

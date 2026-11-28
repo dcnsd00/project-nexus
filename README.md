@@ -1,21 +1,27 @@
-# NEXUS
+# NEXUS MASTER
 
-NEXUS is a modular research and software project. This repository is the canonical GitHub workspace for source code, implementation notes, tests, and release history.
+NEXUS is a local-first, modular-monolith research and software project. This repository is the canonical source for application code, implementation notes, tests, CI evidence, and release history.
 
 ## Development rules
 
-- Treat implementation, integration, testing, and hardware validation as separate states.
-- Never mark a feature complete without reproducible evidence.
-- Keep changes small, reviewable, and covered by tests.
-- Do not disable Windows Defender or add broad security exclusions.
+- Treat source presence, implementation, testing, integration, and hardware validation as separate states.
+- Never mark a feature operational without reproducible evidence from the relevant boundary.
+- Keep changes small, reviewable, and covered by tests; integrate through focused pull requests.
+- Preserve existing package ownership and module boundaries. Do not create parallel CORE, EDGE, mining, wallet, or provider implementations.
 - Preserve Windows 11 and Python 3.12 compatibility where applicable.
-- Record each implementation step in `NEXUS_STATUS.md` and a dated changelog under `changelog/`.
-- Do not commit secrets, wallet seed phrases, private keys, API tokens, or personal data.
+- Record material implementation steps in `NEXUS_STATUS.md` and a dated entry under `changelog/`.
+- Do not disable Windows Defender or add broad security exclusions.
+- Never commit wallet seeds, private keys, pool credentials, API tokens, or personal data.
 
-## Current state
+## Repository state — 2026-11-27
 
-The repository was verified as accessible through the GitHub connector on 2026-11-12. At that time it contained no source files. The NEXUS 0.10.25 archive and earlier audit evidence exist separately; they have not yet been imported into this repository.
+- Canonical repository: `dcnsd00/project-nexus`.
+- Default branch: `main`.
+- Current main HEAD at this documentation checkpoint: `700978e829b75888216785d874cb2cbbc7a4e6b2`.
+- NEXUS MASTER remains a modular monolith; GitHub is authoritative for code, branches, commits, pull requests and CI.
+- PR #53 merged mining credential log/handoff protections. See [Mining credential handling](docs/MINING_CREDENTIAL_HANDLING.md) and [NEXUS status](NEXUS_STATUS.md).
+- The detailed status document distinguishes TESTED, INTEGRATED and VALIDATED evidence and lists remaining Windows, hardware, provider and deployment acceptance work.
 
-## Next engineering step
+## Working safely
 
-Import and inspect the exact NEXUS 0.10.25 source archive, establish a reproducible baseline, run the existing tests, then integrate changes in reviewable commits.
+Use a focused feature or documentation branch from the latest appropriate base. Inspect the exact diff and commit, run the relevant test suites and CI, and promote through a reviewed pull request. Keep `main` unchanged during development. Do not infer physical hardware operation, live mining rewards, wallet signing, or production security deployment from source files or CI alone.

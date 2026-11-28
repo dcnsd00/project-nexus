@@ -3,7 +3,7 @@
 **Status date:** 2026-11-25  
 **Canonical repository:** `dcnsd00/project-nexus`  
 **Canonical branch:** `main`  
-**Current main HEAD:** `4dcde89374e48e9079a43dde19c4f70c2052a409`  
+**Current main HEAD:** `516bb3ca7859159c962b455e55cded01e51d9224`  
 **Application version:** `0.10.26` from `application/VERSION.json`  
 **Version source:** `application/nexus_master.py::_package_version()` reads the manifest; do not duplicate the version in another runtime constant.
 
@@ -20,8 +20,9 @@ The cumulative NEXUS MASTER 0.10.26 baseline and the focused follow-up integrati
 | #18 | Gate public market research and 100 RON paper trading | Merged | Run #797 — success; focused Gate workflow #51 — success |
 | #19 | Fail-closed Windows process liveness and managed TestClient lifecycle | Merged | Run #804 — 14/14 jobs passed |
 | #20 | Residual Windows/runtime regression tests | Merged | Run #813 — 14/14 jobs passed |
+| #21 | Enable Windows desktop package builds on main | Merged | PR-head run #822 — 14/14; post-merge main CI #84495 — 14/14; desktop package run #75 — success |
 
-The latest full CI run, **#813**, passed on PR #20's exact pre-merge HEAD `fcad96e87ab0a0e488bd16375e7cda41ae1a403a`. It covered source detection, Python tests, Windows dependencies/runtime, MSVC native build, Windows compatibility, all eight Windows application shards, and Coraza/Caddy configuration validation. The merge commit now at `main` is `4dcde89374e48e9079a43dde19c4f70c2052a409`; the CI evidence above is for the exact PR head, not a separate push-triggered run on the merge commit.
+PR #21 is merged at main HEAD `516bb3ca7859159c962b455e55cded01e51d9224`. Its PR-head CI run #822 passed 14/14 jobs. The merge triggered a separate main push CI run #84495, also 14/14, and Windows desktop packaging run #75 completed successfully. The package was assembled and uploaded as `NEXUS_MASTER_0.10.26_WINDOWS_INSTALLER`; the extracted inner installer ZIP contains 635 manifest-listed files, with zero missing files and zero SHA-256 mismatches. The inner package SHA-256 is `de57c91925a99759e72e65dca80df09f3a452bc07ffbba0e01098a77301a2459`. This proves CI packaging and runner-side installation validation, not installation on the owner's laptop.
 
 Old PRs #4–#8 were closed after selective reconciliation. They were not merged wholesale:
 - #4 Windows TestClient/process lifecycle → #19 and residual tests in #20.
@@ -30,7 +31,7 @@ Old PRs #4–#8 were closed after selective reconciliation. They were not merged
 - #7 Math Intelligence evidence validation → #17.
 - #8 Fieldstation import boundary → #15.
 
-Dependabot PRs #10 (`actions/upload-artifact`) and #11 (`actions/setup-python`) remain open and currently report non-mergeable. They are maintenance work, not blockers to the feature integrations above; rebase and validate them separately.
+Dependabot PRs #10–#14 (upload-artifact, setup-python, download-artifact, checkout, setup-node) remain open. Their recorded CI runs passed; some were tested against an older base SHA. Review and rebase them separately. Current Dependabot configuration covers GitHub Actions only, not pip dependencies.
 
 ## 2. Architecture and evidence rules
 
@@ -50,33 +51,87 @@ Use these terms precisely:
 | Area | Current evidence on main | Remaining validation boundary |
 |---|---|---|
 | NEXUS MASTER / CORE | FastAPI application, lifecycle composition, service registry, local API loopback guard and safe error handling are present; full CI passed on the latest pre-merge PR head. | Loopback binding is not user authentication. Verify actual start/stop and install on the owner's Windows laptop. |
-| EDGE host runtime | Node/task/lease manager, HMAC-authenticated messages, SQLite persistence, monotonic sequence/replay protection, credential encryption hooks, rate limits and opt-in HTTPS/MQTTS paths are present with tests. | No physical ESP32/ESP32-C5, hardware-in-the-loop, multi-site field test, or production broker validation is claimed. |
+| EDGE host runtime | Node/task/lease manager, HMAC-authenticated messages, SQLite schema-v4 persistence, monotonic sequence/replay protection, Fernet-encrypted node secrets, rate limits and opt-in HTTPS/MQTTS paths are present with tests. Runtime composition is already in `modules/nexus_runtime.py`. | The runtime requires a stable `NEXUS_EDGE_STORAGE_KEY`; OS-keyring provisioning is not yet integrated. No physical ESP32/ESP32-C5, hardware-in-the-loop, multi-site field test, or production broker validation is claimed. Preserve `feature/edge-persistence-protocol-v1` (7 ahead / 482 behind) for its older keyring abstraction; do not merge its duplicate SQLite store wholesale. |
 | Mining / Stratum | Native SHA-256d scanner and exact Python fallback; Stratum V1 job/header/coinbase/Merkle/nonce/submit paths; hybrid worker and process arbitration. Loopback mock-pool and Windows tests are included. | No public-pool payout, BTC reward, sustained real pool session, or profitability claim. CI does not validate the owner's GPU/CPU hardware. |
 | Wallet / recovery | Local wallet/recovery and vault modules with read-only boundaries and tests. | No private-key export, live signing, public-chain broadcast, real transaction, or payout validation. |
 | Gate research / paper trading | Public-only Gate spot client for BTC, ETH, SOL, BNB, XRP, AIOZ, GRASS, TAO, NEAR and FIL. Descriptive indicators and local SQLite paper ledger seeded with 100 RON. | Paper BUY/SELL only. No account credentials, real orders, transfers, wallet signing, or financial outcome is claimed. Market availability/liquidity must be rechecked when used. |
+| Public market data adapters | PR #23 adds a shared read-only Binance/Gate adapter for ticker, 24h stats, klines, order book and trades, with source attribution, freshness, retry and rate-limit handling; targeted AIScan A/100; NEXUS CI 14/14 and Gate workflow success. | PR #23 is open and unmerged; manual live app-side smoke test has not run. Existing Binance/Gate connectors provide public read-only data; no API credentials or trading actions. |
 | Provider integrations | Registry contains 12 provider definitions. Contract tests enforce readiness semantics, secret non-disclosure, `live_connection_verified=false`, and `writes_enabled=false`. | No provider is live-connected or credential-validated. A configured endpoint alone is not a validated adapter. |
 | Math Intelligence | Candidate evidence rejects booleans/non-finite/overflowing hashrates, invalid counters and non-boolean equivalence claims. Tests preserve `auto_apply=false`. | Findings remain research/manual-review evidence; no automatic mining optimization is activated. |
 | Earnings Intelligence | Local opportunity/device/telemetry/reward ledger; SQL parameterization regression test is included. | Reward estimates are not verified payouts. No wallet signing, claims, or automatic mining start. |
 | Fieldstation | Import-time optional miner-directory side effect removed; import/runtime boundary tests and loopback default are present. | Local-only research tool; no wallet signing, seed/private-key storage, or transaction broadcast. No live hardware/chain workflow is claimed. |
-| Desktop / Windows | Installer/launcher and MSVC native build path are present. Latest full CI passed Windows dependency preparation, native build, compatibility, and eight test shards. | Not installed or acceptance-tested on the owner's actual Windows laptop. WebView2, driver, antivirus, local device and hardware checks remain separate. |
-| LFM3 | Optional adapter and tests are present. | Model weights and inference server are external and have not been installed or benchmarked. No live local inference is claimed. |
-| RCSC / SHA-2 research | Research engines and read-only collection boundaries are present with unit/API tests. | No independent external replication of public-data results is claimed. |
-| Security deployment | Coraza-enabled Caddy build/config validation passes in CI; CrowdSec acquisition example and Headscale deny-all policy are present. | WAF is not deployed/enforcing on the user's host; CrowdSec engine/bouncer and Headscale/VPN are not installed or active. No firewall remediation is claimed. |
+| Desktop / Windows | Installer/launcher and MSVC native build path are present. Main CI #84495 passed 14/14; desktop package workflow #75 succeeded; the 0.10.26 installer ZIP and SHA-256 manifest were verified (635/635 files). | Not installed or acceptance-tested on the owner's actual Windows laptop. WebView2, driver, antivirus, local device and hardware checks remain separate. |
+| LFM3 | Optional local OpenAI-compatible adapter and tests are present; OpenAI Responses API remains the default. | Model weights and inference server are external and have not been installed or benchmarked. No live local inference is claimed. The LFM3 security experiment's VPN pilot and Windows/Linux reachability/revocation gate remain unvalidated. |
+| RCSC / SHA-2 research | Research engines and read-only collection boundaries are present with unit/API tests. PR #24 adds NIST SHA-256 known-answer vectors and upstream RandomX reference CI; on its branch, RandomX reference tests passed 95/95 and full CI passed 14/14. | PR #24 remains open and unmerged. No independent external replication of RCSC results is claimed; keep `auto_apply=false`. Vendored RandomX upstream commit provenance still needs recording. |
+| Security deployment | Coraza-enabled Caddy build/config validation passes in CI; CrowdSec acquisition example and Headscale deny-all policy are present. Current-main AIScan is B/78 (0 critical, 0 high, 11 medium, 17 low, 9 info). | Gitleaks, Trivy and CodeQL jobs are not yet present. The WAF is not deployed/enforcing on the user's host; CrowdSec engine/bouncer and Headscale/VPN are not installed or active. No firewall remediation is claimed. |
 
 ## 4. Security scan history
 
-`docs/SECURITY_TRIAGE_2026-11-25.md` records a historical VisionEdge AIScan result from an earlier experiment-branch snapshot, not the current `main` HEAD:
-- Grade C (73/100), verdict `GO_WITH_CONDITIONS`.
-- 0 critical, 0 high, 11 medium, 24 low, 8 informational findings.
-- Twelve returned findings received detailed triage; 31 additional findings were reported without individual details and remain untriaged.
-- Static analysis is not proof of runtime security. The report's branch/commit and CI references are historical and must not be presented as a current-main scan.
+`docs/SECURITY_TRIAGE_2026-11-25.md` retains the historical feature-branch scan (grade C/73, 11 medium, 24 low, 8 info). A separate full scan was run against current main HEAD `516bb3ca7859159c962b455e55cded01e51d9224`:
+- Grade B/78; 0 critical, 0 high, 11 medium, 17 low, 9 informational findings.
+- The 9 medium randomness alerts point to fixed-seed deterministic research/benchmark sampling, not authentication or cryptographic secrets.
+- Two medium SQL alerts were manually reviewed as provisional false positives: a table identifier drawn from a fixed internal tuple, and SQLite `busy_timeout` interpolation of an integer derived from local configuration. No SQL injection was confirmed.
+- One low finding concerns open version ranges in local CORE requirements. Other low/informational findings still need item-level triage.
+- A 24 Nov Notion snapshot used a different branch/commit and scanner target; its counts are not directly comparable.
+- Static analysis is not proof of runtime security. See the security triage doc for evidence and limits.
 
 ## 5. Next acceptance work
 
 1. Install the cumulative Windows package on the actual target laptop and record version, startup, shutdown, logs and rollback evidence.
-2. Verify the local dashboard against the live local API; distinguish simulated/demo values from hardware telemetry and provider data.
-3. Perform hardware-in-the-loop EDGE checks with the actual ESP32/ESP32-C5 devices before claiming node operation.
-4. Validate any provider adapter individually with documented authentication, freshness, response schema and read-only behavior before marking it live.
-5. Keep public pool, wallet signing/broadcast, WAF enforcement, VPN and CrowdSec disabled until their separate security and operational acceptance checks pass.
+2. Review PR #23 (read-only Binance/Gate adapters) and PR #24 (SHA-256/RandomX reference validation); do not merge without review. Run the manual public GET-only market smoke workflow after its workflow file is on main.
+3. Reconcile EDGE key provisioning: current main uses Fernet with `NEXUS_EDGE_STORAGE_KEY`; review the preserved keyring branch without replacing the current SQLite schema. Then run hardware-in-the-loop checks with actual ESP32/ESP32-C5 devices.
+4. Complete the LFM3 VPN pilot with deny-by-default ACLs, Windows/Linux reachability and node-revocation tests before calling the security lab validated.
+5. Add Gitleaks, Trivy, CodeQL where repository permissions/plan allow, and pip dependency updates/lockfiles; manually triage remaining AIScan low/info findings.
+6. Verify the local dashboard against the live local API; distinguish simulated/demo values from hardware telemetry and provider data.
+7. Keep public pool, wallet signing/broadcast, WAF enforcement, VPN and CrowdSec disabled until their separate security and operational acceptance checks pass.
 
 GitHub branches, commits, PRs and CI are the source of truth for implementation status. This document is a snapshot and must be refreshed after material integration changes.
+
+
+## 6. Current open issues and review branches
+
+- Issue #1 remains open for source-import provenance. Three artifact hashes are recorded: issue-body hash `17702ce64497599d04c65c3893ddf6c7b54ac5d41e84032a203799a6d9db90bc`; original bundle audit hash `642c882557993a86db21583e8efaef359dd01f8f9b28440462ba8a723c924d50`; sanitized import hash `9c7b70c2b292a987029071d022c24950bc0a2b9e05af2597e5392b1361f6a469`. The preserved 0.10.25 importer/audit branch is historical; do not run it against current 0.10.26 application source.
+- Issue #2 is closed: runtime version metadata reads the authoritative VERSION.json manifest and current main CI/package checks pass.
+- PR #23 (`feature/read-only-market-data-adapters-v1`) and PR #24 (`feature/crypto-reference-validation-v1`) are open, CI-green, and unmerged pending review.
+- PR #25 is the current documentation refresh branch. It also contains `docs/EDGE_KEY_MANAGEMENT_PLAN.md`, a proposal to adapt Windows Credential Manager to the existing Fernet master-key flow without replacing SQLite schema-v4.
+- PR #26 (`security/supply-chain-scans-v1`) adds report-only Gitleaks/Trivy baselines, CodeQL Python analysis and pip Dependabot coverage. Security workflow run #45695527479 succeeded; Gitleaks produced 3 manually reviewed false positives, Trivy returned zero CRITICAL/HIGH/MEDIUM findings, and CodeQL Python analysis completed. The main NEXUS CI run was still in progress at the last check. No merge.
+- PRs #5/#6 were selectively superseded by PRs #18/#16; the Gate and provider-contract file blobs match main. PR #7 is superseded by PR #17. No wholesale merge of old branches is authorized.
+- `feature/nexus-math-intelligence-hardening-v1` and `feature/nexus-fieldstation-runtime-validation-v1` have the same relevant file blobs as main; their useful changes are already present through PRs #17 and #15.
+- The old Windows TestClient branch contains older versions of files now superseded by PRs #19/#20; current main already has Windows process-handle liveness and dedicated tests. Preserve old branch refs; do not merge the stale workflow/test snapshots.
+- `feature/nexus-edge-foundation` and `integration/nexus-master-0.10.25` retain historical root-level package/import work. Preserve for provenance; do not merge duplicate package paths into the modular monolith.
+
+NEXUS remains local-first. AppDeploy currently hosts Crypto Agent only; NEXUS Control Center is not declared deployed. No secrets, wallets or mining processes are moved to AppDeploy. InVideo, YouTube and Unseen Frontier remain on HOLD.
+
+
+## 7. Verified continuity update — 2026-11-27
+
+This addendum supersedes the earlier `Current main HEAD` and integration-position snapshot above. GitHub was re-queried on 2026-11-27.
+
+- Canonical repository: `dcnsd00/project-nexus`; default branch: `main`.
+- Current main HEAD: `700978e829b75888216785d874cb2cbbc7a4e6b2`.
+- PR #53, **Protect mining pool credentials in logs and worker handoff files**, was merged on 2026-11-27 at 06:36:21 UTC; merge commit is the current main HEAD.
+- PR #53 changed the direct mining controller, HybridSupervisor and HybridWorker, added synthetic regression tests, and added `docs/MINING_CREDENTIAL_HANDLING.md`.
+- The new security document records argument redaction, sanitized launch/stop errors, temporary XMRig configuration cleanup, private worker handoff files and their deletion after read. It also states the remaining limits: process memory is not encrypted, a compromised local account is out of scope, and third-party miners may emit their own logs.
+- The PR metadata records targeted AIScan grade A/100. The GitHub combined-status query returned no status entries for the PR head; this documentation refresh therefore does not claim a separate CI result based on that empty response.
+
+### EDGE and runtime continuity
+
+The 2026-11-17 Recovery Step 01/02 audits are historical snapshots of `integration/source-import-safe-0.10.25`, not the current canonical implementation. Do not repeat their proposed implementation blindly. The 2026-11-25 main status records that the current main EDGE host runtime includes SQLite schema-v4 persistence, monotonic sequence/replay protection, Fernet-encrypted node secrets, rate limits and opt-in HTTPS/MQTTS paths. Remaining validation includes stable `NEXUS_EDGE_STORAGE_KEY` provisioning, physical ESP32/ESP32-C5 hardware-in-the-loop tests, multi-site field testing and production broker validation. No physical-device validation is claimed.
+
+### Open review work at this checkpoint
+
+- PR #23 — shared read-only Binance/Gate market data adapters: open, unmerged at the time of this check.
+- PR #24 — SHA-256 and RandomX reference validation: open, unmerged at the time of this check.
+- PR #25 — this documentation refresh: open and mergeable before this addendum.
+- PR #26 — Gitleaks, Trivy, CodeQL and Python Dependabot coverage: open, unmerged at the time of this check.
+
+Do not merge any of these based only on branch presence. Review exact head commits, required checks and diffs first.
+
+### Next actions
+
+1. Finish and validate this documentation refresh against current main, then update PR #25; keep main unchanged until review/merge approval.
+2. Review PRs #23, #24 and #26 individually, including exact-head CI and security findings.
+3. Continue EDGE key provisioning only against the current main Fernet/SQLite implementation; do not replace schema-v4 or merge an older duplicate store.
+4. Keep Windows laptop installation, ESP32 hardware validation, live pool mining, wallet signing/broadcast and security-service deployment classified as unvalidated until their own acceptance evidence exists.
+
+This addendum records repository metadata and documentation only. It does not claim local Windows installation, live mining, wallet operations or physical EDGE validation.
