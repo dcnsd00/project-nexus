@@ -308,6 +308,10 @@ def probe_ai_provider(env: Mapping[str, str] | None = None) -> dict[str, Any]:
     config = _safe_config(source)
     if config is None:
         raise AIProviderError("ai_provider_not_configured")
+    if env is None:
+        # A failed new probe must not leave an older success looking current.
+        with _LIVE_VERIFICATION_LOCK:
+            _LIVE_VERIFICATION.clear()
     marker = "NEXUS_PROVIDER_HEALTH_OK"
     result = chat_completion(
         [
