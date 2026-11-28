@@ -3,6 +3,7 @@
 ## 0.10.28 — 2026-11-28 · RainbowMiner telemetry, profit intelligence and central AI coordination
 
 - Added authenticated, loopback-only RainbowMiner Report API ingestion with strict field allowlists, PII/secret/log filtering, bounded payloads and SQLite retention under the central NEXUS data directory.
+- Added ingestion of RainbowMiner's six-hour `minerdata` and `poolsdata` multipart file uploads; normalized pool price, stable price, penalty and error-ratio fields are now available through read-only endpoints.
 - Added an independent stable/live price and pool-confidence scoring engine with RON/kWh electricity cost, stale-evidence rejection and configurable switching hysteresis. Results are recommendations only; no automatic pool or miner switching is performed.
 - Connected the RainbowMiner telemetry router to FastAPI, Lifecycle Manager health checks and Module Registry.
 - Added central-first multi-specialist AI execution for up to three domains per request, branch-aware integration routing and QA/security review for multi-domain or mutating task classes.
