@@ -51,7 +51,10 @@ For privacy, leave RainbowMiner email and Pushover notification settings empty u
 
 ## Endpoints
 
-- `POST /api/mining/rainbowminer/report`: authenticated, loopback-only ingestion.
+- `POST /api/mining/rainbowminer/report`: authenticated, loopback-only round-report ingestion.
+- `POST /api/mining/rainbowminer/report` with multipart file field `minerdata`: authenticated import of benchmark snapshots (miners, algorithm, hashrate, power and device model); OC profiles and file paths are dropped.
+- `POST /api/mining/rainbowminer/report` with multipart file field `poolsdata`: authenticated import of pool snapshots (`Price`, `StablePrice`, `PenaltyFactor`, `ErrorRatio`, algorithm and coin symbol).
+- `GET /api/mining/rainbowminer/miners/latest` and `/pools/latest`: read-only access to the latest normalized extra snapshots, optionally filtered by worker.
 - `GET /api/mining/rainbowminer/status`: loopback-only ingestion and storage status.
 - `GET /api/mining/profit-intelligence/status`: profitability engine capabilities.
 - `POST /api/mining/profit-intelligence/rank`: score up to 64 candidate configurations.
