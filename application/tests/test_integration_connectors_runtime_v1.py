@@ -168,3 +168,56 @@ def test_integration_status_counts_live_connector_only_after_success(monkeypatch
 def test_unknown_connector_is_rejected():
     with pytest.raises(registry.ConnectorError, match="unknown_connector"):
         registry.probe_connector("not-a-real-provider")
+
+
+def test_all_twelve_configured_connector_health_endpoints_can_be_probed(monkeypatch):
+    registry._LIVE_VERIFICATION.clear()
+    for item in registry.PROVIDERS:
+        suffix = item["id"].upper()
+        hostname = f"api-{item['id'].replace('_', '-')}.example"
+        monkeypatch.setenv(item["env"][0], f"https://{hostname}/v1")
+        monkeypatch.setenv(f"NEXUS_CONNECTOR_ALLOWED_HOSTS_{suffix}", hostname)
+        monkeypatch.setenv(f"NEXUS_{suffix}_HEALTH_PATH", "health")
+        if len(item["env"]) > 1:
+            monkeypatch.setenv(item["env"][1], f"test-token-{item['id']}")
+
+    monkeypatch.setattr(
+        registry,
+        "_transport_open",
+        lambda request, timeout: FakeResponse({"status": "ok"}),
+    )
+    result = registry.run_connector_self_test()
+    assert result["status"] == "live_verified"
+    assert result["operational_verified"] is True
+    assert result["connectors_tested"] == result["connectors_passed"] == 12
+    assert all(row["status"] == "passed" for row in result["results"])
+    assert result["read_only"] is True
+    assert result["writes_enabled"] is False
+    assert sum(row["operational_verified"] for row in registry.connector_status()) == 12
+
+
+def test_connector_live_self_test_api_is_loopback_only(monkeypatch):
+    from fastapi.testclient import TestClient
+    from nexus_master import app
+
+    expected = {
+        "status": "partial",
+        "operational_verified": False,
+        "connectors_tested": 12,
+        "connectors_passed": 0,
+        "connectors_failed_or_unconfigured": 12,
+        "read_only": True,
+        "writes_enabled": False,
+        "results": [],
+    }
+    monkeypatch.setattr(registry, "run_connector_self_test", lambda: expected)
+    with TestClient(app, base_url="http://127.0.0.1",
+                    client=("127.0.0.1", 54332)) as client:
+        response = client.post("/api/integrations/self-test")
+    assert response.status_code == 200
+    assert response.json() == expected
+
+    with TestClient(app, base_url="http://127.0.0.1",
+                    client=("192.0.2.32", 54332)) as client:
+        blocked = client.post("/api/integrations/self-test")
+    assert blocked.status_code == 403
