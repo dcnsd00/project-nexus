@@ -167,3 +167,96 @@ def test_worker_provider_endpoints_reject_non_loopback_clients(monkeypatch):
     assert status.json()["detail"] == "NEXUS CORE accepts local loopback requests only"
     assert execute.status_code == 403
     assert execute.json()["detail"] == "NEXUS CORE accepts local loopback requests only"
+
+
+def test_integration_branches_route_to_domain_specialists():
+    cases = {
+        "integration/rainbowminer-mining-intelligence-v1": "mining",
+        "integration/ai-worker-provider-main-v1": "ai_platform",
+        "integration/math-intelligence-evidence-main-v1": "cryptography",
+        "integration/provider-contract-tests-main-v1": "integrations",
+        "integration/fieldstation-import-boundary-main-v1": "edge",
+        "integration/pr26-security-baseline-main-v2": "quality",
+        "integration/desktop-package-main-trigger-v1": "dashboard",
+        "integration/phy-challenge-solver-v2": "cryptography",
+    }
+    for branch, expected_domain in cases.items():
+        result = route_task(task_kind="research", branch=branch)
+        assert result["domain"] == expected_domain, branch
+
+
+def test_central_coordinator_runs_multiple_specialists_and_quality_review(monkeypatch):
+    from modules import ai_worker_coordinator as coordinator
+
+    monkeypatch.setattr(
+        coordinator,
+        "ai_provider_status",
+        lambda: {
+            "provider_status": "configured_not_live_verified",
+            "model": "mock-model",
+            "model_invocation_enabled": True,
+        },
+    )
+    calls = []
+
+    def fake_chat(messages, model=None):
+        calls.append({"messages": messages, "model": model})
+        role = messages[0]["content"]
+        if "NEXUS Central Coordinator" in role:
+            text = "Central execution brief: inspect telemetry contract and economics."
+        elif "Quality, Security" in role:
+            text = "Review: require authenticated local ingest and tests."
+        else:
+            text = "Specialist finding: recommendation only."
+        return {
+            "content": text,
+            "model": model or "mock-model",
+            "provider": "mock",
+            "remote": False,
+            "prompt_tokens": 10,
+            "completion_tokens": 20,
+            "tools_available": False,
+            "tool_calls_executed": 0,
+            "side_effects_performed": False,
+        }
+
+    monkeypatch.setattr(coordinator, "chat_completion", fake_chat)
+    result = coordinator.execute_coordinated_task(
+        task_kind="research",
+        branch="integration/rainbowminer-mining-intelligence-v1",
+        path="application/modules/mining_profit_intelligence.py",
+        domains=["mining", "integrations"],
+        prompt="Review the read-only RainbowMiner integration.",
+    )
+
+    assert result["dispatch_mode"] == "central_then_sequential_specialists"
+    assert result["route"]["domain"] == "mining"
+    assert [row["domain"] for row in result["specialists"]] == ["mining", "integrations"]
+    assert result["central_coordinator"]["id"] == "central_coordinator"
+    assert result["quality_review"]["worker_id"] == "quality_security"
+    assert len(calls) == 4
+    assert all(row["model"] == "mock-model" for row in calls)
+    assert result["model_invoked"] is True
+    assert result["side_effects_performed"] is False
+    assert result["repository_changes"] == 0
+    assert result["miners_started"] == 0
+    assert result["wallet_operations"] == 0
+
+
+def test_coordinated_worker_rejects_invalid_or_excessive_domains(monkeypatch):
+    from modules import ai_worker_coordinator as coordinator
+
+    monkeypatch.setattr(
+        coordinator,
+        "ai_provider_status",
+        lambda: {"model_invocation_enabled": True, "model": "mock-model"},
+    )
+    with pytest.raises(ValueError, match="maximum_three_specialist_domains"):
+        coordinator.execute_coordinated_task(
+            task_kind="research", prompt="test",
+            domains=["mining", "edge", "wallet", "quality"],
+        )
+    with pytest.raises(ValueError, match="unknown_or_reserved_specialist_domain"):
+        coordinator.execute_coordinated_task(
+            task_kind="research", prompt="test", domains=["coordination"],
+        )
