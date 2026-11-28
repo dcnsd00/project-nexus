@@ -72,10 +72,22 @@ PROVIDERS: tuple[dict[str, Any], ...] = (
      "resources": ("public_chain",)},
     {"id": "nodle", "name": "Nodle", "category": "depin",
      "env": ("NEXUS_NODLE_API_URL",),
-     "contract_state": "official_iot_api_private_beta_or_indexer_contract_pending",
+     "default_base_url": "https://api.nodle.com",
+     "health_path": "v1/total-issuance",
+     "resource_paths": {
+         "total_issuance": "v1/total-issuance",
+         "circulating_supply": "v1/circulating-supply",
+     },
      "contract_source": "https://docs.nodle.com/nodle-apis",
-     "capabilities": ["public_chain_read", "rewards_read"],
-     "resources": ("public_chain", "rewards")},
+     "contract_state": "official_public_chain_supply_api_documented",
+     "response_contract": "numeric_value",
+     "resource_response_contracts": {
+         "total_issuance": "numeric_value",
+         "circulating_supply": "numeric_value",
+     },
+     "protocol": "rest_get",
+     "capabilities": ["total_issuance_read", "circulating_supply_read"],
+     "resources": ("total_issuance", "circulating_supply")},
     {"id": "helium_iot", "name": "Helium IoT", "category": "depin",
      "env": ("NEXUS_HELIUM_API_URL",),
      "default_base_url": "https://entities.nft.helium.io",
@@ -396,6 +408,9 @@ def _validate_provider_payload(item: dict[str, Any], resource: str, payload: Any
             isinstance(payload, dict)
             and all(isinstance(payload.get(key), (int, float)) for key in ("all", "offline", "online"))
         )
+    elif contract == "numeric_value":
+        # Nodle supply endpoints document a bare JSON number, not an object.
+        valid = type(payload) in (int, float)
     elif contract == "json_object":
         valid = isinstance(payload, dict)
     elif contract == "akash_provider_list":
