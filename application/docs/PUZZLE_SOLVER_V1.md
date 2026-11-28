@@ -29,6 +29,7 @@ Request envelope:
 | `linear_system` | Exact rational solution for square systems, through SymPy and the existing Hybrid Solver |
 | `bitvector_xor` | Exact constructive XOR solution with independent XOR verification |
 | `finite_csp` | Bounded finite-domain constraints: relations, sum, product, XOR and all-different |
+| `phy_challenge` | Offline PHY structural analysis: Unicode 18.0, geometric antipodal pairs, candidate spatial orderings, ECDSA-s position selectors and supplied compressed secp256k1 public-point validation |
 | `vigenere` | Vigenère decrypt when the owner supplies the key |
 | `rail_fence` | Rail Fence decrypt when the rail count is supplied (2–12) |
 | `affine_substitution` | Affine cipher decrypt with supplied coprime parameters |
@@ -54,6 +55,9 @@ Example finite-domain puzzle:
 - CSP is capped at 16 variables, 16 integer values per domain, 100,000 visited assignments and 10 returned solutions.
 - Text inputs are capped at 4,096 characters.
 - Text decoding returns candidate interpretations; it does not claim a candidate is semantically correct.
+- PHY accepts a user-supplied public emoji mapping JSON with at most 258 boxes. Geometric pair/order results are hypotheses, not a recovered private key or proof of the puzzle solution.
+- The PHY strategy can test eight Unicode-only bit features and compare explicit 256-bit maps with the first/last 72 bits of a supplied ECDSA `s` value. It does not infer pixel-derived tone rules, perform nonce/private-key search, sign or access wallets.
+- An optional compressed secp256k1 public point is checked against the curve equation; this validates a supplied public point only and does not derive a scalar or verify a puzzle solution.
 - Linear systems require SymPy. The route reports an explicit dependency/runtime error if it is unavailable.
 - The existing SHA-256 SAT and differential work remains an isolated reduced-round research experiment. It is not advertised as a backend that can solve full SHA-256 or arbitrary SHA puzzles.
 - Natural-language logic-grid parsing and external AI-worker execution are not included in this slice. A logic puzzle can be represented as finite-domain variables and constraints.

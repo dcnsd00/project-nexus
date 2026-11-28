@@ -396,5 +396,24 @@
   },
   "dependencies": [
     "python-multipart>=0.0.31,<1"
-  ]
+  ],
+  "phy_challenge_solver": {
+    "api": "/api/puzzles/solve",
+    "strategy": "phy_challenge",
+    "source": "application/modules/phy_challenge_research.py",
+    "mode": "offline_bounded_structural_analysis",
+    "public_metadata_only": true,
+    "max_boxes": 258,
+    "max_emoji_boxes": 256,
+    "unicode_data_version": "18.0.0",
+    "geometric_pairing": "heuristic_hypothesis_only",
+    "bit_window_validation": "requires caller-supplied public s bytes and optional 256-bit map",
+    "secp256k1_point_validation": "validates supplied compressed public point only",
+    "private_key_search": false,
+    "nonce_search": false,
+    "wallet_access": false,
+    "network_access": false,
+    "transaction_signing": false,
+    "puzzle_solution_confirmed": false
+  }
 }
