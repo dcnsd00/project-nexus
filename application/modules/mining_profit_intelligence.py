@@ -193,11 +193,13 @@ def rank_candidates(candidates: Iterable[dict[str, Any]], *,
         delta = best["net_profit_ron_day"] - current["net_profit_ron_day"]
         denominator = max(abs(current["net_profit_ron_day"]), 0.01)
         improvement_percent = (delta / denominator) * 100.0
-        challenger_id = best["candidate_id"] if best["candidate_id"] != current_candidate_id else None
-        if (challenger_id is not None and delta > 0
+        challenger = best["candidate_id"] if best["candidate_id"] != current_candidate_id else None
+        if (challenger is not None and delta > 0
                 and improvement_percent >= float(cfg["switch_hysteresis_percent"])):
+            challenger_id = challenger
             recommendation = "manual_review_switch_candidate"
         else:
+            challenger_id = None
             recommendation = "hold_current"
 
     return {
