@@ -451,7 +451,7 @@ def chat_completion(
         usage = response_data.get("usage") if isinstance(response_data, dict) else {}
         usage = usage if isinstance(usage, dict) else {}
         prompt_tokens = usage.get("prompt_tokens")
-        completion_tokens = usage.get("completion_tokens)
+        completion_tokens = usage.get("completion_tokens")
 
     if not isinstance(content, str) or not content.strip():
         raise AIProviderError("provider_returned_no_text")
