@@ -260,3 +260,42 @@ def test_coordinated_worker_rejects_invalid_or_excessive_domains(monkeypatch):
         coordinator.execute_coordinated_task(
             task_kind="research", prompt="test", domains=["coordination"],
         )
+
+
+def test_coordinated_worker_api_is_loopback_and_invokes_central_specialists(monkeypatch):
+    from modules import ai_worker_coordinator as coordinator
+
+    monkeypatch.setattr(
+        coordinator, "ai_provider_status",
+        lambda: {"model_invocation_enabled": True, "model": "mock-model"},
+    )
+    monkeypatch.setattr(
+        coordinator, "chat_completion",
+        lambda messages, model=None: {
+            "content": "Mock coordinated result",
+            "model": model or "mock-model",
+            "provider": "mock",
+            "remote": False,
+            "prompt_tokens": 1,
+            "completion_tokens": 2,
+            "tools_available": False,
+            "tool_calls_executed": 0,
+            "side_effects_performed": False,
+        },
+    )
+    payload = {
+        "task_kind": "research",
+        "branch": "integration/rainbowminer-mining-intelligence-v1",
+        "domains": ["mining", "integrations"],
+        "prompt": "Review RainbowMiner telemetry and profitability integration.",
+    }
+    with TestClient(app, base_url="http://127.0.0.1",
+                    client=("127.0.0.1", 54322)) as client:
+        response = client.post("/api/nexus/workers/coordinate", json=payload)
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["central_coordinator"]["id"] == "central_coordinator"
+    assert [item["domain"] for item in body["specialists"]] == ["mining", "integrations"]
+    assert body["quality_review"]["worker_id"] == "quality_security"
+    assert body["side_effects_performed"] is False
+    assert body["repository_changes"] == 0
