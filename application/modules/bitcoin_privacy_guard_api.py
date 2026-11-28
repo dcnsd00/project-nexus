@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter
 
-from modules.bitcoin_node_telemetry import bitcoin_node_snapshot
+from modules.blockchain_node_telemetry import bitcoin_node_snapshot
 from modules.bitcoin_privacy_guard import privacy_guard_enabled
 
 router = APIRouter(tags=["bitcoin-privacy"])
