@@ -25,8 +25,11 @@ from modules.ai_worker_provider import (
     provider_status as ai_provider_status,
 )
 from modules.local_ai_models import (
+    LocalModelRuntimeError,
     local_runtime_status,
     model_catalog as local_model_catalog,
+    ollama_model_pull_status,
+    start_ollama_model_pull,
 )
 
 
@@ -700,6 +703,26 @@ def worker_local_runtime_status(request: Request) -> dict[str, Any]:
     """Probe loopback Ollama and llama.cpp servers without starting either one."""
     _require_loopback_client(request)
     return local_runtime_status()
+
+
+@router.post("/local-models/{profile_id}/pull")
+def worker_local_model_pull_start(profile_id: str, request: Request) -> dict[str, Any]:
+    """Explicitly download an allowlisted model through an already-running local Ollama."""
+    _require_loopback_client(request)
+    try:
+        return start_ollama_model_pull(profile_id)
+    except LocalModelRuntimeError as exc:
+        status = 404 if "allowlisted" in str(exc) else 503
+        raise HTTPException(status_code=status, detail=str(exc)) from exc
+
+
+@router.get("/local-models/pulls/{profile_id}")
+def worker_local_model_pull_status(profile_id: str, request: Request) -> dict[str, Any]:
+    _require_loopback_client(request)
+    try:
+        return ollama_model_pull_status(profile_id)
+    except LocalModelRuntimeError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
 @router.post("/provider-test")
