@@ -81,10 +81,14 @@ def _safe_config(env: Mapping[str, str]) -> ProviderConfig | None:
         "lm_studio": "openai_compatible",
         "lm-studio": "openai_compatible",
         "vllm": "openai_compatible",
+        "lfm3-local": "lfm3",
+        "lfm3_local": "lfm3",
+        "llamacpp-lfm3": "lfm3",
     }
     provider = aliases.get(raw_provider, raw_provider)
     protocols = {
         "ollama": "ollama",
+        "lfm3": "openai_compatible",
         "openai": "openai_compatible",
         "openai_compatible": "openai_compatible",
         "anthropic": "anthropic",
@@ -118,19 +122,37 @@ def _safe_config(env: Mapping[str, str]) -> ProviderConfig | None:
         "anthropic": "ANTHROPIC_MODEL",
         "gemini": "GEMINI_MODEL",
         "ollama": "OLLAMA_MODEL",
+        "lfm3": "NEXUS_LFM3_MODEL",
     }.get(provider)
-    model = str(env.get("NEXUS_AI_MODEL") or
-                (env.get(model_env_name, "") if model_env_name else "")).strip()
+    default_models = {
+        "ollama": "lfm3",
+        "lfm3": "LiquidAI/LFM3-1.7B-GGUF:Q4_K_M",
+    }
+    model = str(
+        env.get("NEXUS_AI_MODEL")
+        or (env.get(model_env_name, "") if model_env_name else "")
+        or default_models.get(provider, "")
+    ).strip()
     if not model or len(model) > 160 or any(ord(c) < 32 for c in model):
         raise AIProviderError("model_not_configured")
 
     default_urls = {
         "ollama": "http://127.0.0.1:11434/api",
+        "lfm3": "http://127.0.0.1:8080/v1",
         "openai": "https://api.openai.com/v1",
         "anthropic": "https://api.anthropic.com",
         "gemini": "https://generativelanguage.googleapis.com/v1beta",
     }
-    raw_url = str(env.get("NEXUS_AI_BASE_URL") or default_urls.get(provider, "")).strip()
+    provider_base_override = (
+        env.get("NEXUS_LFM3_BASE_URL", "")
+        if provider == "lfm3"
+        else ""
+    )
+    raw_url = str(
+        env.get("NEXUS_AI_BASE_URL")
+        or provider_base_override
+        or default_urls.get(provider, "")
+    ).strip()
     if not raw_url or len(raw_url) > 500:
         raise AIProviderError("base_url_not_configured")
 
@@ -158,18 +180,28 @@ def _safe_config(env: Mapping[str, str]) -> ProviderConfig | None:
         "gemini": "GEMINI_API_KEY",
         "ollama": "OLLAMA_API_KEY",
     }.get(provider)
-    api_key = str(env.get("NEXUS_AI_API_KEY") or
-                  (env.get(key_env_name, "") if key_env_name else "")).strip() or None
+    provider_key = str(env.get("NEXUS_LFM3_API_KEY", "")) if provider == "lfm3" else ""
+    api_key = str(
+        env.get("NEXUS_AI_API_KEY")
+        or provider_key
+        or (env.get(key_env_name, "") if key_env_name else "")
+    ).strip() or None
     path = parts.path.rstrip("/")
 
     if remote:
-        if env.get("NEXUS_AI_ALLOW_REMOTE", "").strip() != "1":
+        remote_allowed = env.get("NEXUS_AI_ALLOW_REMOTE", "").strip() == "1"
+        if provider == "lfm3" and env.get("NEXUS_LFM3_ALLOW_REMOTE", "").strip() == "1":
+            remote_allowed = True
+        if not remote_allowed:
             raise AIProviderError("remote_provider_not_explicitly_enabled")
         if parts.scheme != "https" or port not in (None, 443):
             raise AIProviderError("remote_provider_requires_https_443")
+        allowlist_text = str(env.get("NEXUS_AI_REMOTE_HOST_ALLOWLIST", ""))
+        if provider == "lfm3":
+            allowlist_text += "," + str(env.get("NEXUS_LFM3_REMOTE_HOST_ALLOWLIST", ""))
         allowed_hosts = {
             item.strip().casefold().rstrip(".")
-            for item in str(env.get("NEXUS_AI_REMOTE_HOST_ALLOWLIST", "")).split(",")
+            for item in allowlist_text.split(",")
             if item.strip()
         }
         if normalized_host not in allowed_hosts:
@@ -242,7 +274,7 @@ def provider_status(env: Mapping[str, str] | None = None) -> dict[str, Any]:
         return {
             "provider_status": "misconfigured",
             "provider": str(source.get("NEXUS_AI_PROVIDER", "disabled")).strip().casefold(),
-            "supported_providers": ["openai", "anthropic", "gemini", "ollama", "openai_compatible", "groq", "openrouter", "mistral", "together", "deepseek", "fireworks", "cerebras"],
+            "supported_providers": ["lfm3", "ollama", "openai", "anthropic", "gemini", "openai_compatible", "groq", "openrouter", "mistral", "together", "deepseek", "fireworks", "cerebras"],
             "model": None,
             "endpoint": None,
             "remote": False,
@@ -257,7 +289,7 @@ def provider_status(env: Mapping[str, str] | None = None) -> dict[str, Any]:
         return {
             "provider_status": "unconfigured",
             "provider": "disabled",
-            "supported_providers": ["openai", "anthropic", "gemini", "ollama", "openai_compatible", "groq", "openrouter", "mistral", "together", "deepseek", "fireworks", "cerebras"],
+            "supported_providers": ["lfm3", "ollama", "openai", "anthropic", "gemini", "openai_compatible", "groq", "openrouter", "mistral", "together", "deepseek", "fireworks", "cerebras"],
             "model": None,
             "endpoint": None,
             "remote": False,
@@ -290,7 +322,9 @@ def provider_status(env: Mapping[str, str] | None = None) -> dict[str, Any]:
         "operational_verified": live_verified,
         "last_verified_at": last_verified_at,
         "protocol": config.protocol,
-        "supported_providers": ["openai", "anthropic", "gemini", "ollama", "openai_compatible", "groq", "openrouter", "mistral", "together", "deepseek", "fireworks", "cerebras"],
+        "model_family": "LFM3" if config.provider == "lfm3" else None,
+        "weights_run_locally": bool(not config.remote and config.provider in {"lfm3", "ollama"}),
+        "supported_providers": ["lfm3", "ollama", "openai", "anthropic", "gemini", "openai_compatible", "groq", "openrouter", "mistral", "together", "deepseek", "fireworks", "cerebras"],
         "model": config.model,
         "endpoint": f"{urlsplit(config.base_url).scheme}://{urlsplit(config.base_url).netloc}{urlsplit(config.base_url).path}",
         "remote": config.remote,
