@@ -223,7 +223,7 @@ All specialist profiles are registered in code. Actual model execution requires 
 
 The registry contains 12 connector profiles: Acurast, Grass, AIOZ, Theta, Nodle, Helium IoT, GEODNET, Anyone, WeatherXM, Wingbits, Akash and Nosana.
 
-Eight profiles now have official API contracts mapped to explicit default endpoints and response schemas. Four profiles remain registered but cannot become `operational_verified` from a generic JSON response alone: Acurast, Grass, Nodle and Wingbits. For these, the provider-specific endpoint/authentication/schema contract must be supplied and reviewed before a schema validator is added.
+Nine profiles now have at least one official API contract mapped to an explicit endpoint and response schema. Three profiles remain contract-pending: Acurast, Grass and Wingbits. Nodle now supports only the documented public token-supply endpoints; this does not implement personal device/reward data.
 
 The following official, read-only contracts are mapped:
 - **AIOZ:** `https://rpc-dataseed.aioz.network/status` — Tendermint status response (`node_info` and `sync_info`).
@@ -235,7 +235,7 @@ The following official, read-only contracts are mapped:
 - **Akash:** `https://console-api.akash.network/v1/providers` — public, read-only indexed provider data. This is not a chain node and cannot broadcast transactions.
 - **Nosana:** `https://api.nosana.com/jobs/count` — read-only job counts, with an owner-supplied API key.
 
-The eight default base URLs are trusted only when NEXUS itself selects the exact hard-coded documented default. If an owner overrides a base URL, the replacement host must be HTTPS on port 443 and explicitly allowlisted.
+The nine default base URLs are trusted only when NEXUS itself selects the exact hard-coded documented default. If an owner overrides a base URL, the replacement host must be HTTPS on port 443 and explicitly allowlisted.
 
 For a provider without a documented HTTP contract, configuration alone proves only reachability. Example shape for a future Acurast HTTP adapter:
 
@@ -246,7 +246,7 @@ NEXUS_CONNECTOR_ALLOWED_HOSTS_ACURAST=<official-api-host>
 NEXUS_ACURAST_HEALTH_PATH=<documented-health-path>
 ```
 
-Acurast's currently documented public mainnet RPC is WebSocket (`wss://public-rpc.mainnet.acurast.com`); this HTTP REST adapter does not yet implement the WebSocket protocol. Do not set an invented REST URL. Grass and Wingbits likewise remain contract-pending until their official API contracts are supplied. Nodle documents separate SDK/IoT APIs, with IoT currently described as private beta; the correct account/indexer endpoint and schema must be confirmed for the user's account.
+Acurast's currently documented public mainnet RPC is WebSocket (`wss://public-rpc.mainnet.acurast.com`); this HTTP REST adapter does not yet implement the WebSocket protocol. Do not set an invented REST URL. Grass and Wingbits remain contract-pending until their official API endpoint, authentication and response schemas are established. Nodle's public `GET /v1/total-issuance` and `GET /v1/circulating-supply` return numeric supply values and are implemented as read-only resources. Nodle's separate IoT API is described as private beta and requires account onboarding/API-key setup; personal device/reward resources remain out of scope until their response schema and authorization are confirmed. Source: https://docs.nodle.com/nodle-apis.
 
 Host allowlisting can be shared using `NEXUS_CONNECTOR_ALLOWED_HOSTS` or set per connector using `NEXUS_CONNECTOR_ALLOWED_HOSTS_<PROVIDER_ID>`. Remote hosts must use HTTPS on port 443 and match the allowlist exactly. A loopback endpoint may use HTTP for local development.
 
@@ -274,7 +274,7 @@ The connector registry distinguishes three levels:
 2. **Reachability verified** — the configured endpoint returned bounded valid JSON.
 3. **Contract verified / operational verified** — the response matched the provider-specific schema and the live proof is current.
 
-A generic HTTP 200 or arbitrary JSON response is not enough for `operational_verified`. Acurast, Grass, Nodle and Wingbits may report `reachable_contract_pending`, but they remain pending until an official endpoint/auth/schema contract is implemented. For the eight documented providers, only the documented health schemas are currently accepted. User-specific resources that do not yet have their own response schema remain `read_succeeded_contract_pending`.
+A generic HTTP 200 or arbitrary JSON response is not enough for `operational_verified`. Acurast, Grass and Wingbits may report `reachable_contract_pending`, but remain pending until an official endpoint/auth/schema contract is implemented. Nodle's public supply API is validated against a numeric response contract; this must not be interpreted as personal account/reward verification. For the nine documented providers, only documented health schemas are accepted. User-specific resources that do not yet have their own response schema remain `read_succeeded_contract_pending`.
 
 The current implementation does not claim provider-specific pagination, rate-limit/backoff, reward calculation, account normalization or freshness semantics for every vendor. Those require separate vendor contract work and real account/API tests.
 
