@@ -1,4 +1,6 @@
 """Tests for NEXUS local open-weight model catalogue and runtime discovery."""
+import json
+
 from fastapi.testclient import TestClient
 import pytest
 
