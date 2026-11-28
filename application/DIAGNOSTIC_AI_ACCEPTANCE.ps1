@@ -82,8 +82,8 @@ try {
     $checks.Add([pscustomobject]@{
         name = "local_model_runtimes"
         status = "inspected"
-        ollama_status = Get-Field (Get-Field $runtime "ollama") "status" "unknown"
-        llamacpp_status = Get-Field (Get-Field $runtime "llamacpp") "status" "unknown"
+        ollama_status = Get-Field (Get-Field (Get-Field $runtime "runtimes") "ollama") "status" "unknown"
+        llamacpp_status = Get-Field (Get-Field (Get-Field $runtime "runtimes") "llamacpp") "status" "unknown"
         model_downloads_started = $false
         runtimes_started = $false
     })
