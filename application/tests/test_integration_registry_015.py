@@ -3,11 +3,15 @@ from nexus_master import app
 from modules.integration_registry import connector_status
 
 
-def test_provider_registry_reports_truthful_unconfigured_state():
+def test_provider_registry_reports_default_and_unconfigured_states_without_claiming_live():
     rows = connector_status({})
     assert len(rows) == 12
-    assert all(r["status"] == "not_configured" for r in rows)
+    assert all(
+        r["status"] in {"not_configured", "configured_pending_adapter_validation"}
+        for r in rows
+    )
     assert all(r["live_connection_verified"] is False for r in rows)
+    assert all(r["operational_verified"] is False for r in rows)
     assert all(r["writes_enabled"] is False for r in rows)
 
 
