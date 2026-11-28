@@ -15,7 +15,7 @@ import os
 import threading
 from typing import Any, Mapping
 from urllib.error import HTTPError, URLError
-from urllib.parse import urlsplit, urlunsplit
+from urllib.parse import quote, urlsplit, urlunsplit
 from urllib.request import HTTPRedirectHandler, ProxyHandler, Request, build_opener
 
 
@@ -32,12 +32,15 @@ class AIProviderError(RuntimeError):
 @dataclass(frozen=True)
 class ProviderConfig:
     provider: str
+    protocol: str
     model: str
     base_url: str
     api_key: str | None
     timeout_seconds: float
     endpoint: str
     remote: bool
+    auth_header: str | None = None
+    api_version: str | None = None
 
 
 def _is_loopback(host: str | None) -> bool:
@@ -64,18 +67,65 @@ def _bounded_timeout(env: Mapping[str, str]) -> float:
 
 
 def _safe_config(env: Mapping[str, str]) -> ProviderConfig | None:
-    provider = str(env.get("NEXUS_AI_PROVIDER", "disabled")).strip().casefold()
-    if provider in {"", "disabled", "none", "off"}:
+    raw_provider = str(env.get("NEXUS_AI_PROVIDER", "disabled")).strip().casefold()
+    if raw_provider in {"", "disabled", "none", "off"}:
         return None
-    if provider not in {"ollama", "openai_compatible"}:
+
+    aliases = {
+        "openai-compatible": "openai_compatible",
+        "lm_studio": "openai_compatible",
+        "lm-studio": "openai_compatible",
+        "vllm": "openai_compatible",
+    }
+    provider = aliases.get(raw_provider, raw_provider)
+    protocols = {
+        "ollama": "ollama",
+        "openai": "openai_compatible",
+        "openai_compatible": "openai_compatible",
+        "anthropic": "anthropic",
+        "gemini": "gemini",
+        "groq": "openai_compatible",
+        "openrouter": "openai_compatible",
+        "mistral": "openai_compatible",
+        "together": "openai_compatible",
+        "deepseek": "openai_compatible",
+        "fireworks": "openai_compatible",
+        "cerebras": "openai_compatible",
+    }
+    protocol = protocols.get(provider)
+    if protocol is None:
         raise AIProviderError("unsupported_provider")
 
-    model = str(env.get("NEXUS_AI_MODEL", "")).strip()
+    known_hosts = {
+        "openai": "api.openai.com",
+        "anthropic": "api.anthropic.com",
+        "gemini": "generativelanguage.googleapis.com",
+        "groq": "api.groq.com",
+        "openrouter": "openrouter.ai",
+        "mistral": "api.mistral.ai",
+        "together": "api.together.xyz",
+        "deepseek": "api.deepseek.com",
+        "fireworks": "api.fireworks.ai",
+        "cerebras": "api.cerebras.ai",
+    }
+    model_env_name = {
+        "openai": "OPENAI_MODEL",
+        "anthropic": "ANTHROPIC_MODEL",
+        "gemini": "GEMINI_MODEL",
+        "ollama": "OLLAMA_MODEL",
+    }.get(provider)
+    model = str(env.get("NEXUS_AI_MODEL") or
+                (env.get(model_env_name, "") if model_env_name else "")).strip()
     if not model or len(model) > 160 or any(ord(c) < 32 for c in model):
         raise AIProviderError("model_not_configured")
 
-    default_url = "http://127.0.0.1:11434/api" if provider == "ollama" else ""
-    raw_url = str(env.get("NEXUS_AI_BASE_URL", default_url)).strip()
+    default_urls = {
+        "ollama": "http://127.0.0.1:11434/api",
+        "openai": "https://api.openai.com/v1",
+        "anthropic": "https://api.anthropic.com",
+        "gemini": "https://generativelanguage.googleapis.com/v1beta",
+    }
+    raw_url = str(env.get("NEXUS_AI_BASE_URL") or default_urls.get(provider, "")).strip()
     if not raw_url or len(raw_url) > 500:
         raise AIProviderError("base_url_not_configured")
 
@@ -95,8 +145,16 @@ def _safe_config(env: Mapping[str, str]) -> ProviderConfig | None:
     ):
         raise AIProviderError("invalid_base_url")
 
+    normalized_host = host.casefold().rstrip(".")
     remote = not _is_loopback(host)
-    api_key = str(env.get("NEXUS_AI_API_KEY", "")).strip() or None
+    key_env_name = {
+        "openai": "OPENAI_API_KEY",
+        "anthropic": "ANTHROPIC_API_KEY",
+        "gemini": "GEMINI_API_KEY",
+        "ollama": "OLLAMA_API_KEY",
+    }.get(provider)
+    api_key = str(env.get("NEXUS_AI_API_KEY") or
+                  (env.get(key_env_name, "") if key_env_name else "")).strip() or None
     path = parts.path.rstrip("/")
 
     if remote:
@@ -109,39 +167,58 @@ def _safe_config(env: Mapping[str, str]) -> ProviderConfig | None:
             for item in str(env.get("NEXUS_AI_REMOTE_HOST_ALLOWLIST", "")).split(",")
             if item.strip()
         }
-        if host.casefold().rstrip(".") not in allowed_hosts:
+        if normalized_host not in allowed_hosts:
             raise AIProviderError("remote_host_not_allowlisted")
+        expected_host = known_hosts.get(provider)
+        if expected_host and normalized_host != expected_host:
+            raise AIProviderError("provider_host_mismatch_use_openai_compatible")
         if not api_key:
             raise AIProviderError("remote_api_key_not_configured")
 
-    if provider == "ollama":
+    if protocol == "ollama":
         if remote:
             raise AIProviderError("ollama_native_provider_must_be_local")
         if path not in {"", "/", "/api"}:
             raise AIProviderError("ollama_base_url_must_target_api_root")
-        base_path = "/api"
-        endpoint = "chat"
-    else:
-        if path not in {"/v1", "/"}:
-            raise AIProviderError("openai_compatible_base_url_must_target_v1")
+        base_path, endpoint = "/api", "chat"
+        auth_header = "Authorization" if api_key else None
+        api_version = None
+    elif protocol == "anthropic":
+        if path not in {"", "/", "/v1"}:
+            raise AIProviderError("anthropic_base_url_must_target_api_root_or_v1")
         base_path = "/v1"
+        endpoint = "messages"
+        auth_header = "Authorization" if api_key else None
+        api_version = str(env.get("NEXUS_AI_ANTHROPIC_VERSION", "2026-10-21")).strip()
+        if not api_version or len(api_version) > 40 or any(ord(c) < 32 for c in api_version):
+            raise AIProviderError("invalid_anthropic_api_version")
+    elif protocol == "gemini":
+        if path not in {"/v1beta", "/v1"}:
+            raise AIProviderError("gemini_base_url_must_target_v1beta_or_v1")
+        base_path = path
+        endpoint = f"models/{quote(model, safe='')}:generateContent"
+        auth_header = "x-goog-api-key" if api_key else None
+        api_version = None
+    else:
+        if path not in {"/v1", "/api/v1", "/"}:
+            raise AIProviderError("openai_compatible_base_url_must_target_v1")
+        base_path = path or "/v1"
         endpoint = "chat/completions"
+        auth_header = "Authorization" if api_key else None
+        api_version = None
 
-    base = urlunsplit((
-        parts.scheme,
-        parts.netloc,
-        base_path,
-        "",
-        "",
-    )).rstrip("/")
+    base = urlunsplit((parts.scheme, parts.netloc, base_path, "", "")).rstrip("/")
     return ProviderConfig(
         provider=provider,
+        protocol=protocol,
         model=model,
         base_url=base,
         api_key=api_key,
         timeout_seconds=_bounded_timeout(env),
         endpoint=endpoint,
         remote=remote,
+        auth_header=auth_header,
+        api_version=api_version,
     )
 
 
@@ -168,6 +245,7 @@ def provider_status(env: Mapping[str, str] | None = None) -> dict[str, Any]:
         return {
             "provider_status": "unconfigured",
             "provider": "disabled",
+            "supported_providers": ["openai", "anthropic", "gemini", "ollama", "openai_compatible", "groq", "openrouter", "mistral", "together", "deepseek", "fireworks", "cerebras"],
             "model": None,
             "endpoint": None,
             "remote": False,
@@ -181,6 +259,8 @@ def provider_status(env: Mapping[str, str] | None = None) -> dict[str, Any]:
     return {
         "provider_status": "configured_not_live_verified",
         "provider": config.provider,
+        "protocol": config.protocol,
+        "supported_providers": ["openai", "anthropic", "gemini", "ollama", "openai_compatible", "groq", "openrouter", "mistral", "together", "deepseek", "fireworks", "cerebras"],
         "model": config.model,
         "endpoint": f"{urlsplit(config.base_url).scheme}://{urlsplit(config.base_url).netloc}{urlsplit(config.base_url).path}",
         "remote": config.remote,
@@ -247,13 +327,43 @@ def chat_completion(
         raise AIProviderError("invalid_model")
 
     payload: dict[str, Any]
-    if config.provider == "ollama":
+    if config.protocol == "ollama":
         payload = {
             "model": effective_model,
             "messages": normalized,
             "stream": False,
             "options": {"temperature": 0.2},
         }
+    elif config.protocol == "anthropic":
+        system_text = "\n\n".join(m["content"] for m in normalized if m["role"] == "system")
+        payload = {
+            "model": effective_model,
+            "max_tokens": 2500,
+            "stream": False,
+            "messages": [
+                {"role": m["role"], "content": m["content"]}
+                for m in normalized if m["role"] != "system"
+            ],
+        }
+        if system_text:
+            payload["system"] = system_text
+    elif config.protocol == "gemini":
+        contents = []
+        system_parts = []
+        for message in normalized:
+            if message["role"] == "system":
+                system_parts.append({"text": message["content"]})
+            else:
+                contents.append({
+                    "role": "model" if message["role"] == "assistant" else "user",
+                    "parts": [{"text": message["content"]}],
+                })
+        payload = {
+            "contents": contents,
+            "generationConfig": {"temperature": 0.2, "maxOutputTokens": 2500},
+        }
+        if system_parts:
+            payload["systemInstruction"] = {"parts": system_parts}
     else:
         payload = {
             "model": effective_model,
@@ -264,14 +374,17 @@ def chat_completion(
         }
 
     body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+    headers = {"Content-Type": "application/json", "Accept": "application/json"}
+    if config.api_key and config.auth_header == "Authorization":
+        headers["Authorization"] = f"Bearer {config.api_key}"
+    elif config.api_key and config.auth_header:
+        headers[config.auth_header] = config.api_key
+    if config.protocol == "anthropic":
+        headers["anthropic-version"] = config.api_version or "2026-10-21"
     request = Request(
         f"{config.base_url}/{config.endpoint}",
         data=body,
-        headers={
-            "Content-Type": "application/json",
-            "Accept": "application/json",
-            **({"Authorization": f"Bearer {config.api_key}"} if config.api_key else {}),
-        },
+        headers=headers,
         method="POST",
     )
 
@@ -300,7 +413,7 @@ def chat_completion(
     except (UnicodeDecodeError, json.JSONDecodeError):
         raise AIProviderError("provider_invalid_json") from None
 
-    if config.provider == "ollama":
+    if config.protocol == "ollama":
         content = (
             response_data.get("message", {}).get("content")
             if isinstance(response_data, dict)
@@ -309,6 +422,27 @@ def chat_completion(
         )
         prompt_tokens = response_data.get("prompt_eval_count") if isinstance(response_data, dict) else None
         completion_tokens = response_data.get("eval_count") if isinstance(response_data, dict) else None
+    elif config.protocol == "anthropic":
+        blocks = response_data.get("content") if isinstance(response_data, dict) else None
+        content = "\n".join(
+            item.get("text", "") for item in blocks
+            if isinstance(item, dict) and item.get("type") == "text"
+        ) if isinstance(blocks, list) else None
+        usage = response_data.get("usage") if isinstance(response_data, dict) else {}
+        usage = usage if isinstance(usage, dict) else {}
+        prompt_tokens = usage.get("input_tokens")
+        completion_tokens = usage.get("output_tokens")
+    elif config.protocol == "gemini":
+        candidates = response_data.get("candidates") if isinstance(response_data, dict) else None
+        first = candidates[0] if isinstance(candidates, list) and candidates and isinstance(candidates[0], dict) else {}
+        candidate_content = first.get("content") if isinstance(first.get("content"), dict) else {}
+        parts = candidate_content.get("parts") if isinstance(candidate_content.get("parts"), list) else []
+        content = "\n".join(item.get("text", "") for item in parts
+                             if isinstance(item, dict) and isinstance(item.get("text"), str))
+        usage = response_data.get("usageMetadata") if isinstance(response_data, dict) else {}
+        usage = usage if isinstance(usage, dict) else {}
+        prompt_tokens = usage.get("promptTokenCount")
+        completion_tokens = usage.get("candidatesTokenCount")
     else:
         choices = response_data.get("choices") if isinstance(response_data, dict) else None
         first = choices[0] if isinstance(choices, list) and choices and isinstance(choices[0], dict) else {}
@@ -317,7 +451,7 @@ def chat_completion(
         usage = response_data.get("usage") if isinstance(response_data, dict) else {}
         usage = usage if isinstance(usage, dict) else {}
         prompt_tokens = usage.get("prompt_tokens")
-        completion_tokens = usage.get("completion_tokens")
+        completion_tokens = usage.get("completion_tokens)
 
     if not isinstance(content, str) or not content.strip():
         raise AIProviderError("provider_returned_no_text")
