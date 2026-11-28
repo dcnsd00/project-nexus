@@ -268,3 +268,22 @@ def test_ollama_pull_api_is_loopback_only_and_progress_is_read_only(monkeypatch)
                     client=("192.0.2.82", 54382)) as client:
         blocked = client.post("/api/nexus/workers/local-models/qwen3-4b/pull")
     assert blocked.status_code == 403
+
+
+
+def test_windows_ai_acceptance_script_is_loopback_only_and_non_installing():
+    from pathlib import Path
+
+    script = Path(__file__).resolve().parents[1] / "DIAGNOSTIC_AI_ACCEPTANCE.ps1"
+    assert script.is_file()
+    source = script.read_text(encoding="utf-8")
+    assert 'DEFAULT_PORT' not in source or "8765" in source
+    assert "127.0.0.1:8765" in source
+    assert "Assert-LoopbackBaseUri" in source
+    assert "RunLiveAiSelfTest" in source
+    assert "/api/nexus/workers/self-test" in source
+    assert "/api/integrations/status" in source
+    assert "model_downloads_started = $false" in source
+    assert "runtimes_started = $false" in source
+    assert "Start-Process" not in source
+    assert "ollama pull" not in source.casefold()
