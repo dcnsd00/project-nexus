@@ -146,3 +146,120 @@ def test_local_runtime_status_api_is_loopback_only_and_reports_no_autostart(monk
     ) as client:
         blocked = client.get("/api/nexus/workers/local-runtime-status")
     assert blocked.status_code == 403
+
+
+def test_explicit_ollama_model_pull_uses_only_allowlisted_model_and_tracks_progress(monkeypatch):
+    models._PULLS.clear()
+    monkeypatch.setattr(
+        models,
+        "_get_json",
+        lambda url, timeout=2.0: {"version": "test"} if url.endswith("/api/version") else {},
+    )
+    captured = {}
+
+    class FakePullResponse:
+        def __init__(self):
+            self.lines = [
+                b'{"status":"pulling manifest"}\\n',
+                b'{"status":"downloading","total":100,"completed":100}\\n',
+                b'{"status":"success"}\\n',
+            ]
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return False
+
+        def readline(self, limit):
+            return self.lines.pop(0) if self.lines else b""
+
+    def fake_open(request, timeout):
+        captured["url"] = request.full_url
+        captured["method"] = request.get_method()
+        captured["payload"] = json.loads(request.data.decode("utf-8"))
+        return FakePullResponse()
+
+    monkeypatch.setattr(models, "_ollama_pull_open", fake_open)
+    started = models.start_ollama_model_pull(
+        "qwen3-4b",
+        env={"NEXUS_OLLAMA_BASE_URL": "http://127.0.0.1:11434"},
+    )
+    thread = models._PULLS["qwen3-4b"]["thread"]
+    thread.join(timeout=2.0)
+    status = models.ollama_model_pull_status("qwen3-4b")
+
+    assert captured["url"] == "http://127.0.0.1:11434/api/pull"
+    assert captured["method"] == "POST"
+    assert captured["payload"] == {"name": "qwen3:4b", "stream": True}
+    assert status["status"] == "completed"
+    assert status["model_downloaded"] is True
+    assert status["progress_percent"] == 100.0
+    assert status["operational_verified"] is False
+    assert started["profile_id"] == "qwen3-4b"
+
+
+def test_ollama_pull_rejects_profiles_not_in_explicit_download_allowlist():
+    with pytest.raises(models.LocalModelRuntimeError, match="model_profile_not_allowlisted_for_ollama_pull"):
+        models.start_ollama_model_pull("lfm3-vision", env={})
+
+
+def test_ollama_pull_requires_an_already_running_loopback_service(monkeypatch):
+    monkeypatch.setattr(
+        models,
+        "_get_json",
+        lambda url, timeout=2.0: (_ for _ in ()).throw(models.LocalModelRuntimeError("local_runtime_timeout")),
+    )
+    with pytest.raises(models.LocalModelRuntimeError, match="local_runtime_timeout"):
+        models.start_ollama_model_pull(
+            "lfm3-text",
+            env={"NEXUS_OLLAMA_BASE_URL": "http://127.0.0.1:11434"},
+        )
+
+
+def test_ollama_pull_rejects_non_loopback_runtime_before_request(monkeypatch):
+    monkeypatch.setattr(
+        models,
+        "_get_json",
+        lambda url, timeout=2.0: (_ for _ in ()).throw(AssertionError("network must not be called")),
+    )
+    with pytest.raises(models.LocalModelRuntimeError, match="ollama_endpoint_must_be_loopback"):
+        models.start_ollama_model_pull(
+            "lfm3-text",
+            env={"NEXUS_OLLAMA_BASE_URL": "https://remote.example"},
+        )
+
+
+def test_ollama_pull_api_is_loopback_only_and_progress_is_read_only(monkeypatch):
+    from modules import ai_worker_coordinator as coordinator
+    from nexus_master import app
+
+    expected = {
+        "profile_id": "qwen3-4b",
+        "model": "qwen3:4b",
+        "status": "running",
+        "operational_verified": False,
+        "model_downloaded": False,
+        "total_bytes": 100,
+        "completed_bytes": 25,
+        "progress_percent": 25.0,
+        "last_message": "downloading",
+        "started_at": "2026-11-28T00:00:00+00:00",
+        "finished_at": None,
+        "failure_type": None,
+    }
+    monkeypatch.setattr(coordinator, "start_ollama_model_pull", lambda profile_id: expected)
+    monkeypatch.setattr(coordinator, "ollama_model_pull_status", lambda profile_id: expected)
+    with TestClient(app, base_url="http://127.0.0.1",
+                    client=("127.0.0.1", 54382)) as client:
+        started = client.post("/api/nexus/workers/local-models/qwen3-4b/pull")
+        status = client.get("/api/nexus/workers/local-models/pulls/qwen3-4b")
+    assert started.status_code == 200
+    assert status.status_code == 200
+    assert status.json()["progress_percent"] == 25.0
+    assert status.json()["operational_verified"] is False
+
+    with TestClient(app, base_url="http://127.0.0.1",
+                    client=("192.0.2.82", 54382)) as client:
+        blocked = client.post("/api/nexus/workers/local-models/qwen3-4b/pull")
+    assert blocked.status_code == 403
