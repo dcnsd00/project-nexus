@@ -177,7 +177,7 @@ def bitcoin_node_snapshot(rpc_factory=None, include_privacy: bool = False) -> di
                     "severity": "unknown",
                     "wallet_state": "not_inspected",
                     "wallet_broadcast_setting": "not_inspected",
-                    "addresses_or_transactions_read": False,
+                    "peer_address_fields_inspected": False,\n                    "transaction_data_inspected": False,
                     "peer_addresses_returned": False,
                     "actions_taken": [],
                 }
