@@ -366,7 +366,18 @@
     "miners_started": false,
     "pool_configuration_changed": false,
     "live_reports_received": 0,
-    "target_hardware_validated": false
+    "target_hardware_validated": false,
+    "extra_payloads": [
+      "minerdata",
+      "poolsdata"
+    ],
+    "extra_payload_transport": "authenticated multipart/form-data file upload",
+    "extra_payload_max_bytes": 5242880,
+    "read_only_snapshot_endpoints": [
+      "/api/mining/rainbowminer/miners/latest",
+      "/api/mining/rainbowminer/pools/latest"
+    ],
+    "oc_profiles_persisted": false
   },
   "mining_profit_intelligence": {
     "status_endpoint": "/api/mining/profit-intelligence/status",
@@ -382,5 +393,8 @@
     "automatic_switching": false,
     "miner_control": false,
     "live_profitability_validated": false
-  }
+  },
+  "dependencies": [
+    "python-multipart>=0.0.31,<1"
+  ]
 }
