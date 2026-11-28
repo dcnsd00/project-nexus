@@ -9,6 +9,11 @@ from __future__ import annotations
 import math
 from typing import Any, Iterable
 
+from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel, Field
+
+router = APIRouter(prefix="/api/mining/profit-intelligence", tags=["Mining Profit Intelligence"])
+
 
 DEFAULT_POLICY: dict[str, float] = {
     # RainbowMiner documents 10-minute live and one-week stable averages. The
@@ -210,3 +215,43 @@ def rank_candidates(candidates: Iterable[dict[str, Any]], *,
             "must be independently measured. This engine does not fetch prices or control miners."
         ),
     }
+
+
+class ProfitRankingRequest(BaseModel):
+    candidates: list[dict[str, Any]] = Field(min_length=1, max_length=64)
+    current_candidate_id: str | None = Field(default=None, max_length=128)
+    live_price_weight: float = Field(default=0.5, ge=0.0, le=1.0)
+    switch_hysteresis_percent: float = Field(default=3.0, ge=0.0, le=1000.0)
+    maximum_source_age_seconds: float = Field(default=900.0, gt=0.0, le=86400.0)
+    fixed_cost_per_day_ron: float = Field(default=0.0, ge=0.0, le=1_000_000.0)
+
+
+@router.get("/status")
+def profit_intelligence_status() -> dict[str, Any]:
+    return {
+        "state": "available",
+        "mode": "recommendation_only",
+        "currency": "RON",
+        "period": "day",
+        "automatic_switching": False,
+        "external_data_fetch": False,
+        "miner_control": False,
+    }
+
+
+@router.post("/rank")
+def profit_intelligence_rank(request: ProfitRankingRequest) -> dict[str, Any]:
+    policy = {
+        "live_price_weight": request.live_price_weight,
+        "switch_hysteresis_percent": request.switch_hysteresis_percent,
+        "maximum_source_age_seconds": request.maximum_source_age_seconds,
+        "fixed_cost_per_day_ron": request.fixed_cost_per_day_ron,
+    }
+    try:
+        return rank_candidates(
+            request.candidates,
+            current_candidate_id=request.current_candidate_id,
+            policy=policy,
+        )
+    except ProfitIntelligenceError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
