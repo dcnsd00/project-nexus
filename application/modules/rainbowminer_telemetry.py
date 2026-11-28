@@ -87,6 +87,20 @@ def _require_loopback(request: Request) -> None:
         raise HTTPException(status_code=403, detail="rainbowminer_ingest_loopback_only")
 
 
+def _enforce_content_length(request: Request, maximum: int) -> None:
+    raw_length = request.headers.get("content-length")
+    if raw_length is None:
+        return
+    try:
+        length = int(raw_length)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="invalid_content_length") from None
+    if length < 0:
+        raise HTTPException(status_code=400, detail="invalid_content_length")
+    if length > maximum:
+        raise HTTPException(status_code=413, detail="rainbowminer_payload_too_large")
+
+
 def _json_value(raw: str, field: str) -> Any:
     if not raw:
         return None
@@ -470,6 +484,12 @@ async def ingest_report(request: Request) -> dict[str, Any]:
     if not expected:
         raise HTTPException(status_code=503, detail="rainbowminer_ingest_not_configured")
 
+    content_type = request.headers.get("content-type", "")
+    multipart = content_type.split(";", 1)[0].strip().casefold() == "multipart/form-data"
+    _enforce_content_length(
+        request,
+        MAX_EXTRA_PAYLOAD_BYTES + 65_536 if multipart else MAX_REPORT_BYTES,
+    )
     form = None
     try:
         content_type = request.headers.get("content-type", "")
