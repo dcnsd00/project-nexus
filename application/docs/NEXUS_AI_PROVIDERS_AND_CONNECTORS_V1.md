@@ -114,7 +114,7 @@ Set `NEXUS_AI_OWNER_INSTRUCTIONS` in the machine-local environment to give the c
 NEXUS_AI_OWNER_INSTRUCTIONS=Răspunde în română. Prioritizează implementarea NEXUS MASTER. Pentru cererile tehnice permise, oferă cod complet, teste și căi exacte din repository. Separă faptele verificate de ipoteze.
 ```
 
-These instructions are injected into each specialist system prompt. They can change language, domain priorities, response style and the degree of implementation detail. They do not silently grant shell, repository-write, miner, wallet-signing or external-write permissions. Model behaviour still depends on the selected model's own training and license; running locally does not guarantee that every model has no built-in refusals.
+These instructions are injected into the coordinator and each specialist system prompt. They can change language, domain priorities, response style and the degree of implementation detail. They do not silently grant shell, repository-write, miner, wallet-signing or external-write permissions. Model behaviour still depends on the selected model's own training and license; running locally does not guarantee that every model has no built-in refusals.
 
 ### Local AI endpoints
 
@@ -156,9 +156,9 @@ All providers use the existing local NEXUS API:
 - `POST /api/nexus/workers/provider-test` — perform a real minimal prompt/response probe (loopback-only).
 - `POST /api/nexus/workers/self-test` — perform one provider probe and invoke all 11 profiles sequentially (loopback-only). This requires a configured, live-verified provider and consumes 12 model requests in total (one provider probe plus 11 worker calls).
 - `POST /api/nexus/workers/execute` — dispatch one specialist (loopback-only).
-- `POST /api/nexus/workers/coordinate` — central coordinator + up to three specialist domains + quality review (loopback-only).
+- `POST /api/nexus/workers/coordinate` — central coordinator + up to all ten specialist domains + one final QA/security review (loopback-only).
 
-The default is disabled. To use a local Ollama endpoint, configure the values in the machine-local environment (do not commit secrets):
+The NEXUS specialist-worker provider defaults to disabled until the owner configures a provider. This does not replace or reconfigure the existing NEXUS host application's central orchestration path. To use a local Ollama endpoint for the specialist profiles, configure the values in the machine-local environment (do not commit secrets):
 
 ```dotenv
 NEXUS_AI_PROVIDER=ollama
