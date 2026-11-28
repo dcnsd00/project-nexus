@@ -204,7 +204,7 @@ def test_phy_challenge_dispatch_runs_offline_structural_analysis():
     assert result["kind"] == "phy_challenge"
     assert result["status"] == "structural_analysis_only"
     assert result["pair_count"] == 128
-    assert result["private_key_search"] if "private_key_search" in result else True
+    assert "No private-key or nonce search is performed." in result["limits"]
 
 
 def test_phy_challenge_public_point_validator_does_not_derive_private_scalar():
