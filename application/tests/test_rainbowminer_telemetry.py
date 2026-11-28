@@ -240,7 +240,6 @@ def test_rainbowminer_minerdata_and_poolsdata_multipart_uploads(monkeypatch, tmp
     assert pool_payload["pools"][0]["StablePrice"] == 95.0
     assert status.json()["extra_reports_stored"] == {"minerdata": 1, "poolsdata": 1}
 
-    stored = db.read_text() if False else None
     import sqlite3
     with sqlite3.connect(str(db)) as connection:
         contents = connection.execute(
@@ -262,3 +261,19 @@ def test_rainbowminer_extra_upload_rejects_invalid_json_and_oversized_files():
             b"x" * (telemetry.MAX_EXTRA_PAYLOAD_BYTES + 1),
             worker="rig",
         )
+
+
+def test_report_rejects_oversized_declared_content_length(monkeypatch):
+    monkeypatch.setenv("NEXUS_RAINBOWMINER_REPORT_KEY", "test-secret")
+    with TestClient(app, base_url="http://127.0.0.1",
+                    client=("127.0.0.1", 51241)) as client:
+        response = client.post(
+            "/api/mining/rainbowminer/report",
+            content=b"{}",
+            headers={
+                "content-type": "application/json",
+                "content-length": str(telemetry.MAX_REPORT_BYTES + 1),
+            },
+        )
+    assert response.status_code == 413
+    assert response.json()["detail"] == "rainbowminer_payload_too_large"
