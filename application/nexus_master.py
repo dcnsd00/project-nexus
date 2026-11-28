@@ -123,6 +123,8 @@ from modules.gate_paper_trading import router as gate_paper_router  # noqa: E402
 app.include_router(gate_paper_router)
 from modules.market_data import router as market_data_router  # noqa: E402
 app.include_router(market_data_router)
+from modules.rainbowminer_telemetry import router as rainbowminer_telemetry_router  # noqa: E402
+app.include_router(rainbowminer_telemetry_router)
 from modules.pool_failover_api import router as pool_failover_router  # noqa: E402
 app.include_router(pool_failover_router)
 from modules.puzzle_solver import router as puzzle_solver_router  # noqa: E402
