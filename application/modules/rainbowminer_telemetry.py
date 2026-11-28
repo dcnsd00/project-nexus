@@ -33,21 +33,23 @@ TOP_LEVEL_FIELDS = {
     "status", "runmode", "interval", "uptime", "sysuptime", "memusage",
     "profit", "powerdraw", "earnings_avg", "earnings_1d", "cpu", "cpuload",
     "cputemp", "cpupower", "maxtemp", "tempalert", "maxcrashes", "crashalert",
-    "version", "psversion", "shrm",
+    "version", "psversion", "shrm", "uncleanalert",
 }
 MINER_FIELDS = {
     "Name", "Version", "Type", "Active", "Algorithm", "Currency", "CoinName",
     "CoinSymbol", "Pool", "BLK", "CurrentSpeed", "EstimatedSpeed", "Accepted",
-    "Rejected", "Stale", "PowerDraw", "BTC/day", "Profit",
+    "Rejected", "Stale", "PowerDraw", "BTC/day", "Profit", "Donator",
+    "Benchmarking", "Devices",
 }
 DEVICE_FIELDS = {
-    "Name", "Type", "Vendor", "Model", "Algorithm", "CurrentSpeed", "PowerDraw",
-    "Temperature", "Temp", "Fan", "CoreClock", "MemoryClock", "MemoryTotal",
-    "MemoryFree", "Accepted", "Rejected", "Stale",
+    "Id", "Name", "Type", "Vendor", "Model", "Algorithm", "CurrentSpeed",
+    "PowerDraw", "Watt", "Temperature", "Temp", "Fan", "CoreClock", "MemoryClock",
+    "MemoryTotal", "MemoryFree", "Mem", "Core", "MemC", "MaxTemp",
+    "Accepted", "Rejected", "Stale",
 }
 POOL_FIELDS = {
     "Pool", "Currency", "CoinName", "CoinSymbol", "Accepted", "Rejected",
-    "Stale", "Profit", "PowerDraw", "CurrentSpeed",
+    "Stale", "Profit", "PowerDraw", "CurrentSpeed", "BLK",
 }
 router = APIRouter(prefix="/api/mining/rainbowminer", tags=["RainbowMiner telemetry"])
 
@@ -141,6 +143,19 @@ def _filtered_rows(value: Any, allowed_fields: set[str], field: str,
                    maximum: int) -> list[dict[str, Any]]:
     if value is None:
         return []
+    if isinstance(value, dict):
+        if set(value).intersection(allowed_fields):
+            value = [value]
+        else:
+            rows = []
+            for key, row in value.items():
+                if not isinstance(row, dict):
+                    raise RainbowMinerReportError(f"invalid_row:{field}:{key}")
+                enriched = dict(row)
+                inferred_key = "Pool" if field == "pool_totals" else "Id"
+                enriched.setdefault(inferred_key, key)
+                rows.append(enriched)
+            value = rows
     if not isinstance(value, list) or len(value) > maximum:
         raise RainbowMinerReportError(f"invalid_array:{field}")
     output: list[dict[str, Any]] = []
@@ -149,7 +164,13 @@ def _filtered_rows(value: Any, allowed_fields: set[str], field: str,
             raise RainbowMinerReportError(f"invalid_row:{field}:{index}")
         selected = {}
         for key in allowed_fields:
-            if key in row:
+            if key not in row:
+                continue
+            if key == "Devices" and field == "data":
+                selected[key] = _filtered_rows(
+                    row[key], DEVICE_FIELDS, "data.Devices", MAX_DEVICE_ROWS
+                )
+            else:
                 selected[key] = _safe_scalar(row[key], f"{field}.{key}")
         output.append(selected)
     return output
@@ -215,6 +236,11 @@ def normalize_report(raw: dict[str, Any]) -> dict[str, Any]:
             if not math.isfinite(number) or number < 0:
                 raise RainbowMinerReportError(f"invalid_numeric_field:{field}")
             payload[field] = number
+        elif field == "uncleanalert":
+            normalized = str(raw_value).strip().casefold()
+            if normalized not in {"true", "false", "1", "0", "yes", "no"}:
+                raise RainbowMinerReportError("invalid_boolean_field:uncleanalert")
+            payload[field] = normalized in {"true", "1", "yes"}
         else:
             payload[field] = _safe_scalar(raw_value, field)
 
