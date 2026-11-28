@@ -323,6 +323,7 @@ def test_documented_default_public_apis_are_allowlisted_without_user_supplied_ho
         "aioz": {"jsonrpc": "2.0", "id": 1, "result": {
             "node_info": {"network": "aioz-mainnet"}, "sync_info": {"latest_block_height": "1"}
         }},
+        "theta": {"jsonrpc": "2.0", "id": 1, "result": "0x169"},
         "helium_iot": {"items": [], "cursor": None},
         "anyone": {"all": 1, "offline": 0, "online": 1},
         "weatherxm": {"total": 1, "online": 1},
@@ -339,3 +340,22 @@ def test_documented_default_public_apis_are_allowlisted_without_user_supplied_ho
     for provider_id in responses:
         result = registry.probe_connector(provider_id)
         assert result["operational_verified"] is True
+
+
+def test_documented_connector_contract_mismatch_does_not_mark_provider_live(monkeypatch):
+    registry._LIVE_VERIFICATION.clear()
+    monkeypatch.setattr(
+        registry,
+        "_transport_open",
+        lambda request, timeout: FakeResponse({"status": "ok"}),
+    )
+    with pytest.raises(registry.ConnectorError, match="connector_response_contract_mismatch"):
+        registry.probe_connector("theta")
+    theta = next(row for row in registry.connector_status() if row["id"] == "theta")
+    assert theta["operational_verified"] is False
+
+
+def test_nosana_requires_api_key_even_when_official_base_url_is_default():
+    item = registry._PROVIDER_BY_ID["nosana"]
+    with pytest.raises(registry.ConnectorError, match="connector_not_configured"):
+        registry._config(item, {})
