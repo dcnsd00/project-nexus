@@ -46,6 +46,7 @@ PROVIDERS: tuple[dict[str, Any], ...] = (
      "resource_paths": {"public_chain": "status", "node_status": "status"},
      "contract_source": "https://docs.aioz.network/aioz-blockchain/network-information",
      "contract_state": "official_rpc_documented",
+     "response_contract": "tendermint_status",
      "protocol": "rest_get",
      "capabilities": ["public_chain_read", "node_status_read"],
      "resources": ("public_chain", "node_status")},
@@ -57,6 +58,7 @@ PROVIDERS: tuple[dict[str, Any], ...] = (
      "resource_rpc_methods": {"public_chain": "eth_blockNumber"},
      "contract_source": "https://docs.thetatoken.org/docs/theta-blockchain-tnt20-token-integration-guide",
      "contract_state": "official_json_rpc_documented",
+     "response_contract": "json_rpc",
      "protocol": "json_rpc_post",
      "capabilities": ["public_chain_read"],
      "resources": ("public_chain",)},
@@ -72,6 +74,7 @@ PROVIDERS: tuple[dict[str, Any], ...] = (
      "resource_paths": {"hotspots": "v2/hotspots"},
      "contract_source": "https://docs.helium.com/network-data/entity-api/",
      "contract_state": "official_entity_api_documented",
+     "response_contract": "helium_hotspot_list",
      "protocol": "rest_get",
      "capabilities": ["hotspot_read"],
      "resources": ("hotspots",)},
@@ -83,6 +86,7 @@ PROVIDERS: tuple[dict[str, Any], ...] = (
      "resource_paths": {"station": "api/rawdata/v1/stations"},
      "contract_source": "https://github.com/geodnet/GEODNET_API/blob/main/GEODNET_STATION_API.md",
      "contract_state": "official_basic_auth_station_api_documented",
+     "response_contract": "geodnet_stations",
      "protocol": "rest_get",
      "capabilities": ["station_read", "coverage_read"],
      "resources": ("station",)},
@@ -93,6 +97,7 @@ PROVIDERS: tuple[dict[str, Any], ...] = (
      "resource_paths": {"relay_status": "total-relays-latest"},
      "contract_source": "https://docs.anyone.io/sdk/api/rest",
      "contract_state": "official_public_rest_documented",
+     "response_contract": "anyone_relay_summary",
      "protocol": "rest_get",
      "capabilities": ["relay_network_status_read"],
      "resources": ("relay_status",)},
@@ -107,6 +112,7 @@ PROVIDERS: tuple[dict[str, Any], ...] = (
      "optional_token_env": "NEXUS_WEATHERXM_API_TOKEN",
      "contract_source": "https://api.weatherxm.com/api/v1/docs/",
      "contract_state": "official_openapi_documented",
+     "response_contract": "json_object",
      "protocol": "rest_get",
      "capabilities": ["network_stats_read", "station_read", "rewards_read"],
      "resources": ("station", "rewards")},
@@ -121,6 +127,7 @@ PROVIDERS: tuple[dict[str, Any], ...] = (
      "resource_paths": {"provider": "v1/providers"},
      "contract_source": "https://akash.network/docs/api-documentation/rest-api/",
      "contract_state": "official_public_read_only_network_data_api_documented",
+     "response_contract": "akash_provider_list",
      "protocol": "rest_get",
      "capabilities": ["provider_read", "gpu_availability_read"],
      "resources": ("provider",)},
@@ -131,6 +138,7 @@ PROVIDERS: tuple[dict[str, Any], ...] = (
      "resource_paths": {"job": "jobs/count"},
      "contract_source": "https://learn.nosana.com/api/intro.html",
      "contract_state": "official_api_documented",
+     "response_contract": "nosana_job_count",
      "protocol": "rest_get",
      "capabilities": ["job_read", "network_stats_read"],
      "resources": ("job",)},
@@ -325,6 +333,58 @@ def _transport_open(request: Request, timeout: float):
     return opener.open(request, timeout=timeout)
 
 
+def _validate_provider_payload(item: dict[str, Any], resource: str, payload: Any) -> None:
+    """Validate the documented response shape before granting live verification."""
+    if resource != "health":
+        return
+    contract = item.get("response_contract")
+    valid = True
+    if contract == "tendermint_status":
+        valid = (
+            isinstance(payload, dict)
+            and isinstance(payload.get("result"), dict)
+            and isinstance(payload["result"].get("node_info"), dict)
+            and isinstance(payload["result"].get("sync_info"), dict)
+        )
+    elif contract == "json_rpc":
+        valid = (
+            isinstance(payload, dict)
+            and payload.get("jsonrpc") == "2.0"
+            and payload.get("id") == 1
+            and "result" in payload
+            and "error" not in payload
+        )
+    elif contract == "helium_hotspot_list":
+        valid = (
+            isinstance(payload, dict)
+            and isinstance(payload.get("items"), list)
+            and ("cursor" in payload)
+        )
+    elif contract == "geodnet_stations":
+        valid = (
+            isinstance(payload, dict)
+            and payload.get("code") == 1000
+            and isinstance(payload.get("data"), list)
+        )
+    elif contract == "anyone_relay_summary":
+        valid = (
+            isinstance(payload, dict)
+            and all(isinstance(payload.get(key), (int, float)) for key in ("all", "offline", "online"))
+        )
+    elif contract == "json_object":
+        valid = isinstance(payload, dict)
+    elif contract == "akash_provider_list":
+        valid = isinstance(payload, list) and all(isinstance(row, dict) for row in payload)
+    elif contract == "nosana_job_count":
+        valid = (
+            isinstance(payload, dict)
+            and isinstance(payload.get("total"), int)
+            and isinstance(payload.get("byState"), dict)
+        )
+    if not valid:
+        raise ConnectorError("connector_response_contract_mismatch")
+
+
 def _request_json(
     item: dict[str, Any],
     resource: str,
@@ -383,6 +443,7 @@ def _request_json(
         payload = json.loads(raw.decode("utf-8"))
     except (UnicodeDecodeError, json.JSONDecodeError):
         raise ConnectorError("connector_invalid_json") from None
+    _validate_provider_payload(item, resource, payload)
 
     observed_at = datetime.now(timezone.utc).isoformat()
     with _VERIFICATION_LOCK:
