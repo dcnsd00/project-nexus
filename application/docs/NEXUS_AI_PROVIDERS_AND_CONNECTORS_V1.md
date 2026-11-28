@@ -223,25 +223,34 @@ All specialist profiles are registered in code. Actual model execution requires 
 
 The registry contains 12 connector profiles: Acurast, Grass, AIOZ, Theta, Nodle, Helium IoT, GEODNET, Anyone, WeatherXM, Wingbits, Akash and Nosana.
 
-Existing provider base URL and token environment variables remain the source of credentials. The adapter also requires a resource path for each operation.
+Eight profiles now have official API contracts mapped to explicit default endpoints and response schemas. Four profiles remain registered but cannot become `operational_verified` from a generic JSON response alone: Acurast, Grass, Nodle and Wingbits. For these, the provider-specific endpoint/authentication/schema contract must be supplied and reviewed before a schema validator is added.
 
-For example, Acurast:
+The following official, read-only contracts are mapped:
+- **AIOZ:** `https://rpc-dataseed.aioz.network/status` — Tendermint status response (`node_info` and `sync_info`).
+- **Theta:** `https://eth-rpc-api.thetatoken.org/rpc` — JSON-RPC POST using the read-only `eth_chainId` health method and `eth_blockNumber` public-chain resource.
+- **Helium IoT:** `https://entities.nft.helium.io/v2/hotspots?subnetwork=iot` — hotspot entity list. The Helium Entity API does not itself expose the full rewards/oracle history, so this adapter does not claim rewards integration.
+- **GEODNET:** `https://rawdata.geodnet.com/api/rawdata/v1/stations` — station list using HTTP Basic authentication with owner-supplied username/password.
+- **Anyone:** `https://api.ec.anyone.tech/total-relays-latest` — public network relay counts.
+- **WeatherXM:** `https://api.weatherxm.com/api/v1/network/stats` — public network statistics; account-specific station/reward reads require a user access token and still need resource-level schema acceptance.
+- **Akash:** `https://console-api.akash.network/v1/providers` — public, read-only indexed provider data. This is not a chain node and cannot broadcast transactions.
+- **Nosana:** `https://api.nosana.com/jobs/count` — read-only job counts, with an owner-supplied API key.
+
+The eight default base URLs are trusted only when NEXUS itself selects the exact hard-coded documented default. If an owner overrides a base URL, the replacement host must be HTTPS on port 443 and explicitly allowlisted.
+
+For a provider without a documented HTTP contract, configuration alone proves only reachability. Example shape for a future Acurast HTTP adapter:
 
 ```dotenv
 NEXUS_ACURAST_API_URL=https://<official-api-host>/<base-path>
 NEXUS_ACURAST_API_TOKEN=<secret>
 NEXUS_CONNECTOR_ALLOWED_HOSTS_ACURAST=<official-api-host>
 NEXUS_ACURAST_HEALTH_PATH=<documented-health-path>
-NEXUS_ACURAST_ACCOUNT_PATH=<documented-account-path>
-NEXUS_ACURAST_REWARDS_PATH=<documented-rewards-path>
-NEXUS_ACURAST_DEVICE_STATUS_PATH=<documented-device-status-path>
 ```
 
-For a public endpoint that requires no token, set its provider URL and allowlisted hostname, then define only the resource paths the provider actually documents. The examples above are configuration shapes, not assertions that these particular vendor paths exist.
+Acurast's currently documented public mainnet RPC is WebSocket (`wss://public-rpc.mainnet.acurast.com`); this HTTP REST adapter does not yet implement the WebSocket protocol. Do not set an invented REST URL. Grass and Wingbits likewise remain contract-pending until their official API contracts are supplied. Nodle documents separate SDK/IoT APIs, with IoT currently described as private beta; the correct account/indexer endpoint and schema must be confirmed for the user's account.
 
 Host allowlisting can be shared using `NEXUS_CONNECTOR_ALLOWED_HOSTS` or set per connector using `NEXUS_CONNECTOR_ALLOWED_HOSTS_<PROVIDER_ID>`. Remote hosts must use HTTPS on port 443 and match the allowlist exactly. A loopback endpoint may use HTTP for local development.
 
-For token-backed providers, the default header is `Authorization: Bearer <token>`. Optional per-connector settings are:
+For token-backed providers, the default header is `Authorization: Bearer <token>`. Nosana requires `NEXUS_NOSANA_API_TOKEN`; WeatherXM accepts an optional access token for account resources. GEODNET uses `NEXUS_GEODNET_USERNAME` and `NEXUS_GEODNET_PASSWORD` and sends HTTP Basic authentication. Optional per-connector token settings are:
 
 - `NEXUS_<PROVIDER_ID>_API_TOKEN_HEADER`: one of `Authorization`, `X-API-Key`, or `API-Key`.
 - `NEXUS_<PROVIDER_ID>_API_AUTH_SCHEME`: defaults to `Bearer`.
@@ -251,18 +260,23 @@ The API surface is local-only:
 - `GET /api/integrations/catalog` — connector list and readiness.
 - `GET /api/integrations/status` — counts by readiness state.
 - `POST /api/integrations/self-test` — probe the health resource of each of the 12 registered connectors (loopback-only). Only configured connectors with a valid health path can pass.
-- `POST /api/integrations/{provider_id}/probe` — real GET to the configured health resource.
-- `GET /api/integrations/{provider_id}/read/{resource}` — read the configured resource.
+- `POST /api/integrations/{provider_id}/probe` — execute the provider's configured health operation (GET for REST connectors; a fixed read-only JSON-RPC POST for Theta).
+- `GET /api/integrations/{provider_id}/read/{resource}` — read the configured resource. A resource is operationally verified only when its provider-specific response schema is also validated.
 
 The `health` resource is configured with `NEXUS_<PROVIDER_ID>_HEALTH_PATH`. Other permitted resource names are in the provider catalog and their paths are configured with `NEXUS_<PROVIDER_ID>_<RESOURCE>_PATH`.
 
-The adapter enforces GET-only requests, loopback-only API access, exact host allowlisting, HTTPS for remote services, no redirects, no proxy environment inheritance, a 12-second timeout, a 1 MB response bound and JSON content-type/parse validation. Error payloads and secrets are not returned to clients.
+The adapter enforces loopback-only API access, exact host allowlisting, HTTPS for remote services, no redirects, no proxy environment inheritance, a 12-second timeout, a 1 MB response bound and JSON content-type/parse validation. It uses GET for REST and a fixed allowlisted read-only JSON-RPC POST for Theta. GEODNET's Basic credentials are encoded at runtime and never returned. Error payloads and secrets are not returned to clients.
 
 ## Vendor-specific integration boundary
 
-This release implements a shared guarded JSON REST adapter contract for all 12 connector profiles. It is not a claim that every vendor's private/account API schema has been reverse-engineered or validated. Before declaring an individual connector complete, NEXUS must add/verify that provider's official endpoint paths, authentication method, response schema, pagination/rate-limit behaviour, freshness semantics and error mapping. Do not guess endpoint paths from the examples above.
+The connector registry distinguishes three levels:
+1. **Adapter registered** — NEXUS knows the provider ID and exposes the guarded connector surface.
+2. **Reachability verified** — the configured endpoint returned bounded valid JSON.
+3. **Contract verified / operational verified** — the response matched the provider-specific schema and the live proof is current.
 
-The generic connector returns validated JSON under a resource envelope. A provider-specific normalization layer should only be added when there is an official API contract or user-provided endpoint specification and test evidence.
+A generic HTTP 200 or arbitrary JSON response is not enough for `operational_verified`. Acurast, Grass, Nodle and Wingbits may report `reachable_contract_pending`, but they remain pending until an official endpoint/auth/schema contract is implemented. For the eight documented providers, only the documented health schemas are currently accepted. User-specific resources that do not yet have their own response schema remain `read_succeeded_contract_pending`.
+
+The current implementation does not claim provider-specific pagination, rate-limit/backoff, reward calculation, account normalization or freshness semantics for every vendor. Those require separate vendor contract work and real account/API tests.
 
 ## Acceptance gates
 
