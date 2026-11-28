@@ -283,11 +283,15 @@ def test_coordinated_worker_api_is_loopback_and_invokes_central_specialists(monk
             "side_effects_performed": False,
         },
     )
+    all_specialists = [
+        "mining", "cryptography", "blockchain", "wallet", "edge",
+        "integrations", "dashboard", "earnings", "ai_platform", "quality",
+    ]
     payload = {
         "task_kind": "research",
         "branch": "integration/rainbowminer-mining-intelligence-v1",
-        "domains": ["mining", "integrations"],
-        "prompt": "Review RainbowMiner telemetry and profitability integration.",
+        "domains": all_specialists,
+        "prompt": "Review NEXUS MASTER across all specialist domains.",
     }
     with TestClient(app, base_url="http://127.0.0.1",
                     client=("127.0.0.1", 54322)) as client:
@@ -295,8 +299,11 @@ def test_coordinated_worker_api_is_loopback_and_invokes_central_specialists(monk
     assert response.status_code == 200, response.text
     body = response.json()
     assert body["central_coordinator"]["id"] == "central_coordinator"
-    assert [item["domain"] for item in body["specialists"]] == ["mining", "integrations"]
+    assert len(body["specialists"]) == 9
+    assert {item["domain"] for item in body["specialists"]} == set(all_specialists) - {"quality"}
     assert body["quality_review"]["worker_id"] == "quality_security"
+    assert body["execution_manifest"]["all_eleven_profiles_invoked"] is True
+    assert body["execution_manifest"]["model_calls"] == 11
     assert body["side_effects_performed"] is False
     assert body["repository_changes"] == 0
 
