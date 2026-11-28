@@ -5,9 +5,11 @@ already-running local runtimes only when the local status endpoint is called.
 """
 from __future__ import annotations
 
+from datetime import datetime, timezone
 import ipaddress
 import json
 import os
+import threading
 from typing import Any, Mapping
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlsplit, urlunsplit
@@ -190,6 +192,12 @@ MODEL_PROFILES: tuple[dict[str, Any], ...] = (
     },
 )
 _PROFILE_BY_ID = {item["id"]: item for item in MODEL_PROFILES}
+_OLLAMA_PULL_ALLOWLIST = frozenset({
+    "lfm3-text", "gpt-oss-20b", "qwen3-4b",
+    "deepseek-r1-1-5b", "deepseek-r1-7b",
+})
+_PULL_LOCK = threading.Lock()
+_PULLS: dict[str, dict[str, Any]] = {}
 
 
 class LocalModelRuntimeError(RuntimeError):
@@ -369,6 +377,162 @@ def local_runtime_status(env: Mapping[str, str] | None = None) -> dict[str, Any]
         "local_model_operational_verified": False,
         "policy": "Loopback discovery only. A reachable API is not proof that a model can infer correctly.",
     }
+
+
+
+
+def _ollama_pull_open(request: Request, timeout: float):
+    opener = build_opener(ProxyHandler({}), _NoRedirectHandler())
+    return opener.open(request, timeout=timeout)
+
+
+def _pull_snapshot(profile_id: str, state: Mapping[str, Any] | None) -> dict[str, Any]:
+    if state is None:
+        return {
+            "profile_id": profile_id,
+            "status": "not_started",
+            "operational_verified": False,
+            "model_downloaded": False,
+        }
+    total = state.get("total")
+    completed = state.get("completed")
+    progress = (
+        round((completed / total) * 100, 2)
+        if isinstance(total, int) and total > 0 and isinstance(completed, int)
+        else None
+    )
+    return {
+        "profile_id": profile_id,
+        "model": state.get("model"),
+        "status": state.get("status"),
+        "operational_verified": False,
+        "model_downloaded": state.get("status") == "completed",
+        "total_bytes": total,
+        "completed_bytes": completed,
+        "progress_percent": progress,
+        "last_message": state.get("last_message"),
+        "started_at": state.get("started_at"),
+        "finished_at": state.get("finished_at"),
+        "failure_type": state.get("failure_type"),
+    }
+
+
+def _ollama_pull_worker(profile_id: str, model_name: str, base_url: str) -> None:
+    request = Request(
+        f"{base_url}/api/pull",
+        data=json.dumps({"name": model_name, "stream": True}).encode("utf-8"),
+        headers={"Content-Type": "application/json", "Accept": "application/x-ndjson"},
+        method="POST",
+    )
+    try:
+        with _ollama_pull_open(request, timeout=30.0) as response:
+            while True:
+                raw = response.readline(256_001)
+                if not raw:
+                    break
+                if len(raw) > 256_000:
+                    raise LocalModelRuntimeError("ollama_pull_progress_line_too_large")
+                try:
+                    item = json.loads(raw.decode("utf-8"))
+                except (UnicodeDecodeError, json.JSONDecodeError):
+                    raise LocalModelRuntimeError("ollama_pull_invalid_progress_json") from None
+                if not isinstance(item, dict):
+                    raise LocalModelRuntimeError("ollama_pull_invalid_progress_shape")
+                with _PULL_LOCK:
+                    state = _PULLS.get(profile_id)
+                    if state is None:
+                        return
+                    message = item.get("status")
+                    state["last_message"] = (
+                        str(message)[:160] if isinstance(message, str) else None
+                    )
+                    total = item.get("total")
+                    completed = item.get("completed")
+                    if isinstance(total, int) and total >= 0:
+                        state["total"] = total
+                    if isinstance(completed, int) and completed >= 0:
+                        state["completed"] = completed
+                    if item.get("error"):
+                        state["status"] = "failed"
+                        state["failure_type"] = "ollama_pull_error"
+                        state["finished_at"] = datetime.now(timezone.utc).isoformat()
+                        return
+        with _PULL_LOCK:
+            state = _PULLS.get(profile_id)
+            if state is not None:
+                state["status"] = "completed"
+                state["finished_at"] = datetime.now(timezone.utc).isoformat()
+                state["last_message"] = "success"
+    except Exception as exc:
+        with _PULL_LOCK:
+            state = _PULLS.get(profile_id)
+            if state is not None:
+                state["status"] = "failed"
+                state["failure_type"] = type(exc).__name__
+                state["last_message"] = "pull_failed"
+                state["finished_at"] = datetime.now(timezone.utc).isoformat()
+
+
+def start_ollama_model_pull(
+    profile_id: str,
+    env: Mapping[str, str] | None = None,
+) -> dict[str, Any]:
+    """Explicitly request one allowlisted model pull from an already-running loopback Ollama."""
+    profile = _PROFILE_BY_ID.get(str(profile_id).strip().casefold())
+    if profile is None or profile_id not in _OLLAMA_PULL_ALLOWLIST:
+        raise LocalModelRuntimeError("model_profile_not_allowlisted_for_ollama_pull")
+    model_name = profile.get("ollama_model")
+    if not isinstance(model_name, str) or not model_name.strip():
+        raise LocalModelRuntimeError("ollama_model_not_available_for_profile")
+
+    source = os.environ if env is None else env
+    raw_url = str(source.get("NEXUS_OLLAMA_BASE_URL", DEFAULT_OLLAMA_BASE_URL))
+    base_url = _loopback_base_url(raw_url, "ollama")
+    # Require an already-running service. This endpoint never starts Ollama itself.
+    _get_json(f"{base_url}/api/version", timeout=2.0)
+
+    with _PULL_LOCK:
+        for current_id, current in _PULLS.items():
+            thread = current.get("thread")
+            if thread is not None and thread.is_alive():
+                if current_id == profile_id:
+                    return _pull_snapshot(profile_id, current)
+                raise LocalModelRuntimeError("another_ollama_model_pull_is_running")
+        state: dict[str, Any] = {
+            "model": model_name,
+            "status": "running",
+            "total": None,
+            "completed": 0,
+            "last_message": "starting",
+            "started_at": datetime.now(timezone.utc).isoformat(),
+            "finished_at": None,
+            "failure_type": None,
+            "thread": None,
+        }
+        _PULLS[profile_id] = state
+        thread = threading.Thread(
+            target=_ollama_pull_worker,
+            args=(profile_id, model_name, base_url),
+            name=f"nexus-ollama-pull-{profile_id}",
+            daemon=True,
+        )
+        state["thread"] = thread
+        try:
+            thread.start()
+        except RuntimeError as exc:
+            state["status"] = "failed"
+            state["failure_type"] = type(exc).__name__
+            state["finished_at"] = datetime.now(timezone.utc).isoformat()
+            raise LocalModelRuntimeError("ollama_pull_thread_start_failed") from exc
+        return _pull_snapshot(profile_id, state)
+
+
+def ollama_model_pull_status(profile_id: str) -> dict[str, Any]:
+    if profile_id not in _OLLAMA_PULL_ALLOWLIST:
+        raise LocalModelRuntimeError("model_profile_not_allowlisted_for_ollama_pull")
+    with _PULL_LOCK:
+        state = _PULLS.get(profile_id)
+        return _pull_snapshot(profile_id, state)
 
 
 def model_profile(profile_id: str) -> dict[str, Any]:
