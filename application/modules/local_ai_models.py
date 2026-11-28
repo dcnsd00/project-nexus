@@ -478,9 +478,11 @@ def start_ollama_model_pull(
     env: Mapping[str, str] | None = None,
 ) -> dict[str, Any]:
     """Explicitly request one allowlisted model pull from an already-running loopback Ollama."""
-    profile = _PROFILE_BY_ID.get(str(profile_id).strip().casefold())
-    if profile is None or profile_id not in _OLLAMA_PULL_ALLOWLIST:
+    normalized_id = str(profile_id).strip().casefold()
+    profile = _PROFILE_BY_ID.get(normalized_id)
+    if profile is None or normalized_id not in _OLLAMA_PULL_ALLOWLIST:
         raise LocalModelRuntimeError("model_profile_not_allowlisted_for_ollama_pull")
+    profile_id = normalized_id
     model_name = profile.get("ollama_model")
     if not isinstance(model_name, str) or not model_name.strip():
         raise LocalModelRuntimeError("ollama_model_not_available_for_profile")
@@ -528,11 +530,12 @@ def start_ollama_model_pull(
 
 
 def ollama_model_pull_status(profile_id: str) -> dict[str, Any]:
-    if profile_id not in _OLLAMA_PULL_ALLOWLIST:
+    normalized_id = str(profile_id).strip().casefold()
+    if normalized_id not in _OLLAMA_PULL_ALLOWLIST:
         raise LocalModelRuntimeError("model_profile_not_allowlisted_for_ollama_pull")
     with _PULL_LOCK:
-        state = _PULLS.get(profile_id)
-        return _pull_snapshot(profile_id, state)
+        state = _PULLS.get(normalized_id)
+        return _pull_snapshot(normalized_id, state)
 
 
 def model_profile(profile_id: str) -> dict[str, Any]:
