@@ -517,7 +517,7 @@ def chat_completion(
         first = candidates[0] if isinstance(candidates, list) and candidates and isinstance(candidates[0], dict) else {}
         candidate_content = first.get("content") if isinstance(first.get("content"), dict) else {}
         parts = candidate_content.get("parts") if isinstance(candidate_content.get("parts"), list) else []
-        content = "\n".join(item.get("text", "") for item in parts
+        content = "".join(item.get("text", "") for item in parts
                              if isinstance(item, dict) and isinstance(item.get("text"), str))
         usage = response_data.get("usageMetadata") if isinstance(response_data, dict) else {}
         usage = usage if isinstance(usage, dict) else {}
