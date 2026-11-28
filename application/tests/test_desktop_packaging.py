@@ -29,7 +29,7 @@ def test_frozen_spec_bundles_runtime_resources():
 def test_dashboard_version_matches_package_manifest():
     version = json.loads((ROOT / "VERSION.json").read_text(encoding="utf-8"))["version"]
     html = (ROOT / "dashboard.html").read_text(encoding="utf-8")
-    assert version == "0.10.27"
+    assert version == "0.10.28"
     assert f"CONTROL CENTER · {version}" in html
     assert f">{version}<" in html
 
