@@ -1,7 +1,7 @@
 from fastapi.testclient import TestClient
 import pytest
 
-from modules.ai_worker_coordinator import route_task, worker_catalog
+from modules.ai_worker_coordinator import WORKER_BY_DOMAIN, route_task, worker_catalog
 from nexus_master import app
 
 
