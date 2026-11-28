@@ -141,7 +141,7 @@ def test_worker_execution_api_fails_closed_when_provider_is_disabled(monkeypatch
             "prompt": "Compare RandomX benchmark methods.",
         })
     assert response.status_code == 503
-    assert response.json()["detail"] == "ai_provider_not_configured"
+    assert response.json()["detail"] == "ai_provider_unavailable"
 
 
 def test_provider_status_api_never_exposes_environment_api_key(monkeypatch):
