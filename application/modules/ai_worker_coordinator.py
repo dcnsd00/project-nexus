@@ -731,7 +731,7 @@ def worker_local_model_pull_start(profile_id: str, request: Request) -> dict[str
         return start_ollama_model_pull(profile_id)
     except LocalModelRuntimeError as exc:
         status = 404 if "allowlisted" in str(exc) else 503
-        raise HTTPException(status_code=status, detail=str(exc)) from exc
+        raise HTTPException(status_code=status, detail="local_model_pull_not_available") from None
 
 
 @router.get("/local-models/pulls/{profile_id}")
@@ -740,7 +740,7 @@ def worker_local_model_pull_status(profile_id: str, request: Request) -> dict[st
     try:
         return ollama_model_pull_status(profile_id)
     except LocalModelRuntimeError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
+        raise HTTPException(status_code=404, detail="local_model_pull_status_not_found") from None
 
 
 @router.post("/provider-test")
@@ -750,7 +750,7 @@ def worker_provider_test(request: Request) -> dict[str, Any]:
     try:
         return probe_ai_provider()
     except AIProviderError as exc:
-        raise HTTPException(status_code=503, detail=str(exc)) from exc
+        raise HTTPException(status_code=503, detail="ai_provider_unavailable") from None
 
 
 @router.post("/self-test")
@@ -760,7 +760,7 @@ def worker_self_test(request: Request) -> dict[str, Any]:
     try:
         return run_worker_self_test()
     except AIProviderError as exc:
-        raise HTTPException(status_code=503, detail=str(exc)) from exc
+        raise HTTPException(status_code=503, detail="ai_provider_unavailable") from None
 
 
 @router.post("/execute")
@@ -775,9 +775,9 @@ def execute_worker_route(request: WorkerExecuteRequest, client_request: Request)
             prompt=request.prompt,
         )
     except AIProviderError as exc:
-        raise HTTPException(status_code=503, detail=str(exc)) from exc
+        raise HTTPException(status_code=503, detail="ai_provider_unavailable") from None
     except ValueError as exc:
-        raise HTTPException(status_code=422, detail=str(exc)) from exc
+        raise HTTPException(status_code=422, detail="invalid_worker_request") from None
 
 
 @router.post("/coordinate")
@@ -796,9 +796,9 @@ def execute_worker_coordinated_route(
             prompt=request.prompt,
         )
     except AIProviderError as exc:
-        raise HTTPException(status_code=503, detail=str(exc)) from exc
+        raise HTTPException(status_code=503, detail="ai_provider_unavailable") from None
     except ValueError as exc:
-        raise HTTPException(status_code=422, detail=str(exc)) from exc
+        raise HTTPException(status_code=422, detail="invalid_worker_request") from None
 
 
 @router.get("")
@@ -816,4 +816,4 @@ def preview_worker_route(request: WorkerRouteRequest) -> dict[str, Any]:
             domain=request.domain,
         )
     except ValueError as exc:
-        raise HTTPException(status_code=422, detail=str(exc)) from exc
+        raise HTTPException(status_code=422, detail="invalid_worker_request") from None
