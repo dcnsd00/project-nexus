@@ -382,7 +382,7 @@ def test_coordinator_can_dispatch_all_ten_specialists_without_duplicate_quality_
         system = messages[0]["content"]
         if "NEXUS Central Coordinator" in system:
             role = "central"
-        elif "Quality, Security" in system:
+        elif "QA, Security" in system or "Quality, Security" in system:
             role = "quality"
         else:
             role = "specialist"
