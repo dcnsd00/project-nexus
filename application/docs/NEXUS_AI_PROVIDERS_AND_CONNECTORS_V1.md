@@ -51,11 +51,49 @@ The LFM3 Q4 GGUF published by LiquidAI is approximately 1.1 GB. Its advertised 2
 
 ### Local model roles in the catalogue
 
-- `lfm3-text`: default fast local coordinator/specialist model; 1.7B, tool-capable/agent-oriented and small enough for edge-style use.
-- `gpt-oss-20b`: higher-capacity local reasoning option; 21B total / 3.6B active, Apache 2.0 plus its usage policy. OpenAI documents 16 GB system memory as the edge-device threshold, but real latency and memory fit still require a benchmark on the target host.
-- `lfm3-vision`, `lfm3-audio`, `lfm3-omni`: listed as future specialist pipelines. They are not falsely presented as fully wired to the current text-only worker API. Each needs the correct model artifacts, multimodal adapter and acceptance tests.
+- `lfm3-text`: fast local coordinator/specialist model; 1.7B, agent-oriented and small enough for edge-style inference. Liquid AI does not recommend it as the sole model for difficult agentic coding or complex multi-step reasoning.
+- `qwen3-4b`: balanced 4B local model for coding, maths, multilingual tasks and general reasoning. Ollama's library lists an approximately 2.5 GB package; model size is not total RAM/VRAM use.
+- `deepseek-r1-1-5b`: small reasoning/distillation model for constrained devices and mathematical cross-checks; not a substitute for a larger coding model.
+- `deepseek-r1-7b`: stronger reasoning option; its approximately 4.7 GB package already exceeds 4 GB VRAM before the runtime and KV cache, so expect CPU/partial GPU offload.
+- `gpt-oss-20b`: higher-capacity local reasoning and agentic model; 21B total / 3.6B active, Apache 2.0 plus its usage policy. Ollama lists a 14 GB model package and 128K context. It is not suitable for full GPU residency on the GTX 1650 4 GB.
+- `lfm3-vision`, `lfm3-audio`, `lfm3-omni`: listed as future specialist pipelines. They are not wired to the current text-only worker API. Each needs the right model artifacts, multimodal adapter and acceptance tests.
 
-LFM3 weights are licensed under **LFM Open License v1.0**, which is based on Apache 2.0 but is not standard Apache 2.0: free commercial use is subject to Liquid AI's USD 10 million annual company-revenue condition. The Ollama runtime code is MIT-licensed; that MIT license does not replace the model-weight license.
+For the current low-VRAM target, use LFM3 or DeepSeek-R1 1.5B for lightweight tasks and benchmark Qwen3-4B with a small context/CPU offload. Keep GPT-OSS 20B as an optional target for a larger-memory host. Do not infer model suitability from parameter count alone; measure RAM, VRAM, context, throughput and thermal behaviour on the target computer.
+
+The relevant model-weight licenses are distinct: LFM3 uses **LFM Open License v1.0** (not standard Apache 2.0, with a USD 10 million annual company-revenue condition for free commercial use); GPT-OSS uses Apache 2.0 plus its usage policy; Qwen3 uses Apache 2.0; DeepSeek-R1 declares MIT, while the distilled Qwen variants also require preserving the Qwen2.5 base-model licensing notice. The **Ollama runtime** and **llama.cpp runtime** are MIT-licensed. A runtime's MIT license does not replace a model's weight license.
+
+### Worker-specific model selection
+
+The 11 stateless profiles use these domains for model overrides:
+
+- `NEXUS_AI_MODEL_COORDINATION`
+- `NEXUS_AI_MODEL_MINING`
+- `NEXUS_AI_MODEL_CRYPTOGRAPHY`
+- `NEXUS_AI_MODEL_BLOCKCHAIN`
+- `NEXUS_AI_MODEL_WALLET`
+- `NEXUS_AI_MODEL_EDGE`
+- `NEXUS_AI_MODEL_INTEGRATIONS`
+- `NEXUS_AI_MODEL_DASHBOARD`
+- `NEXUS_AI_MODEL_EARNINGS`
+- `NEXUS_AI_MODEL_AI_PLATFORM`
+- `NEXUS_AI_MODEL_QUALITY`
+
+Example for Ollama multi-model routing:
+
+```dotenv
+NEXUS_AI_PROVIDER=ollama
+NEXUS_AI_MODEL=lfm3
+NEXUS_AI_CONTEXT_TOKENS=8192
+NEXUS_AI_MODEL_COORDINATION=lfm3
+NEXUS_AI_MODEL_MINING=qwen3:4b
+NEXUS_AI_MODEL_CRYPTOGRAPHY=deepseek-r1:7b
+NEXUS_AI_MODEL_AI_PLATFORM=gpt-oss:20b
+NEXUS_AI_MODEL_QUALITY=gpt-oss:20b
+```
+
+Only set a per-domain model after it is installed and validated by the Ollama runtime. For a single-model `llama.cpp` server, NEXUS pins every worker to the loaded LFM3 model and ignores per-domain overrides; a separate server/port is required to host a different checkpoint independently.
+
+For Ollama, `NEXUS_AI_CONTEXT_TOKENS` defaults to 8192 and is bounded from 1024 to 262144. This controls the `num_ctx` option; a model's advertised maximum context is not automatically allocated.
 
 ### Owner-controlled instructions
 
