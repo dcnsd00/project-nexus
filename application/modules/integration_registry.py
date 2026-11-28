@@ -411,11 +411,12 @@ def _validate_provider_payload(item: dict[str, Any], resource: str, payload: Any
         )
     elif contract == "numeric_value":
         # Nodle supply endpoints document a bare, finite, non-negative JSON number.
-        valid = (
-            type(payload) in (int, float)
-            and math.isfinite(payload)
-            and payload >= 0
-        )
+        if type(payload) is int:
+            valid = payload >= 0
+        elif type(payload) is float:
+            valid = math.isfinite(payload) and payload >= 0
+        else:
+            valid = False
     elif contract == "json_object":
         valid = isinstance(payload, dict)
     elif contract == "akash_provider_list":
