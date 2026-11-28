@@ -299,3 +299,63 @@ def test_coordinated_worker_api_is_loopback_and_invokes_central_specialists(monk
     assert body["quality_review"]["worker_id"] == "quality_security"
     assert body["side_effects_performed"] is False
     assert body["repository_changes"] == 0
+
+
+def test_all_repository_branch_families_route_to_specialists_or_central():
+    branches = [
+        "main",
+        "audit/full-repository-2026-11-26",
+        "dependabot/github_actions/actions/checkout-7.0.1",
+        "experiment/lfm3-core-security-lab-v1",
+        "feature/core-lifecycle-isolation-registry-uniqueness",
+        "feature/crypto-reference-validation-v1",
+        "feature/edge-persistence-protocol-v1",
+        "feature/edge-replay-protection-sqlite-v1",
+        "feature/gate-info-paper-trading-100ron",
+        "feature/nexus-ai-agent-runtime-synapse-v1",
+        "feature/nexus-ai-worker-mining-safety-v1",
+        "feature/nexus-edge-foundation",
+        "feature/nexus-fieldstation-runtime-validation-v1",
+        "feature/nexus-integrations-contract-tests-v1",
+        "feature/nexus-math-intelligence-hardening-v1",
+        "feature/phy-challenge-structure-solver-v1",
+        "feature/puzzle-solver-dashboard-v1",
+        "feature/puzzle-solver-multimethod-v1",
+        "feature/read-only-market-data-adapters-v1",
+        "fix/pr28-action-pin-validator-v1",
+        "fix/windows-desktop-pythonnet-runtime-2026-11-27",
+        "integration/ai-worker-provider-main-v1",
+        "integration/desktop-package-main-trigger-v1",
+        "integration/fieldstation-import-boundary-main-v1",
+        "integration/gate-paper-trading-main-v1",
+        "integration/market-data-main-reconcile-2026-11-26",
+        "integration/math-intelligence-evidence-main-v1",
+        "integration/phy-challenge-solver-v2",
+        "integration/phy-challenge-structure-main-v1",
+        "integration/pr24-crypto-reference-main-v1",
+        "integration/pr26-security-baseline-main-v2",
+        "integration/provider-contract-tests-main-v1",
+        "integration/rainbowminer-mining-intelligence-v1",
+        "integration/windows-process-safety-testclient-v1",
+        "security/immutable-action-pins-v1",
+        "security/mining-credential-log-hygiene-v1",
+        "security/supply-chain-scans-v1",
+        "docs/nexus-continuity-refresh-2026-11-25",
+        "release/0.10.28",
+    ]
+    for branch in branches:
+        result = route_task(task_kind="research", branch=branch)
+        assert result["domain"] in WORKER_BY_DOMAIN, branch
+        assert result["worker_id"] in {row["id"] for row in worker_catalog()["workers"]}, branch
+
+    expected = {
+        "audit/full-repository-2026-11-26": "quality",
+        "dependabot/github_actions/actions/checkout-7.0.1": "quality",
+        "experiment/lfm3-core-security-lab-v1": "ai_platform",
+        "feature/phy-challenge-structure-solver-v1": "cryptography",
+        "feature/puzzle-solver-multimethod-v1": "cryptography",
+        "feature/core-lifecycle-isolation-registry-uniqueness": "quality",
+        "security/supply-chain-scans-v1": "quality",
+    }
+    for branch, domain in expected.items():
+        assert route_task(task_kind="research", branch=branch)["domain"] == domain
