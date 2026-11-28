@@ -186,13 +186,16 @@ def test_explicit_ollama_model_pull_uses_only_allowlisted_model_and_tracks_progr
         env={"NEXUS_OLLAMA_BASE_URL": "http://127.0.0.1:11434"},
     )
     thread = models._PULLS["qwen3-4b"]["thread"]
-    thread.join(timeout=2.0)
+    # This fixture returns three immediate NDJSON lines; wait for the worker to
+    # finish completely so the assertions cannot race the background thread.
+    thread.join()
     status = models.ollama_model_pull_status("qwen3-4b")
 
+    assert not thread.is_alive()
+    assert status["status"] == "completed", status
     assert captured["url"] == "http://127.0.0.1:11434/api/pull"
     assert captured["method"] == "POST"
     assert captured["payload"] == {"name": "qwen3:4b", "stream": True}
-    assert status["status"] == "completed"
     assert status["model_downloaded"] is True
     assert status["progress_percent"] == 100.0
     assert status["operational_verified"] is False
