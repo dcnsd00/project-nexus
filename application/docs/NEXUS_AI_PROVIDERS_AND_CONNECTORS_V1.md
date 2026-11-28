@@ -57,6 +57,16 @@ The LFM3 Q4 GGUF published by LiquidAI is approximately 1.1 GB. Its advertised 2
 
 LFM3 weights are licensed under **LFM Open License v1.0**, which is based on Apache 2.0 but is not standard Apache 2.0: free commercial use is subject to Liquid AI's USD 10 million annual company-revenue condition. The Ollama runtime code is MIT-licensed; that MIT license does not replace the model-weight license.
 
+### Owner-controlled instructions
+
+Set `NEXUS_AI_OWNER_INSTRUCTIONS` in the machine-local environment to give the coordinator and all 10 specialist profiles persistent working preferences (maximum 4,000 characters). For example:
+
+```dotenv
+NEXUS_AI_OWNER_INSTRUCTIONS=Răspunde în română. Prioritizează implementarea NEXUS MASTER. Pentru cererile tehnice permise, oferă cod complet, teste și căi exacte din repository. Separă faptele verificate de ipoteze.
+```
+
+These instructions are injected into each specialist system prompt. They can change language, domain priorities, response style and the degree of implementation detail. They do not silently grant shell, repository-write, miner, wallet-signing or external-write permissions. Model behaviour still depends on the selected model's own training and license; running locally does not guarantee that every model has no built-in refusals.
+
 ### Local AI endpoints
 
 - `GET /api/nexus/workers/local-models` — catalogue, model roles, runtime IDs and license notes. No downloads occur.
