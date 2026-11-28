@@ -163,7 +163,7 @@ def test_provider_status_reports_registered_protocols_but_not_live_success(monke
     assert status["protocol"] == "ollama"
     assert status["model_invocation_enabled"] is True
     assert status["supported_providers"] == [
-        "openai", "anthropic", "gemini", "ollama", "openai_compatible",
+        "lfm3", "ollama", "openai", "anthropic", "gemini", "openai_compatible",
         "groq", "openrouter", "mistral", "together", "deepseek", "fireworks", "cerebras",
     ]
 
