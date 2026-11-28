@@ -137,6 +137,24 @@ def build_module_registry(root: str | Path, app: Any | None = None,
                 "all_external_connectors_live_verified" if operational_requirement_met
                 else "all_catalogued_external_connectors_must_be_live_verified"
             )
+        elif item["id"] == "edge_manager":
+            # The EDGE service intentionally starts in a local control-plane
+            # mode. Lifecycle RUNNING is not transport or hardware acceptance.
+            transport_verified = (
+                health_details.get("transport_connected") is True
+                or health_details.get("network_io_enabled") is True
+            )
+            hardware_verified = health_details.get("hardware_in_loop_passed") is True
+            external_dependencies_verified = bool(transport_verified and hardware_verified)
+            operational_requirement_met = (
+                runtime_health_ok and transport_verified and hardware_verified
+            )
+            if not transport_verified:
+                verification_reason = "edge_transport_integration_required"
+            elif not hardware_verified:
+                verification_reason = "edge_hardware_in_loop_acceptance_required"
+            else:
+                verification_reason = "edge_transport_and_hardware_in_loop_verified"
 
         route_requirement_met = (not route_required) or route_registered
         operational_verified = bool(
