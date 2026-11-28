@@ -21,9 +21,10 @@ AI provider live verification and connector live verification are held in proces
 
 All providers use the existing local NEXUS API:
 
-- `GET /api/nexus/workers` — worker catalogue and safe readiness summary.
+- `GET /api/nexus/workers` — worker catalogue and safe readiness summary, including the latest 11-profile self-test status.
 - `GET /api/nexus/workers/provider-status` — provider configuration/live status (loopback-only).
 - `POST /api/nexus/workers/provider-test` — perform a real minimal prompt/response probe (loopback-only).
+- `POST /api/nexus/workers/self-test` — perform one provider probe and invoke all 11 profiles sequentially (loopback-only). This requires a configured, live-verified provider and consumes 12 model requests in total (one provider probe plus 11 worker calls).
 - `POST /api/nexus/workers/execute` — dispatch one specialist (loopback-only).
 - `POST /api/nexus/workers/coordinate` — central coordinator + up to three specialist domains + quality review (loopback-only).
 
@@ -119,6 +120,7 @@ The API surface is local-only:
 
 - `GET /api/integrations/catalog` — connector list and readiness.
 - `GET /api/integrations/status` — counts by readiness state.
+- `POST /api/integrations/self-test` — probe the health resource of each of the 12 registered connectors (loopback-only). Only configured connectors with a valid health path can pass.
 - `POST /api/integrations/{provider_id}/probe` — real GET to the configured health resource.
 - `GET /api/integrations/{provider_id}/read/{resource}` — read the configured resource.
 
@@ -146,3 +148,13 @@ Before NEXUS can be labelled 100% operational, the release acceptance record mus
 6. Security review, regression suite and a current module/function acceptance matrix.
 
 Until those gates have evidence, the correct state is partial implementation or pending operational validation—not 100%.
+
+
+## Runtime operational verification
+
+- `GET /api/nexus/module-registry` now includes per-module `operational_verified`, `verification_reason`, and external dependency evidence.
+- `GET /api/nexus/module-registry/health` returns module-level verified/pending counts and the aggregate system gate.
+- Runtime service health is sampled from the lifecycle manager's read-only health probes. A module is not marked operational just because its source file exists or a router is mounted.
+- The AI Worker Coordinator requires both a successful provider probe and a successful live self-test for all 11 worker profiles.
+- The Provider Integrations module requires all 12 catalogued connectors to pass their configured live health probes.
+- Modules without a mapped runtime health probe, missing route registration, or missing external evidence remain pending. `system_operational_verified` stays false until every registered module satisfies its acceptance requirements.
