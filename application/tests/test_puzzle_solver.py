@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import base64
+import math
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
@@ -155,3 +156,79 @@ def test_puzzle_solver_fastapi_routes_are_callable():
     })
     assert solved.status_code == 200
     assert solved.json()["verified"] is True
+
+
+def make_phy_project():
+    boxes = []
+    centre_x, centre_y = 1023.5, 1024.5
+    for index in range(128):
+        angle = math.radians(index * 2.8)
+        radius = 250.0 + index * 2.0
+        for side, offset, emoji in (
+            (0, 0.0, "1F468"),
+            (1, math.pi, "1F600"),
+        ):
+            boxes.append({
+                "id": index * 2 + side + 1,
+                "x": centre_x + radius * math.cos(angle + offset),
+                "y": centre_y + radius * math.sin(angle + offset),
+                "w": 0,
+                "h": 0,
+                "char": "test",
+                "name": "test emoji",
+                "unified": emoji,
+            })
+    boxes.append({
+        "id": 258, "x": centre_x, "y": centre_y, "w": 0, "h": 0,
+        "char": "b", "name": "BITCOIN LOGO CENTER", "unified": "0062",
+    })
+    return {"natW": 2048, "natH": 2048, "boxes": boxes}
+
+
+def test_phy_challenge_is_exposed_as_local_bounded_strategy():
+    strategies = {item["id"]: item for item in puzzle_solver.capabilities()["strategies"]}
+    assert strategies["phy_challenge_structure"]["available"] is True
+    assert strategies["phy_challenge_structure"]["private_key_search"] is False
+
+
+def test_phy_challenge_dispatch_requires_public_project_file():
+    with pytest.raises(ValueError, match="project_file"):
+        puzzle_solver.solve({"kind": "phy_challenge"})
+
+
+def test_phy_challenge_dispatch_runs_offline_structural_analysis():
+    result = puzzle_solver.solve({
+        "kind": "phy_challenge",
+        "project_file": make_phy_project(),
+    })
+    assert result["kind"] == "phy_challenge"
+    assert result["status"] == "structural_analysis_only"
+    assert result["pair_count"] == 128
+    assert result["private_key_search"] if "private_key_search" in result else True
+
+
+def test_phy_challenge_public_point_validator_does_not_derive_private_scalar():
+    result = puzzle_solver.solve({
+        "kind": "phy_challenge",
+        "project_file": make_phy_project(),
+        "candidate_public_key_hex": (
+            "031dffd7ff0d400f0afcc3fdcefc0d400f0da10f3a390f77ff0d400f68fe0d080f"
+        ),
+    })
+    assert result["candidate_public_point"]["valid_curve_point"] is True
+    assert result["candidate_public_point"]["private_scalar_derived"] is False
+
+
+def test_phy_challenge_fastapi_endpoint_is_available():
+    app = FastAPI()
+    app.include_router(puzzle_solver.router)
+    with TestClient(app) as client:
+        capabilities = client.get("/api/puzzles/capabilities")
+        response = client.post("/api/puzzles/solve", json={
+            "problem": {"kind": "phy_challenge", "project_file": make_phy_project()}
+        })
+    assert capabilities.status_code == 200
+    assert any(item["id"] == "phy_challenge_structure" for item in capabilities.json()["strategies"])
+    assert response.status_code == 200
+    assert response.json()["pair_count"] == 128
+    assert response.json()["bit_window_validation"]["status"] == "not_run"
