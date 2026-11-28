@@ -195,6 +195,9 @@ class InputBoundsTests(unittest.TestCase):
 
     def test_rejects_unbounded_canvas_dimensions(self):
         project = make_project()
+        project["boxes"] = [
+            box for box in project["boxes"] if box["id"] != 258
+        ]
         project["natW"] = 1e20
         with self.assertRaises(ValueError):
             analyze_project_file(project)
