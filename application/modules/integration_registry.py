@@ -333,11 +333,14 @@ def _transport_open(request: Request, timeout: float):
     return opener.open(request, timeout=timeout)
 
 
-def _validate_provider_payload(item: dict[str, Any], resource: str, payload: Any) -> None:
-    """Validate the documented response shape before granting live verification."""
-    if resource != "health":
-        return
-    contract = item.get("response_contract")
+def _validate_provider_payload(item: dict[str, Any], resource: str, payload: Any) -> bool:
+    """Validate documented provider/resource shape; generic JSON is reachability only."""
+    contract = (
+        item.get("response_contract") if resource == "health"
+        else item.get("resource_response_contracts", {}).get(resource)
+    )
+    if not contract:
+        return False
     valid = True
     if contract == "tendermint_status":
         valid = (
@@ -383,13 +386,14 @@ def _validate_provider_payload(item: dict[str, Any], resource: str, payload: Any
         )
     if not valid:
         raise ConnectorError("connector_response_contract_mismatch")
+    return True
 
 
 def _request_json(
     item: dict[str, Any],
     resource: str,
     source: Mapping[str, str],
-) -> tuple[Any, int, str, str, str]:
+) -> tuple[Any, int, str, str, str, bool]:
     config = _config(item, source)
     relative_path = _resource_path(item, resource, source)
     url = f"{config['base_url']}/{relative_path}"
@@ -443,19 +447,21 @@ def _request_json(
         payload = json.loads(raw.decode("utf-8"))
     except (UnicodeDecodeError, json.JSONDecodeError):
         raise ConnectorError("connector_invalid_json") from None
-    _validate_provider_payload(item, resource, payload)
+    contract_verified = _validate_provider_payload(item, resource, payload)
 
     observed_at = datetime.now(timezone.utc).isoformat()
     with _VERIFICATION_LOCK:
-        if source is os.environ:
+        if source is os.environ and resource == "health":
             _LIVE_VERIFICATION[item["id"]] = {
-                "ok": True,
+                "ok": contract_verified,
+                "reachable": True,
+                "contract_verified": contract_verified,
                 "fingerprint": config["fingerprint"],
                 "observed_at": observed_at,
                 "http_status": status_code,
                 "resource": resource,
             }
-    return payload, status_code, content_type, observed_at, relative_path
+    return payload, status_code, content_type, observed_at, relative_path, contract_verified
 
 
 def connector_status(env: dict[str, str] | None = None) -> list[dict[str, Any]]:
@@ -491,6 +497,7 @@ def connector_status(env: dict[str, str] | None = None) -> list[dict[str, Any]]:
             "category": item["category"],
             "status": (
                 "live_verified" if operational_verified
+                else "reachable_contract_pending" if live and live.get("reachable")
                 else "configured_pending_adapter_validation" if ready
                 else "not_configured"
             ),
@@ -504,6 +511,8 @@ def connector_status(env: dict[str, str] | None = None) -> list[dict[str, Any]]:
             "resources": list(item["resources"]),
             "adapter_registered": True,
             "mode": "read_only",
+            "reachability_verified": bool(live and live.get("reachable")),
+            "contract_verified": operational_verified,
             "live_connection_verified": operational_verified,
             "operational_verified": operational_verified,
             "last_verified_at": live.get("observed_at") if live else None,
@@ -521,7 +530,7 @@ def probe_connector(provider_id: str, env: Mapping[str, str] | None = None) -> d
     if env is None:
         with _VERIFICATION_LOCK:
             _LIVE_VERIFICATION.pop(item["id"], None)
-    payload, status_code, content_type, observed_at, path = _request_json(item, "health", source)
+    payload, status_code, content_type, observed_at, path, contract_verified = _request_json(item, "health", source)
     if isinstance(payload, dict):
         data_summary = {"type": "object", "keys": sorted(str(k) for k in payload.keys())[:40]}
     elif isinstance(payload, list):
@@ -531,8 +540,9 @@ def probe_connector(provider_id: str, env: Mapping[str, str] | None = None) -> d
     return {
         "provider_id": item["id"],
         "name": item["name"],
-        "status": "reachable",
-        "operational_verified": True,
+        "status": "live_verified" if contract_verified else "reachable_contract_pending",
+        "operational_verified": contract_verified,
+        "contract_verified": contract_verified,
         "read_only": True,
         "http_status": status_code,
         "content_type": content_type,
@@ -549,13 +559,14 @@ def read_connector_resource(
 ) -> dict[str, Any]:
     source = os.environ if env is None else env
     item = _provider(provider_id)
-    payload, status_code, content_type, observed_at, path = _request_json(item, resource, source)
+    payload, status_code, content_type, observed_at, path, contract_verified = _request_json(item, resource, source)
     return {
         "provider_id": item["id"],
         "name": item["name"],
         "resource": resource,
-        "status": "live_verified",
-        "operational_verified": True,
+        "status": "live_verified" if contract_verified else "read_succeeded_contract_pending",
+        "operational_verified": contract_verified,
+        "contract_verified": contract_verified,
         "read_only": True,
         "http_status": status_code,
         "content_type": content_type,
@@ -573,8 +584,9 @@ def run_connector_self_test() -> dict[str, Any]:
             probe = probe_connector(item["id"])
             results.append({
                 "provider_id": item["id"],
-                "status": "passed",
-                "operational_verified": True,
+                "status": "passed" if probe["operational_verified"] else "contract_pending",
+                "operational_verified": probe["operational_verified"],
+                "reachability_verified": True,
                 "http_status": probe["http_status"],
                 "resource_path": probe["resource_path"],
             })
@@ -588,12 +600,16 @@ def run_connector_self_test() -> dict[str, Any]:
             })
 
     passed = sum(row["status"] == "passed" for row in results)
+    reachable = sum(bool(row.get("reachability_verified")) for row in results)
+    contract_pending = sum(row["status"] == "contract_pending" for row in results)
     return {
         "status": "live_verified" if passed == len(PROVIDERS) else "partial",
         "operational_verified": passed == len(PROVIDERS),
         "connectors_tested": len(results),
         "connectors_passed": passed,
-        "connectors_failed_or_unconfigured": len(results) - passed,
+        "connectors_reachable": reachable,
+        "connectors_contract_pending": contract_pending,
+        "connectors_failed_or_unconfigured": len(results) - reachable,
         "read_only": True,
         "writes_enabled": False,
         "results": results,
