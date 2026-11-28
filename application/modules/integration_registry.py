@@ -7,6 +7,7 @@ returns a bounded, valid response through the adapter.
 from __future__ import annotations
 
 from datetime import datetime, timezone
+import base64
 from hashlib import sha256
 import ipaddress
 import json
@@ -15,7 +16,7 @@ import re
 import threading
 from typing import Any, Mapping
 from urllib.error import HTTPError, URLError
-from urllib.parse import urlsplit, urlunsplit
+from urllib.parse import urlencode, urlsplit, urlunsplit
 from urllib.request import HTTPRedirectHandler, ProxyHandler, Request, build_opener
 
 from fastapi import APIRouter, HTTPException, Request as FastAPIRequest
@@ -40,31 +41,74 @@ PROVIDERS: tuple[dict[str, Any], ...] = (
      "resources": ("account", "points", "rewards")},
     {"id": "aioz", "name": "AIOZ", "category": "depin",
      "env": ("NEXUS_AIOZ_API_URL",),
-     "capabilities": ["public_chain_read", "node_status_read", "rewards_read"],
-     "resources": ("public_chain", "node_status", "rewards")},
+     "default_base_url": "https://rpc-dataseed.aioz.network",
+     "health_path": "status",
+     "resource_paths": {"public_chain": "status", "node_status": "status"},
+     "contract_source": "https://docs.aioz.network/aioz-blockchain/network-information",
+     "contract_state": "official_rpc_documented",
+     "protocol": "rest_get",
+     "capabilities": ["public_chain_read", "node_status_read"],
+     "resources": ("public_chain", "node_status")},
     {"id": "theta", "name": "Theta", "category": "depin",
      "env": ("NEXUS_THETA_API_URL",),
-     "capabilities": ["public_chain_read", "edge_status_read"],
-     "resources": ("public_chain", "edge_status")},
+     "default_base_url": "https://eth-rpc-api.thetatoken.org",
+     "health_path": "rpc",
+     "health_rpc_method": "eth_chainId",
+     "resource_rpc_methods": {"public_chain": "eth_blockNumber"},
+     "contract_source": "https://docs.thetatoken.org/docs/theta-blockchain-tnt20-token-integration-guide",
+     "contract_state": "official_json_rpc_documented",
+     "protocol": "json_rpc_post",
+     "capabilities": ["public_chain_read"],
+     "resources": ("public_chain",)},
     {"id": "nodle", "name": "Nodle", "category": "depin",
      "env": ("NEXUS_NODLE_API_URL",),
      "capabilities": ["public_chain_read", "rewards_read"],
      "resources": ("public_chain", "rewards")},
     {"id": "helium_iot", "name": "Helium IoT", "category": "depin",
      "env": ("NEXUS_HELIUM_API_URL",),
-     "capabilities": ["coverage_read", "hotspot_read", "rewards_read"],
-     "resources": ("coverage", "hotspot", "rewards")},
+     "default_base_url": "https://entities.nft.helium.io",
+     "health_path": "v2/hotspots",
+     "health_query": {"subnetwork": "iot"},
+     "resource_paths": {"hotspots": "v2/hotspots"},
+     "contract_source": "https://docs.helium.com/network-data/entity-api/",
+     "contract_state": "official_entity_api_documented",
+     "protocol": "rest_get",
+     "capabilities": ["hotspot_read"],
+     "resources": ("hotspots",)},
     {"id": "geodnet", "name": "GEODNET", "category": "depin",
-     "env": ("NEXUS_GEODNET_API_URL",),
-     "capabilities": ["station_read", "coverage_read", "rewards_read"],
-     "resources": ("station", "coverage", "rewards")},
+     "env": ("NEXUS_GEODNET_API_URL", "NEXUS_GEODNET_USERNAME", "NEXUS_GEODNET_PASSWORD"),
+     "default_base_url": "https://rawdata.geodnet.com",
+     "auth_mode": "basic",
+     "health_path": "api/rawdata/v1/stations",
+     "resource_paths": {"station": "api/rawdata/v1/stations"},
+     "contract_source": "https://github.com/geodnet/GEODNET_API/blob/main/GEODNET_STATION_API.md",
+     "contract_state": "official_basic_auth_station_api_documented",
+     "protocol": "rest_get",
+     "capabilities": ["station_read", "coverage_read"],
+     "resources": ("station",)},
     {"id": "anyone", "name": "Anyone", "category": "depin",
      "env": ("NEXUS_ANYONE_API_URL",),
-     "capabilities": ["relay_status_read", "rewards_read"],
-     "resources": ("relay_status", "rewards")},
+     "default_base_url": "https://api.ec.anyone.tech",
+     "health_path": "total-relays-latest",
+     "resource_paths": {"relay_status": "total-relays-latest"},
+     "contract_source": "https://docs.anyone.io/sdk/api/rest",
+     "contract_state": "official_public_rest_documented",
+     "protocol": "rest_get",
+     "capabilities": ["relay_network_status_read"],
+     "resources": ("relay_status",)},
     {"id": "weatherxm", "name": "WeatherXM", "category": "depin",
      "env": ("NEXUS_WEATHERXM_API_URL",),
-     "capabilities": ["station_read", "rewards_read"],
+     "default_base_url": "https://api.weatherxm.com",
+     "health_path": "api/v1/network/stats",
+     "resource_paths": {
+         "station": "api/v1/me/devices",
+         "rewards": "api/v1/me/devices/rewards",
+     },
+     "optional_token_env": "NEXUS_WEATHERXM_API_TOKEN",
+     "contract_source": "https://api.weatherxm.com/api/v1/docs/",
+     "contract_state": "official_openapi_documented",
+     "protocol": "rest_get",
+     "capabilities": ["network_stats_read", "station_read", "rewards_read"],
      "resources": ("station", "rewards")},
     {"id": "wingbits", "name": "Wingbits", "category": "depin",
      "env": ("NEXUS_WINGBITS_API_URL",),
@@ -72,12 +116,24 @@ PROVIDERS: tuple[dict[str, Any], ...] = (
      "resources": ("receiver", "coverage", "rewards")},
     {"id": "akash", "name": "Akash", "category": "compute",
      "env": ("NEXUS_AKASH_API_URL",),
-     "capabilities": ["provider_read", "deployment_read", "billing_read"],
-     "resources": ("provider", "deployment", "billing")},
+     "default_base_url": "https://console-api.akash.network",
+     "health_path": "v1/providers",
+     "resource_paths": {"provider": "v1/providers"},
+     "contract_source": "https://akash.network/docs/api-documentation/rest-api/",
+     "contract_state": "official_public_read_only_network_data_api_documented",
+     "protocol": "rest_get",
+     "capabilities": ["provider_read", "gpu_availability_read"],
+     "resources": ("provider",)},
     {"id": "nosana", "name": "Nosana", "category": "compute",
-     "env": ("NEXUS_NOSANA_API_URL",),
-     "capabilities": ["node_read", "job_read", "rewards_read"],
-     "resources": ("node", "job", "rewards")},
+     "env": ("NEXUS_NOSANA_API_URL", "NEXUS_NOSANA_API_TOKEN"),
+     "default_base_url": "https://api.nosana.com",
+     "health_path": "jobs/count",
+     "resource_paths": {"job": "jobs/count"},
+     "contract_source": "https://learn.nosana.com/api/intro.html",
+     "contract_state": "official_api_documented",
+     "protocol": "rest_get",
+     "capabilities": ["job_read", "network_stats_read"],
+     "resources": ("job",)},
 )
 _PROVIDER_BY_ID = {item["id"]: item for item in PROVIDERS}
 
@@ -124,12 +180,24 @@ def _host_allowlist(item: dict[str, Any], source: Mapping[str, str]) -> set[str]
     }
 
 
+def _required_env(item: dict[str, Any]) -> tuple[str, ...]:
+    required = list(item.get("env", ()))
+    if item.get("default_base_url") and required:
+        required = [key for key in required if key != required[0]]
+    if item.get("auth_mode") == "basic":
+        return tuple(required)
+    return tuple(required)
+
+
 def _config(item: dict[str, Any], source: Mapping[str, str]) -> dict[str, Any]:
-    missing = [key for key in item["env"] if not str(source.get(key, "")).strip()]
+    missing = [key for key in _required_env(item) if not str(source.get(key, "")).strip()]
     if missing:
         raise ConnectorError("connector_not_configured")
 
-    raw_url = str(source[item["env"][0]]).strip()
+    url_env = item["env"][0] if item.get("env") and item["env"][0].endswith("_API_URL") else None
+    raw_url = str(source.get(url_env, "") if url_env else "").strip() or str(item.get("default_base_url", "")).strip()
+    if not raw_url:
+        raise ConnectorError("connector_not_configured")
     if len(raw_url) > 500:
         raise ConnectorError("connector_url_too_long")
     try:
@@ -157,27 +225,56 @@ def _config(item: dict[str, Any], source: Mapping[str, str]) -> dict[str, Any]:
             raise ConnectorError("connector_host_not_allowlisted")
 
     suffix = item["id"].upper()
-    token_env = next((key for key in item["env"] if key.endswith("_API_TOKEN")), None)
+    token_env = item.get("token_env") or next(
+        (key for key in item.get("env", ()) if key.endswith("_API_TOKEN")), None
+    )
+    if token_env is None:
+        token_env = item.get("optional_token_env")
     token = str(source.get(token_env, "")).strip() if token_env else ""
-    header_name = str(source.get(f"NEXUS_{suffix}_API_TOKEN_HEADER", "Authorization")).strip()
-    if header_name.casefold() not in {"authorization", "x-api-key", "api-key"}:
-        raise ConnectorError("unsupported_connector_auth_header")
-    auth_scheme = str(source.get(f"NEXUS_{suffix}_API_AUTH_SCHEME", "Bearer")).strip()
-    if token and (not auth_scheme or len(auth_scheme) > 24 or any(ord(c) < 33 for c in auth_scheme)):
-        raise ConnectorError("invalid_connector_auth_scheme")
+    auth_mode = item.get("auth_mode", "token")
+    auth_value = None
+    if auth_mode == "basic":
+        username_env = item["env"][1]
+        password_env = item["env"][2]
+        username = str(source.get(username_env, "")).strip()
+        password = str(source.get(password_env, "")).strip()
+        if not username or not password:
+            raise ConnectorError("connector_not_configured")
+        auth_value = "Basic " + base64.b64encode(
+            f"{username}:{password}".encode("utf-8")
+        ).decode("ascii")
+    elif token:
+        header_name = str(source.get(f"NEXUS_{suffix}_API_TOKEN_HEADER", "Authorization")).strip()
+        if header_name.casefold() not in {"authorization", "x-api-key", "api-key"}:
+            raise ConnectorError("unsupported_connector_auth_header")
+        auth_scheme = str(source.get(f"NEXUS_{suffix}_API_AUTH_SCHEME", "Bearer")).strip()
+        if not auth_scheme or len(auth_scheme) > 24 or any(ord(c) < 33 for c in auth_scheme):
+            raise ConnectorError("invalid_connector_auth_scheme")
+        auth_value = f"{auth_scheme} {token}"
+        if header_name.casefold() != "authorization":
+            auth_value = token
 
     base_path = parts.path.rstrip("/")
     base_url = urlunsplit((parts.scheme, parts.netloc, base_path, "", "")).rstrip("/")
+    auth_fingerprint = auth_value or ""
+    if auth_mode == "basic":
+        auth_fingerprint = "|".join(
+            str(source.get(key, "")) for key in item["env"][1:3]
+        )
     fingerprint = sha256(
-        (raw_url + "|" + token + "|" + ",".join(sorted(_host_allowlist(item, source)))).encode("utf-8")
+        (raw_url + "|" + auth_fingerprint + "|" + ",".join(sorted(_host_allowlist(item, source)))).encode("utf-8")
     ).hexdigest()
     return {
         "base_url": base_url,
         "host": normalized_host,
         "local": local,
         "token": token or None,
-        "auth_header": header_name,
-        "auth_scheme": auth_scheme,
+        "auth_mode": auth_mode,
+        "auth_value": auth_value,
+        "auth_header": (
+            "Authorization" if auth_mode == "basic"
+            else str(source.get(f"NEXUS_{suffix}_API_TOKEN_HEADER", "Authorization")).strip()
+        ),
         "fingerprint": fingerprint,
     }
 
@@ -206,6 +303,11 @@ def _resource_path(item: dict[str, Any], resource: str, source: Mapping[str, str
     env_name = f"NEXUS_{suffix}_{resource_key}_PATH"
     raw = str(source.get(env_name, "")).strip()
     if not raw:
+        if resource == "health":
+            raw = str(item.get("health_path", "")).strip()
+        else:
+            raw = str(item.get("resource_paths", {}).get(resource, "")).strip()
+    if not raw:
         raise ConnectorError("connector_resource_path_not_configured")
     return _normalize_path(raw)
 
@@ -223,10 +325,31 @@ def _request_json(
     config = _config(item, source)
     relative_path = _resource_path(item, resource, source)
     url = f"{config['base_url']}/{relative_path}"
+    query = item.get("health_query", {}) if resource == "health" else item.get("resource_queries", {}).get(resource, {})
+    if query:
+        url += "?" + urlencode(query)
     headers = {"Accept": "application/json", "User-Agent": "NEXUS-MASTER-readonly/1"}
-    if config["token"]:
-        headers[config["auth_header"]] = f"{config['auth_scheme']} {config['token']}"
-    request = Request(url, headers=headers, method="GET")
+    if config.get("auth_value"):
+        headers[config["auth_header"]] = config["auth_value"]
+    protocol = item.get("protocol", "rest_get")
+    if protocol == "json_rpc_post":
+        method = (
+            item.get("health_rpc_method") if resource == "health"
+            else item.get("resource_rpc_methods", {}).get(resource)
+        )
+        allowed_methods = {
+            value for value in [item.get("health_rpc_method"), *item.get("resource_rpc_methods", {}).values()]
+            if isinstance(value, str)
+        }
+        if not method or method not in allowed_methods:
+            raise ConnectorError("unsupported_read_only_rpc_method")
+        payload = json.dumps({"jsonrpc": "2.0", "method": method, "params": [], "id": 1}).encode("utf-8")
+        headers["Content-Type"] = "application/json"
+        request = Request(url, data=payload, headers=headers, method="POST")
+    elif protocol == "rest_get":
+        request = Request(url, headers=headers, method="GET")
+    else:
+        raise ConnectorError("unsupported_connector_protocol")
     try:
         with _transport_open(request, CONNECTOR_TIMEOUT_SECONDS) as response:
             raw = response.read(MAX_RESPONSE_BYTES + 1)
@@ -270,8 +393,12 @@ def connector_status(env: dict[str, str] | None = None) -> list[dict[str, Any]]:
     source = os.environ if env is None else env
     rows = []
     for item in PROVIDERS:
-        configured = [key for key in item["env"] if str(source.get(key, "")).strip()]
-        ready = len(configured) == len(item["env"])
+        configured = [key for key in item.get("env", ()) if str(source.get(key, "")).strip()]
+        required = _required_env(item)
+        ready = all(str(source.get(key, "")).strip() for key in required)
+        default_url_used = bool(item.get("default_base_url") and (
+            not item.get("env") or not str(source.get(item["env"][0], "")).strip()
+        ))
         live: dict[str, Any] | None = None
         if env is None and ready:
             try:
@@ -299,7 +426,11 @@ def connector_status(env: dict[str, str] | None = None) -> list[dict[str, Any]]:
                 else "not_configured"
             ),
             "configured_fields": len(configured),
-            "required_fields": len(item["env"]),
+            "required_fields": len(required),
+            "default_url_used": default_url_used,
+            "protocol": item.get("protocol", "rest_get"),
+            "contract_state": item.get("contract_state", "operator_configured_contract_pending"),
+            "contract_source": item.get("contract_source"),
             "capabilities": list(item["capabilities"]),
             "resources": list(item["resources"]),
             "adapter_registered": True,
@@ -310,7 +441,7 @@ def connector_status(env: dict[str, str] | None = None) -> list[dict[str, Any]]:
             "last_http_status": live.get("http_status") if live else None,
             "verified_resource": live.get("resource") if live else None,
             "writes_enabled": False,
-            "missing_configuration": [key for key in item["env"] if key not in configured],
+            "missing_configuration": [key for key in required if not str(source.get(key, "")).strip()],
         })
     return rows
 
