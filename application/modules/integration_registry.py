@@ -8,7 +8,8 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 import base64
-from hashlib import sha256
+import hmac
+import secrets
 import ipaddress
 import json
 import os
@@ -28,6 +29,7 @@ MAX_RESPONSE_BYTES = 1_000_000
 CONNECTOR_TIMEOUT_SECONDS = 12.0
 _VERIFICATION_LOCK = threading.Lock()
 _LIVE_VERIFICATION: dict[str, dict[str, Any]] = {}
+_FINGERPRINT_KEY = secrets.token_bytes(32)
 
 
 PROVIDERS: tuple[dict[str, Any], ...] = (
@@ -290,8 +292,14 @@ def _config(item: dict[str, Any], source: Mapping[str, str]) -> dict[str, Any]:
         auth_fingerprint = "|".join(
             str(source.get(key, "")) for key in item["env"][1:3]
         )
-    fingerprint = sha256(
-        (raw_url + "|" + auth_fingerprint + "|" + ",".join(sorted(allowed_hosts))).encode("utf-8")
+    # This is a keyed, process-local configuration fingerprint, not password
+    # storage. HMAC prevents a leaked verification record from enabling offline
+    # guessing of API tokens or Basic-auth credentials.
+    fingerprint_payload = (
+        raw_url + "|" + auth_fingerprint + "|" + ",".join(sorted(allowed_hosts))
+    ).encode("utf-8")
+    fingerprint = hmac.new(
+        _FINGERPRINT_KEY, fingerprint_payload, digestmod="sha256"
     ).hexdigest()
     return {
         "base_url": base_url,
