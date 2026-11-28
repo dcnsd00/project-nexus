@@ -10,7 +10,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from hashlib import sha256
+import hmac
+import secrets
 import ipaddress
 import json
 import os
@@ -28,6 +29,7 @@ LIVE_VERIFICATION_MAX_AGE_SECONDS = 900
 _REQUEST_SLOT = threading.BoundedSemaphore(1)
 _LIVE_VERIFICATION_LOCK = threading.Lock()
 _LIVE_VERIFICATION: dict[str, Any] = {}
+_FINGERPRINT_KEY = secrets.token_bytes(32)
 
 
 class AIProviderError(RuntimeError):
@@ -273,7 +275,11 @@ def _safe_config(env: Mapping[str, str]) -> ProviderConfig | None:
 def _provider_fingerprint(config: ProviderConfig) -> str:
     """Hash provider identity and credentials without exposing the credential."""
     value = "|".join((config.provider, config.model, config.base_url, config.api_key or ""))
-    return sha256(value.encode("utf-8")).hexdigest()
+    # The fingerprint is process-local verification state, not password storage.
+    # A keyed digest prevents offline guessing if this state is ever exposed.
+    return hmac.new(
+        _FINGERPRINT_KEY, value.encode("utf-8"), digestmod="sha256"
+    ).hexdigest()
 
 
 def provider_status(env: Mapping[str, str] | None = None) -> dict[str, Any]:
