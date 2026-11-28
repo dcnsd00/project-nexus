@@ -172,3 +172,93 @@ def test_report_normalizes_documented_nested_devices_and_pool_totals():
     assert "must-drop" not in encoded
     assert "SerialNumber" not in encoded
     assert "ApiKey" not in encoded
+
+
+def test_rainbowminer_minerdata_and_poolsdata_multipart_uploads(monkeypatch, tmp_path):
+    db, path = _test_data_path(tmp_path)
+    monkeypatch.setattr(telemetry, "data_path", path)
+    monkeypatch.setenv("NEXUS_RAINBOWMINER_REPORT_KEY", "extra-report-secret")
+
+    minerdata = {
+        "Miners": [{
+            "Name": "miner-a",
+            "Version": "1.2.3",
+            "Algorithm": "KawPow",
+            "DeviceName": "GPU#0",
+            "DeviceModel": "NVIDIA GTX 1650",
+            "HashRate": 12.5,
+            "PowerDraw": 75,
+            "OCProfile": "profile-1",
+            "Path": "private/miner.exe",
+        }],
+        "OCprofiles": {"profile-1": {"private_setting": "must-not-persist"}},
+        "CPU": "Test CPU Model",
+    }
+    poolsdata = [
+        {
+            "Name": "pool.example",
+            "Algorithm": "SHA256",
+            "CoinSymbol": "BTC",
+            "Price": 100.0,
+            "StablePrice": 95.0,
+            "PenaltyFactor": 1.02,
+            "ErrorRatio": 0.01,
+            "ApiKey": "must-not-persist",
+        }
+    ]
+
+    with TestClient(app, base_url="http://127.0.0.1",
+                    client=("127.0.0.1", 51240)) as client:
+        miner_response = client.post(
+            "/api/mining/rainbowminer/report",
+            data={"user": "extra-report-secret", "worker": "rig-extra", "version": "1.0"},
+            files={"minerdata": ("minerdata.json", json.dumps(minerdata).encode(), "application/json")},
+        )
+        pool_response = client.post(
+            "/api/mining/rainbowminer/report",
+            data={"user": "extra-report-secret", "worker": "rig-extra", "version": "1.0"},
+            files={"poolsdata": ("poolsdata.json", json.dumps(poolsdata).encode(), "application/json")},
+        )
+        latest_miners = client.get("/api/mining/rainbowminer/miners/latest?worker=rig-extra")
+        latest_pools = client.get("/api/mining/rainbowminer/pools/latest?worker=rig-extra")
+        status = client.get("/api/mining/rainbowminer/status")
+
+    assert miner_response.status_code == 200, miner_response.text
+    assert pool_response.status_code == 200, pool_response.text
+    assert miner_response.json()["payload_type"] == "minerdata"
+    assert pool_response.json()["payload_type"] == "poolsdata"
+    assert miner_response.json()["Status"] == "OK"
+    assert miner_response.json()["Actions"] == []
+    assert latest_miners.status_code == 200
+    assert latest_pools.status_code == 200
+    miner_payload = latest_miners.json()["payload"]
+    pool_payload = latest_pools.json()["payload"]
+    assert miner_payload["miners"][0]["HashRate"] == 12.5
+    assert miner_payload["cpu_model"] == "Test CPU Model"
+    assert "OCProfile" not in miner_payload["miners"][0]
+    assert pool_payload["pools"][0]["Price"] == 100.0
+    assert pool_payload["pools"][0]["StablePrice"] == 95.0
+    assert status.json()["extra_reports_stored"] == {"minerdata": 1, "poolsdata": 1}
+
+    stored = db.read_text() if False else None
+    import sqlite3
+    with sqlite3.connect(str(db)) as connection:
+        contents = connection.execute(
+            "SELECT payload_json FROM rainbowminer_extra_reports"
+        ).fetchall()
+    encoded = json.dumps([row[0] for row in contents])
+    assert "extra-report-secret" not in encoded
+    assert "private/miner.exe" not in encoded
+    assert "must-not-persist" not in encoded
+    assert "ApiKey" not in encoded
+
+
+def test_rainbowminer_extra_upload_rejects_invalid_json_and_oversized_files():
+    with pytest.raises(telemetry.RainbowMinerReportError, match="invalid_extra_payload_json"):
+        telemetry.normalize_extra_payload("poolsdata", b"not-json", worker="rig")
+    with pytest.raises(telemetry.RainbowMinerReportError, match="extra_payload_too_large"):
+        telemetry.normalize_extra_payload(
+            "minerdata",
+            b"x" * (telemetry.MAX_EXTRA_PAYLOAD_BYTES + 1),
+            worker="rig",
+        )
