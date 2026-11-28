@@ -1,10 +1,10 @@
-"""Opt-in, text-only AI provider adapter for NEXUS workers.
+"""Opt-in text-only provider adapters for NEXUS specialist workers.
 
-Supported providers:
-- Ollama's native local /api/chat endpoint.
-- OpenAI-compatible /v1/chat/completions endpoints, local by default.
-Remote providers require HTTPS, an explicit remote-enable flag, a hostname
-allowlist, and an API key. No tools/function calls are sent to the model.
+Native protocols: OpenAI Chat Completions, Anthropic Messages, Gemini
+generateContent and Ollama /api/chat. OpenAI-compatible endpoints also support
+Groq, OpenRouter, Mistral, Together, DeepSeek, Fireworks and Cerebras.
+Remote calls require explicit enablement, HTTPS, exact hostname allowlisting
+and an API key. No tools/function calls are sent to the model.
 """
 from __future__ import annotations
 
@@ -242,6 +242,7 @@ def provider_status(env: Mapping[str, str] | None = None) -> dict[str, Any]:
         return {
             "provider_status": "misconfigured",
             "provider": str(source.get("NEXUS_AI_PROVIDER", "disabled")).strip().casefold(),
+            "supported_providers": ["openai", "anthropic", "gemini", "ollama", "openai_compatible", "groq", "openrouter", "mistral", "together", "deepseek", "fireworks", "cerebras"],
             "model": None,
             "endpoint": None,
             "remote": False,
