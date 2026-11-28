@@ -318,6 +318,9 @@ def connector_status(env: dict[str, str] | None = None) -> list[dict[str, Any]]:
 def probe_connector(provider_id: str, env: Mapping[str, str] | None = None) -> dict[str, Any]:
     source = os.environ if env is None else env
     item = _provider(provider_id)
+    if env is None:
+        with _VERIFICATION_LOCK:
+            _LIVE_VERIFICATION.pop(item["id"], None)
     payload, status_code, content_type, observed_at, path = _request_json(item, "health", source)
     if isinstance(payload, dict):
         data_summary = {"type": "object", "keys": sorted(str(k) for k in payload.keys())[:40]}
